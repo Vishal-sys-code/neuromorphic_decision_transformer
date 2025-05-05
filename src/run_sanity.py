@@ -16,7 +16,8 @@ def run_random(env_name, episodes=5):
         obs, done, ep_ret = env.reset(), False, 0
         while not done:
             action = env.action_space.sample()
-            obs, r, done, _ = env.step(action)
+            obs, r, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
             ep_ret += r
         returns.append(ep_ret)
     print(f"{env_name:15s} random avg return: {np.mean(returns):.2f}")
