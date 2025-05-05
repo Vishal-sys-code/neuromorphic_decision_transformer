@@ -1,14 +1,19 @@
 import os
+import sys
 import torch
 import gym
 import numpy as np
+
+# Add decision transformer to path
+dt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "external/decision-transformer/gym/decision_transformer")
+if dt_path not in sys.path:
+    sys.path.append(dt_path)
 
 from config import ENVIRONMENTS, DEVICE, epochs, steps_per_epoch, lr, dt_config
 from utils.trajectory_buffer import TrajectoryBuffer
 from utils.helpers import compute_returns_to_go, simple_logger, save_checkpoint
 
-# adjust import path if you're using a submodule
-from external.decision_transformer.models.decision_transformer import DecisionTransformer
+from models.decision_transformer import DecisionTransformer
 
 def train_cartpole():
     os.makedirs("checkpoints", exist_ok=True)
