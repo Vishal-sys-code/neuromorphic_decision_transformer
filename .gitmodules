@@ -1,0 +1,3 @@
+[submodule "external/decision-transformer"]
+	path = external/decision-transformer
+	url = https://github.com/kzl/decision-transformer.git
