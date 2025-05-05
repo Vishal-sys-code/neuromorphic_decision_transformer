@@ -1,5 +1,3 @@
-# src/train_baseline.py
-
 import os
 import torch
 import gym
@@ -9,7 +7,7 @@ from config import ENVIRONMENTS, DEVICE, epochs, steps_per_epoch, lr, dt_config
 from utils.trajectory_buffer import TrajectoryBuffer
 from utils.helpers import compute_returns_to_go, simple_logger, save_checkpoint
 
-# adjust import path if you’re using a submodule
+# adjust import path if you're using a submodule
 from external.decision_transformer.models.decision_transformer import DecisionTransformer
 
 def train_cartpole():
