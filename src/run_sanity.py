@@ -1,0 +1,26 @@
+import random
+import numpy as np
+import torch
+import gym
+from config import ENVIRONMENTS, SEED
+
+# setup seeds for reproducibility
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
+
+def run_random(env_name, episodes=5):
+    env = gym.make(env_name)
+    returns = []
+    for _ in range(episodes):
+        obs, done, ep_ret = env.reset(), False, 0
+        while not done:
+            action = env.action_space.sample()
+            obs, r, done, _ = env.step(action)
+            ep_ret += r
+        returns.append(ep_ret)
+    print(f"{env_name:15s} random avg return: {np.mean(returns):.2f}")
+
+if __name__ == "__main__":
+    for e in ENVIRONMENTS:
+        run_random(e)
