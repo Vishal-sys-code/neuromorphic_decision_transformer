@@ -7,7 +7,7 @@ from src.utils.trajectory_buffer import TrajectoryBuffer
 from src.utils.helpers import compute_returns_to_go # type: ignore
 
 def test_trajectory_buffer_accumulation():
-    buf = TrajectoryBuffer()
+    buf = TrajectoryBuffer(max_len=100, state_dim=3, action_dim=1)
     # add 5 entries with distinct actions and rewards
     for i in range(5):
         state = np.full((3,), i)     # dummy 3‑dim state
