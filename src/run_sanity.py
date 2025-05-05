@@ -4,6 +4,10 @@ import torch
 import gym
 from config import ENVIRONMENTS, SEED
 
+# Monkey patch np.bool8 for gym compatibility
+if not hasattr(np, 'bool8'):
+    np.bool8 = np.bool_
+
 # setup seeds for reproducibility
 torch.manual_seed(SEED)
 np.random.seed(SEED)

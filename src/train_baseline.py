@@ -8,6 +8,10 @@ import torch
 import gym
 import numpy as np
 
+# Monkey patch np.bool8 for gym compatibility
+if not hasattr(np, 'bool8'):
+    np.bool8 = np.bool_
+
 # project_root = SpikingMindRL/
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 
@@ -58,14 +62,16 @@ def train_cartpole():
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
 
     for epoch in range(epochs):
-        buf = TrajectoryBuffer()
-        obs, total_ret = env.reset(), 0
+        buf = TrajectoryBuffer(max_len=steps_per_epoch, state_dim=dt_conf["state_dim"], action_dim=dt_conf["act_dim"])
+        obs, _ = env.reset()
+        total_ret = 0
         for t in range(steps_per_epoch):
             # random policy placeholder
             action = env.action_space.sample()
-            next_obs, r, done, _ = env.step(action)
+            next_obs, r, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
             buf.add(obs, action, r)
-            obs = next_obs if not done else env.reset()
+            obs = next_obs if not done else env.reset()[0]
             total_ret += r
 
         traj = buf.get_trajectory()
