@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from src.utils.trajectory_buffer import TrajectoryBuffer
-from src.utils.helpers import compute_returns_to_go
+from src.utils.helpers import compute_returns_to_go # type: ignore
 
 def test_trajectory_buffer_accumulation():
     buf = TrajectoryBuffer()
