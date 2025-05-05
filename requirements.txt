@@ -1,0 +1,6 @@
+torch
+gym
+transformers
+norse
+bindsnet
+pytest
