@@ -1,24 +1,21 @@
 import math
 import torch.nn as nn
 import torch
-from src.models.snn_lif import LIFNeuronLayer  # your LIF wrapper
-from .spiking_layers import rate_encode
+from .snn_lif import LIFNeuronLayer
 
 def rate_encode(x: torch.Tensor, time_window: int, x_min: float = 0.0, x_max: float = 1.0):
     """
-    Deterministic rate coding: 
-    For each element in x (normalized to [0,1]), fire spikes at times t < ceil(p * T).
+    Differentiable rate coding approximation:
+    For each element in x (normalized to [0,1]), approximate spike firing probability over time window using sigmoid.
     Returns: Tensor of shape [T, *x.shape], dtype float.
     """
     # normalize to [0,1]
     p = (x - x_min) / (x_max - x_min)
     p = p.clamp(0.0, 1.0)
-    # number of time steps to fire
-    k = torch.ceil(p * time_window).long()
-    # create time index [T, 1, 1, ...]
     shape = [time_window] + [1] * x.dim()
-    t_idx = torch.arange(time_window, device=x.device).view(*shape)
-    spikes = (t_idx < k.unsqueeze(0)).to(x.dtype)
+    t_idx = torch.arange(time_window, device=x.device).view(*shape).float()
+    # Use sigmoid to approximate spike firing probability
+    spikes = torch.sigmoid(10 * (p.unsqueeze(0) * time_window - t_idx))
     return spikes
 
 class SpikingSelfAttention(nn.Module):

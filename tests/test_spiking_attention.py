@@ -1,5 +1,7 @@
 import torch
-from models.spiking_layers import SpikingSelfAttention
+from src.models.spiking_layers import SpikingSelfAttention
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def test_spiking_self_attention_backprop():
     torch.manual_seed(0)
