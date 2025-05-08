@@ -1,3 +1,7 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
 import time
 import torch
 import torch.nn as nn
