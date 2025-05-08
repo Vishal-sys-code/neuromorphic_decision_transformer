@@ -1,3 +1,8 @@
+"""
+Author: Vishal Pandey [X: its_vayishu]
+Email: pandeyvishal.mlprof@gmail.com
+"""
+
 import torch.nn as nn
 from external.decision_transformer.gym.decision_transformer.models.decision_transformer import DecisionTransformer
 from src.models.spiking_gpt2_attention import SpikingGPT2Attention
