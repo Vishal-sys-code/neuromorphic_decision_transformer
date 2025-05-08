@@ -1,3 +1,8 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
+
 """Utils package for SpikingMindRL."""
 
 from .trajectory_buffer import TrajectoryBuffer
