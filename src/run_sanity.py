@@ -1,5 +1,9 @@
 import random
 import numpy as np
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
 import torch
 import gym
 from config import ENVIRONMENTS, SEED
