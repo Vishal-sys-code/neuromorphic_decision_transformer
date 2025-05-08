@@ -13,7 +13,7 @@ DEVICE = "cuda" if __import__("torch").cuda.is_available() else "cpu"
 
 # Baseline training hyperparameters
 epochs = 50
-steps_per_epoch = 1000
+steps_per_epoch = 5000
 lr = 1e-4
 
 # Decision Transformer settings (will override state_dim & act_dim per env)
@@ -34,3 +34,9 @@ steps_per_epoch= 5000    # env steps per epoch
 epochs         = 20      # number of epochs
 gamma          = 0.99    # discount for return-to-go
 batch_size     = 1       # online, so batch of 1
+
+# Offline data collection
+offline_steps = 20000   # total random env steps to collect
+# Offline DT training
+batch_size   = 64
+dt_epochs    = 20
