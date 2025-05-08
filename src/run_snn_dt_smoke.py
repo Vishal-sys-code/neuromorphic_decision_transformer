@@ -1,3 +1,7 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
 import torch, os
 from src.models.snn_dt import SNNDecisionTransformer
 from src.utils.trajectory_buffer import TrajectoryBuffer
