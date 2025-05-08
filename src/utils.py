@@ -1,3 +1,7 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
 import numpy as np
 
 def compute_returns_to_go(rewards, gamma=0.99):
