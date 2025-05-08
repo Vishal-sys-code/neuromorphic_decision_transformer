@@ -1,3 +1,7 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
 ENVIRONMENTS = [
     "CartPole-v1",
     "MountainCar-v0",
