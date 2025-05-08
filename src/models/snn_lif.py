@@ -1,3 +1,8 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
+
 import torch
 import torch.nn as nn
 import norse.torch as norse
