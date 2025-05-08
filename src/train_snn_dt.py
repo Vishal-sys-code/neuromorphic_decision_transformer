@@ -2,36 +2,86 @@
 Author: Vishal Pandey
 Email: pandeyvishal.mlprof@gmail.com
 
-REINFORCE‐style policy-gradient on Spiking Decision Transformer
+Offline Decision Transformer training on a Gym environment.
+Collect trajectories first, then train in batch (return-conditioned).
 """
 import os
-os.environ["GYM_DISABLE_ENV_CHECKER"] = "true"
 import random
-import numpy as np
+import pickle
 
-if not hasattr(np, "bool8"):
-    np.bool8 = np.bool_
-
-import src.patch_numpy_bool  # must before gym import
 import gym
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.distributions import Categorical
+from torch.utils.data import DataLoader, Dataset
+if not hasattr(np, "bool8"):
+    np.bool8 = np.bool_
 
-# ensure top-level src and external in PYTHONPATH
+os.environ["GYM_DISABLE_ENV_CHECKER"] = "true"
+
+# ensure our packages are on PYTHONPATH
 import src.setup_paths
 
 from src.config import (
     DEVICE, SEED,
-    steps_per_epoch, epochs, gamma,
-    max_length, time_window,
-    lr, dt_config,
+    offline_steps,   # total env steps to collect
+    batch_size,
+    dt_epochs,       # training epochs on the offline dataset
+    gamma,
+    max_length,
+    lr,
+    dt_config,
 )
 from src.utils.trajectory_buffer import TrajectoryBuffer
 from src.utils.helpers import compute_returns_to_go, simple_logger, save_checkpoint
-from src.models.snn_dt_patch import SNNDecisionTransformer
+from src.models.snn_dt_patch import SNNDecisionTransformer  # or DecisionTransformer
 
+# 1) Define an offline dataset of DT sequences
+class TrajectoryDataset(Dataset):
+    def __init__(self, trajectories, max_length):
+        """
+        trajectories: list of dicts with 'states', 'actions', 'rewards'
+        """
+        self.seqs = []
+        for traj in trajectories:
+            states = traj["states"]
+            actions = traj["actions"].reshape(-1,1)
+            returns = compute_returns_to_go(traj["rewards"], gamma=gamma).reshape(-1,1)
+            T = len(states)
+            timesteps = np.arange(T).reshape(-1,1)
+            # pad up to max_length on the left
+            for i in range(1, T+1):
+                start = max(0, i - max_length)
+                self.seqs.append({
+                    "states":    states[start:i],
+                    "actions":   actions[start:i],
+                    "returns":   returns[start:i],
+                    "timesteps": timesteps[start:i],
+                })
+
+    def __len__(self):
+        return len(self.seqs)
+
+    def __getitem__(self, idx):
+        s = self.seqs[idx]
+        # pad each field to max_length
+        pad_len = max_length - len(s["states"])
+        pad_s = np.zeros((pad_len, s["states"].shape[1]), dtype=np.float32)
+        pad_a = np.zeros((pad_len, s["actions"].shape[1]), dtype=np.int64)
+        pad_r = np.zeros((pad_len, 1), dtype=np.float32)
+        pad_t = np.zeros((pad_len, 1), dtype=np.int64)
+
+        states = np.vstack([pad_s, s["states"]])
+        actions= np.vstack([pad_a, s["actions"]])
+        returns= np.vstack([pad_r, s["returns"]])
+        timesteps = np.vstack([pad_t, s["timesteps"]])
+
+        return {
+            "states": torch.tensor(states, dtype=torch.float32),
+            "actions": torch.tensor(actions, dtype=torch.long),
+            "returns_to_go": torch.tensor(returns, dtype=torch.float32),
+            "timesteps": torch.tensor(timesteps.squeeze(-1), dtype=torch.long),
+        }
 
 def set_seed(seed):
     random.seed(seed)
@@ -40,125 +90,82 @@ def set_seed(seed):
     if DEVICE == "cuda":
         torch.cuda.manual_seed_all(seed)
 
+def collect_trajectories(env_name="CartPole-v1"):
+    """Collect offline_steps of data with a random policy."""
+    env = gym.make(env_name)
+    trajectories = []
+    buf = TrajectoryBuffer(max_length, env.observation_space.shape[0], env.action_space.n)
+    steps = 0
+    obs = env.reset()[0]
+    while steps < offline_steps:
+        action = env.action_space.sample()
+        next_obs, reward, terminated, truncated, _ = env.step(action)
+        done = terminated or truncated
+        buf.add(np.array(obs, dtype=np.float32), action, reward)
+        obs = next_obs if not done else env.reset()[0]
+        steps += 1
+        if done:
+            trajectories.append(buf.get_trajectory())
+            buf.reset()
+    return trajectories
 
-def train_snn_dt(env_name="CartPole-v1"):
-    # Setup
+def train_offline_dt(env_name="CartPole-v1"):
     set_seed(SEED)
     os.makedirs("checkpoints", exist_ok=True)
-    env = gym.make(env_name)
 
-    # Build model
+    # 1. Collect & save
+    print("Collecting trajectories...")
+    trajectories = collect_trajectories(env_name)
+    with open("offline_data.pkl","wb") as f:
+        pickle.dump(trajectories, f)
+
+    # 2. Build dataset & loader
+    dataset = TrajectoryDataset(trajectories, max_length)
+    loader  = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    # 3. Model & optimizer
     dt_conf = dt_config.copy()
     dt_conf.update(
-        state_dim=env.observation_space.shape[0],
-        act_dim=env.action_space.n,
+        state_dim=dataset[0]["states"].shape[-1],
+        act_dim=int(dataset[0]["actions"].max().item())+1,
         max_length=max_length,
-        time_window=time_window,
     )
     model = SNNDecisionTransformer(**dt_conf).to(DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    loss_fn = nn.CrossEntropyLoss()
 
-    for epoch in range(epochs):
-        # Storage for PG
-        buf = TrajectoryBuffer(max_length, dt_conf['state_dim'], dt_conf['act_dim'])
-        log_probs = []
-        rewards   = []
-        ep_returns = []
-        ep_ret = 0
+    # 4. Offline training epochs
+    for epoch in range(dt_epochs):
+        total_loss = 0.0
+        for batch in loader:
+            states = batch["states"].to(DEVICE)           # [B, S, state_dim]
+            actions= batch["actions"].to(DEVICE)          # [B, S, 1]
+            returns= batch["returns_to_go"].to(DEVICE)    # [B, S, 1]
+            times  = batch["timesteps"].to(DEVICE)        # [B, S]
 
-        obs = env.reset()[0]
+            # one-hot actions for input embedding
+            actions_in = torch.nn.functional.one_hot(
+                actions.squeeze(-1), num_classes=dt_conf["act_dim"]
+            ).to(torch.float32)
 
-        # Collect steps
-        for t in range(steps_per_epoch):
-            # 1) Build history window
-            traj = buf.get_trajectory()
-            states_np  = traj["states"]
-            actions_np = traj["actions"]
-            rewards_np = traj["rewards"]
+            # forward: predict next actions
+            _, action_preds, _ = model(states, actions_in, None, returns, times)
+            # compute CE loss on all positions
+            logits = action_preds.view(-1, dt_conf["act_dim"])
+            targets= actions.view(-1)
+            loss = loss_fn(logits, targets)
 
-            L = len(states_np)
-            start = max(0, L - max_length)
-            s_hist = states_np[start:]
-            a_hist = actions_np[start:].reshape(-1,1)
-            r_hist = rewards_np[start:]
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-            # returns-to-go for conditioning (optional in PG)
-            rtg = compute_returns_to_go(r_hist, gamma=gamma)
+            total_loss += loss.item()
 
-            # timesteps array (clamped)
-            max_ep_len = dt_conf.get("max_ep_len", 4096)
-            timesteps = np.arange(start, start + len(s_hist))
-            timesteps = np.clip(timesteps, 0, max_ep_len - 1)
+        avg_loss = total_loss / len(loader)
+        simple_logger({"epoch": epoch, "avg_offline_loss": avg_loss}, epoch)
+        save_checkpoint(model, optimizer, f"checkpoints/offline_dt_{env_name}_{epoch}.pt")
 
-            # to tensors
-            states_t = torch.tensor(s_hist, dtype=torch.float32, device=DEVICE).unsqueeze(0)
-            # one-hot previous actions (for autoregression)
-            if len(a_hist)>0:
-                actions_t_onehot = torch.nn.functional.one_hot(
-                    torch.tensor(a_hist, dtype=torch.long, device=DEVICE).squeeze(-1),
-                    num_classes=dt_conf['act_dim']
-                ).to(torch.float32).unsqueeze(0)
-            else:
-                # no history: all zeros
-                actions_t_onehot = torch.zeros((1, 0, dt_conf['act_dim']), device=DEVICE)
-            rtg_t   = torch.tensor(rtg.reshape(-1,1), dtype=torch.float32, device=DEVICE).unsqueeze(0)
-            tim_t   = torch.tensor(timesteps, dtype=torch.long, device=DEVICE).unsqueeze(0)
-
-            # 2) Infer action logits (we need gradients for log_prob later)
-            action_logits = model.get_action(
-                states_t, actions_t_onehot, None, rtg_t, tim_t
-            )  # shape [act_dim]
-
-            # 3) Sample action
-            probs = torch.softmax(action_logits, dim=-1)
-            dist  = Categorical(probs)
-            action = dist.sample().item()
-            log_probs.append(dist.log_prob(torch.tensor(action, device=DEVICE)))
-
-            # 4) Step env
-            next_obs, reward, terminated, truncated, _ = env.step(action)
-            done = terminated or truncated
-
-            buf.add(np.array(obs, dtype=np.float32), action, reward)
-            obs = next_obs if not done else env.reset()[0]
-            ep_ret += reward
-            rewards.append(reward)
-
-            if done:
-                ep_returns.append(ep_ret)
-                ep_ret = 0
-
-        # End of epoch: compute policy gradient update
-        # 1) Compute discounted returns G
-        G = compute_returns_to_go(np.array(rewards), gamma=gamma)
-        G = torch.tensor(G, dtype=torch.float32, device=DEVICE)
-
-        # 2) Stack log_probs
-        log_probs_t = torch.stack(log_probs)  # [N]
-
-        # 3) Optionally normalize returns to reduce variance
-        G = (G - G.mean()) / (G.std(unbiased=False) + 1e-8)
-
-        # 4) Policy loss
-        policy_loss = -(log_probs_t * G).mean()
-
-        # 5) Backprop & update
-        optimizer.zero_grad()
-        policy_loss.backward()
-        optimizer.step()
-
-        # Logging & checkpointing
-        avg_ret = float(np.mean(ep_returns)) if ep_returns else 0.0
-        simple_logger({
-            "epoch": epoch,
-            "avg_ep_return": avg_ret,
-            "policy_loss": policy_loss.item()
-        }, epoch)
-
-        save_checkpoint(model, optimizer, f"checkpoints/snn_dt_pg_{env_name}_{epoch}.pt")
-
-    print("✅ SNN-DT policy-gradient training complete.")
-
+    print("✅ Offline Decision Transformer training complete.")
 
 if __name__ == "__main__":
-    train_snn_dt()
+    train_offline_dt()
