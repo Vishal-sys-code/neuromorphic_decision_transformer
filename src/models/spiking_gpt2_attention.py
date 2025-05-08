@@ -1,3 +1,7 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
 import torch
 import torch.nn as nn
 from src.models.spiking_layers import SpikingSelfAttention
