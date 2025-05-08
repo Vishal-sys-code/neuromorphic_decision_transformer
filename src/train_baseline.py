@@ -45,7 +45,7 @@ from utils.trajectory_buffer import TrajectoryBuffer
 from utils.helpers import compute_returns_to_go, simple_logger, save_checkpoint
 
 # now this will succeed:
-from decision_transformer.models.decision_transformer import DecisionTransformer
+from external.decision_transformer.gym.decision_transformer.models.decision_transformer import DecisionTransformer
 
 # ────────────────────────────────────────────────────────────────────────────────
 # 3) Training code
