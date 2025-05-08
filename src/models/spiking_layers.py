@@ -1,3 +1,8 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
+
 import math
 import torch.nn as nn
 import torch
