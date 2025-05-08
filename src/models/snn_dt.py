@@ -7,7 +7,7 @@ import math
 import torch
 import torch.nn as nn
 from external.decision_transformer.gym.decision_transformer.models.decision_transformer import DecisionTransformer
-from external.decision_transformer.gym.decision_transformer.models.trajectory_gpt2 import Block as TransformerBlock
+from external.decision_transformer.gym.decision_transformer.models.trajectory_gpt2 import TransformerBlock as TransformerBlock
 from src.models.spiking_layers import SpikingSelfAttention
 
 class SpikingTransformerBlock(nn.Module):
@@ -32,8 +32,8 @@ class SpikingTransformerBlock(nn.Module):
         # Feed‑forward pass
         f = self.ff(self.ln2(x))           # [B, S, E]
         hidden_states = x + f              # residual
-        # Return tuple matching original Block.forward: (hidden_states, present, ...)
-        return (hidden_states, None)
+        # Return only the hidden_states tensor to match expected output
+        return hidden_states
 
 class SNNDecisionTransformer(DecisionTransformer):
     def __init__(self, *args, time_window: int = 10, **kwargs):
