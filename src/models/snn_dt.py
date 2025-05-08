@@ -1,3 +1,7 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
 import os, sys
 root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 ext = os.path.join(root, "external")
