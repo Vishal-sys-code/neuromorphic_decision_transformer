@@ -26,3 +26,11 @@ dt_config = {
     "n_head": 1,
     "n_inner": 256,
 }
+
+# === SNN-DT Training Hyperparameters ===
+time_window    = 5       # how many timesteps for your spiking attention
+max_length     = 20      # context window length for DT (<= your embedder max_length)
+steps_per_epoch= 5000    # env steps per epoch
+epochs         = 20      # number of epochs
+gamma          = 0.99    # discount for return-to-go
+batch_size     = 1       # online, so batch of 1
