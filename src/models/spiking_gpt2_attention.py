@@ -10,7 +10,7 @@ class SpikingGPT2Attention(nn.Module):
         """
         super().__init__()
         self.time_window = time_window
-        self.embed_dim = orig_attn.split_size
+        self.embed_dim = orig_attn.n_embd
         self.num_heads = orig_attn.n_head
 
         # your spike‑based MHA
@@ -32,4 +32,4 @@ class SpikingGPT2Attention(nn.Module):
         out = self.c_proj(out)
 
         # 3) GPT2Attention returns (attn_output, present); we don’t support caching so present=None
-        return out, None
+        return out
