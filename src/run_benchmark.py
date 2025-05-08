@@ -1,3 +1,8 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
+
 import os, sys
 current_dir = os.path.dirname(os.path.realpath(__file__))
 project_root = os.path.dirname(current_dir)
