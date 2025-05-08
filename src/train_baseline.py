@@ -1,3 +1,7 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
 # ────────────────────────────────────────────────────────────────────────────────
 # 1) Fix up PYTHONPATH so we can import decision_transformer from external/
 # ────────────────────────────────────────────────────────────────────────────────
