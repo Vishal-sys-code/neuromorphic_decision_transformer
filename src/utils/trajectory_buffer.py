@@ -1,3 +1,8 @@
+"""
+Author: Vishal Pandey
+Email: pandeyvishal.mlprof@gmail.com
+"""
+
 import numpy as np
 
 class TrajectoryBuffer:
