@@ -115,7 +115,7 @@ def evaluate_model(model, env_name, num_episodes=20):
     return avg_ret, avg_len
 
 def main():
-    envs = ["CartPole-v1", "MountainCar-v0", "LunarLander-v2"]
+    envs = ["CartPole-v1", "MountainCar-v0", "LunarLander-v2", "Acrobot-v1", "Pendulun-v1 (continuous)"]
     results = []
 
     for env_name in envs:

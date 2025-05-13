@@ -35,8 +35,14 @@ epochs         = 20      # number of epochs
 gamma          = 0.99    # discount for return-to-go
 batch_size     = 1       # online, so batch of 1
 
-# Offline data collection
-offline_steps = 20000   # total random env steps to collect
+# Offline data collection [Full Run]
+# offline_steps = 20000   # total random env steps to collect
+# Offline DT training
+# batch_size   = 64
+# dt_epochs    = 20
+
+# Offline data collection [Medium Run]
+offline_steps = 5000   # total random env steps to collect
 # Offline DT training
 batch_size   = 64
-dt_epochs    = 20
+dt_epochs    = 10
