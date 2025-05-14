@@ -1,5 +1,3 @@
-# scripts/collect_all_experts.py
-
 # 1) Patch NumPy for Gym compatibility
 import numpy as np
 if not hasattr(np, "bool8"):
@@ -12,6 +10,10 @@ import gym
 import pickle
 from stable_baselines3 import PPO
 import os
+
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning,
+    message="You provided an OpenAI Gym environment.*")
 
 # Number of expert episodes per env
 NUM_EPISODES = 200
