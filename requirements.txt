@@ -4,3 +4,4 @@ transformers
 norse
 bindsnet
 pytest
+gym stable-baselines3[extra]
