@@ -34,8 +34,9 @@
 
 1. **Clone the repo**  
    ```bash
-   git clone https://github.com/your-username/SpikingMindRL.git
+   git clone https://github.com/Vishal-sys-code/SpikingMindRL.git
    cd SpikingMindRL
+
 
 2. **Create a virtual environment**
     ```bash
@@ -106,7 +107,29 @@
 5. **Run Ablation Studies**
     ```bash
     python -m src.ablation_studies
+        ```
+6. **Custom Configuration Example**
+ ```bash
+  python -m src.train_offline_dt \
+    --env CartPole-v1 \
+    --epochs 50 \
+    --context_length 10 \
+    --window_size 5 \
+    --lr 0.001
     ```
+---
+
+## ⚙️ Key Hyperparameters
+
+| Parameter       | Default | Description                       |
+|----------------|---------|-----------------------------------|
+| context_length  | 10      | History length for transformer    |
+| window_size     | 5       | Time window for SNN integration   |
+| lr              | 0.001   | Learning rate                     |
+| epochs          | 50      | Training epochs                   |
+| batch_size      | 64      | Batch size                        |
+
+
 ---
 
 ## 📈 Key Results
@@ -120,13 +143,48 @@
 
 ---
 
+## 🧪 Reproducibility
+
+Set the random seed for deterministic runs:
+
+```bash
+python -m src.train_offline_dt --env CartPole-v1 --seed 42
+pytest tests/
+
+---
+
+
+
+## 🌍 Applications
+
+- **Neuromorphic RL in Edge Devices**
+- **Energy-efficient control in robotics**
+- **Low-power agents for real-time systems**
+- **Biological plausibility studies in neuroscience**
+
+
 # 📝 Citation
 
 ```bash
 @article{pandey2025spikingmindrl,
   title   = {Spiking Neural Networks for Sequential Decision‑Making Inspired by Transformer‑RL Frameworks},
   author  = {},
-  journal = {},
+  journal = {arXiv preprint arXiv:XXXX.XXXXX},
   year    = {2025}
 }
 ```
+
+#  Contributing
+Contributions are welcome! If you have suggestions for improvements or want to contribute to the codebase:
+
+Fork the repository.
+
+Create a new branch: git checkout -b feature/your-feature-name.
+
+Commit your changes: git commit -m 'Add your feature'.
+
+Push to the branch: git push origin feature/your-feature-name.
+
+Open a pull request.
+
+Please ensure your code adheres to the project's coding standards and includes relevant tests.
