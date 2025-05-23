@@ -109,7 +109,7 @@
     python -m src.ablation_studies
         ```
 6. **Custom Configuration Example**
- ```bash
+ 
   python -m src.train_offline_dt \
     --env CartPole-v1 \
     --epochs 50 \
@@ -117,7 +117,7 @@
     --window_size 5 \
     --lr 0.001
     ```
----
+
 
 ## ⚙️ Key Hyperparameters
 
@@ -151,7 +151,7 @@ Set the random seed for deterministic runs:
 python -m src.train_offline_dt --env CartPole-v1 --seed 42
 pytest tests/
 
----
+```
 
 
 
