@@ -1,7 +1,6 @@
 import torch
 from src.models.full_model import AdaptiveSpikingTransformer
 from src.training.trainer import AdaptiveSpikingTrainer
-from src.
 from src.utils.analysis import AdaptiveWindowAnalyzer
 
 def main():
@@ -21,6 +20,9 @@ def main():
     analyzer = AdaptiveWindowAnalyzer()
     
     # Training loop
+    num_epochs = 10
+    data = torch.randn(100, 10, 512)
+    dataloader = torch.utils.data.DataLoader(data, batch_size=32)
     for epoch in range(num_epochs):
         for batch in dataloader:
             
