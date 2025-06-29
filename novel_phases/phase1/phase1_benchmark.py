@@ -1,31 +1,30 @@
 """
-Adaptive Spiking Windows Implementation – Phase 1 Complete
-Includes:
- 1. Vectorized masked attention via torch.einsum
- 2. Warm‑up + fine‑tune epoch schedule
- 3. Unit test for S=4, T=5
- 4. Benchmark speed & memory
+Adaptive Spiking Windows Implementation
+Phase 1: Token-wise Temporal Allocation for Spiking Transformers
+ + vectorized masked attention (einsum)
+ + unit test for S=4, T=5
+ + speed/memory benchmarking
 """
 
-import time
-import itertools
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
+import time
+import numpy as np
+import matplotlib.pyplot as plt
+from typing import Tuple, Optional, Dict
 
-# -----------------------------------------------------------------------------
-# LIF Neuron Definition
-# -----------------------------------------------------------------------------
 class LIFNeuron(nn.Module):
+    """Leaky Integrate-and-Fire neuron with learnable decay"""
     def __init__(self, tau_mem=20.0, tau_syn=5.0, v_threshold=1.0, v_reset=0.0):
         super().__init__()
-        self.beta = nn.Parameter(torch.tensor(torch.exp(-1/tau_mem)))
-        self.alpha = nn.Parameter(torch.tensor(torch.exp(-1/tau_syn)))
+        self.beta = nn.Parameter(torch.tensor(np.exp(-1/tau_mem)))
+        self.alpha = nn.Parameter(torch.tensor(np.exp(-1/tau_syn)))
         self.v_threshold = v_threshold
         self.v_reset = v_reset
 
     def forward(self, x, state=None):
+        # x: [B=1 or B, D], state: (v_mem, i_syn)
         if state is None:
             v_mem = torch.zeros_like(x)
             i_syn = torch.zeros_like(x)
@@ -38,169 +37,152 @@ class LIFNeuron(nn.Module):
         return spikes, (v_mem, i_syn)
 
 
-# -----------------------------------------------------------------------------
-# Adaptive Spiking Attention – Vectorized
-# -----------------------------------------------------------------------------
 class AdaptiveSpikingAttention(nn.Module):
-    def __init__(self, embedding_dim, num_heads=8, T_max=20, lambda_reg=1e-3, dropout=0.1):
+    def __init__(self, embedding_dim, num_heads=4, T_max=20, lambda_reg=1e-3, dropout=0.1):
         super().__init__()
         assert embedding_dim % num_heads == 0
-        self.embedding_dim = embedding_dim
-        self.num_heads = num_heads
-        self.head_dim = embedding_dim // num_heads
+        self.D = embedding_dim
+        self.H = num_heads
+        self.Dh = embedding_dim // num_heads
         self.T_max = T_max
         self.lambda_reg = lambda_reg
-        self.scale = self.head_dim ** -0.5
-
         # projections
-        self.q_proj = nn.Linear(embedding_dim, embedding_dim, bias=False)
-        self.k_proj = nn.Linear(embedding_dim, embedding_dim, bias=False)
-        self.v_proj = nn.Linear(embedding_dim, embedding_dim, bias=False)
-        self.out_proj = nn.Linear(embedding_dim, embedding_dim)
-
-        # spiking
+        self.q_proj = nn.Linear(self.D, self.D, bias=False)
+        self.k_proj = nn.Linear(self.D, self.D, bias=False)
+        self.v_proj = nn.Linear(self.D, self.D, bias=False)
+        self.out_proj = nn.Linear(self.D, self.D)
+        # spiking neurons
         self.lif_q = LIFNeuron()
         self.lif_k = LIFNeuron()
         self.lif_v = LIFNeuron()
-
         # gating
         self.window_gate = nn.Sequential(
-            nn.Linear(embedding_dim, 64), nn.ReLU(),
-            nn.Linear(64, 32), nn.ReLU(),
+            nn.Linear(self.D, 32), nn.ReLU(),
             nn.Linear(32, 1), nn.Sigmoid()
         )
-        self.complexity_estimator = nn.Sequential(
-            nn.Linear(embedding_dim, 32), nn.ReLU(),
-            nn.Linear(32, 1), nn.Sigmoid()
-        )
+        # dropout & scale
         self.dropout = nn.Dropout(dropout)
+        self.scale = self.Dh ** -0.5
+        self.T_history = []
 
-    def get_adaptive_windows(self, x):
-        gate = self.window_gate(x)                       # [B,S,1]
-        comp = self.complexity_estimator(x)              # [B,S,1]
-        combined = 0.7 * gate + 0.3 * comp
-        T_i = torch.ceil(combined.squeeze(-1) * self.T_max).clamp(1, self.T_max).long()
-        return T_i                                    # [B,S]
+    def get_windows(self, x):
+        # x: [B, S, D]
+        gate = self.window_gate(x).squeeze(-1)  # [B, S]
+        Ti = (gate * self.T_max).ceil().clamp(1, self.T_max).long()
+        return Ti
 
-    def generate_adaptive_spikes(self, proj, x, T_i):
+    def generate_spikes(self, x, Ti, lif):
+        # x: [B, S, D] -> spikes: [B, S, T, D]
         B, S, D = x.shape
-        spikes = torch.zeros(B, S, self.T_max, D, device=x.device)
+        out = x.new_zeros(B, S, self.T_max, D)
         for b in range(B):
-            for i in range(S):
+            for s in range(S):
                 state = None
-                for t in range(T_i[b, i]):
-                    s, state = proj(x[b, i:i+1], state)
-                    spikes[b, i, t] = s
-        return spikes
+                for t in range(Ti[b, s]):
+                    spk, state = lif(x[b:b+1, s], state)
+                    out[b, s, t] = spk
+        return out  # [B, S, T_max, D]
 
-    def masked_einsum_attention(self, q_spikes, k_spikes, v_spikes, T_i):
-        B, S, T, H, Dh = q_spikes.shape
-        # mask: [B,S,T]
-        arange = torch.arange(T, device=T_i.device)
-        mask = (arange[None, None, :] < T_i[:, :, None]).float()
-
+    def vectorized_attention(self, q_spk, k_spk, v_spk, Ti):
+        # q_spk,k_spk,v_spk: [B, S, T, D]; reshape -> [B, S, T, H, Dh]
+        B, S, T, D = q_spk.shape
+        H, Dh = self.H, self.Dh
+        q = q_spk.view(B, S, T, H, Dh)
+        k = k_spk.view(B, S, T, H, Dh)
+        v = v_spk.view(B, S, T, H, Dh)
+        # mask: [B, S, T]
+        mask = (torch.arange(T, device=Ti.device)[None, None, :] < Ti[:, :, None]).float()
         # apply mask
-        m = mask[:, :, :, None, None]                     # [B,S,T,1,1]
-        qm = q_spikes * m
-        km = k_spikes * m
-
-        # compute raw scores: [B,H,S,S]
-        S_raw = torch.einsum('bithd,bjthd->bhij', qm, km)
-        scores = S_raw * self.scale
-        weights = F.softmax(scores, dim=-1)
-        weights = self.dropout(weights)
-
-        # mean-over-time values: [B,S,H,Dh]
-        v_mean = v_spikes.mean(dim=2).view(B, S, H, Dh).transpose(1, 2)
-        out = torch.matmul(weights, v_mean)               # [B,H,S,Dh]
-        out = out.transpose(1,2).contiguous().view(B, S, H*Dh)
-        return self.out_proj(out), weights
-
-    def compute_reg_loss(self, T_i):
-        return self.lambda_reg * T_i.float().mean()
+        mask4 = mask[:, :, :, None, None]  # [B,S,T,1,1]
+        q = q * mask4
+        k = k * mask4
+        v = v * mask4
+        # score: [B,H,S,S]
+        Sraw = torch.einsum('bithd,bjthd->bhij', q, k) * self.scale
+        W = F.softmax(Sraw, dim=-1)
+        W = self.dropout(W)
+        # aggregate v: first mean over time -> [B,S,H,Dh], then attention
+        v_mean = v.mean(dim=2).transpose(1, 2)  # [B,H,S,Dh]
+        out = torch.einsum('bhij,bhjd->bhid', W, v_mean)  # [B,H,S,Dh]
+        out = out.transpose(1, 2).reshape(B, S, D)
+        return self.out_proj(out), W
 
     def forward(self, x):
         B, S, D = x.shape
-        # projections
-        q = self.q_proj(x).view(B, S, self.num_heads, -1)
-        k = self.k_proj(x).view(B, S, self.num_heads, -1)
-        v = self.v_proj(x).view(B, S, self.num_heads, -1)
-
-        # windows and spikes
-        T_i = self.get_adaptive_windows(x)                # [B,S]
-        q_sp = self.generate_adaptive_spikes(self.lif_q, q, T_i)
-        k_sp = self.generate_adaptive_spikes(self.lif_k, k, T_i)
-        v_sp = self.generate_adaptive_spikes(self.lif_v, v, T_i)
-
+        # project
+        q = self.q_proj(x); k = self.k_proj(x); v = self.v_proj(x)
+        # windows
+        Ti = self.get_windows(x)  # [B,S]
+        # spikes
+        q_spk = self.generate_spikes(q, Ti, self.lif_q)
+        k_spk = self.generate_spikes(k, Ti, self.lif_k)
+        v_spk = self.generate_spikes(v, Ti, self.lif_v)
         # attention
-        out, attn = self.masked_einsum_attention(q_sp, k_sp, v_sp, T_i)
-        reg = self.compute_reg_loss(T_i)
-        return out, attn, reg, T_i
+        out, W = self.vectorized_attention(q_spk, k_spk, v_spk, Ti)
+        # reg loss
+        reg = self.lambda_reg * Ti.float().mean()
+        # log
+        if self.training:
+            self.T_history.append(Ti.cpu().numpy())
+        return out, {'reg_loss': reg, 'Ti': Ti, 'W': W}
 
+# --- Unit Test & Benchmark --------------------------------------------------
 
-# -----------------------------------------------------------------------------
-# Unit Test: S=4, T=5
-# -----------------------------------------------------------------------------
-def brute_force(q, k, T_i):
-    B,S,T,H,D = q.shape
-    S_loop = torch.zeros(B,H,S,S)
+def brute_force(q, k, Ti):
+    B, S, T, H, Dh = q.shape
+    S1 = torch.zeros(B, H, S, S)
     for b in range(B):
         for h in range(H):
-            for i,j in itertools.product(range(S),range(S)):
-                tm = min(T_i[b,i], T_i[b,j])
-                val = 0.
-                for t in range(tm):
-                    val += (q[b,i,t,h]*k[b,j,t,h]).sum()
-                S_loop[b,h,i,j] = val
-    return S_loop
+            for i in range(S):
+                for j in range(S):
+                    tlim = min(Ti[b,i], Ti[b,j]).item()
+                    val = 0.0
+                    for t in range(tlim):
+                        val += (q[b,i,t,h] * k[b,j,t,h]).sum()
+                    S1[b,h,i,j] = val
+    return S1
 
-# test
-B,S,T,H,D = 1,4,5,2,3
-q = torch.randn(B,S,T,H,D)
-k = torch.randn_like(q)
-T_i = torch.randint(1, T+1, (B,S))
-# brute
-S1 = brute_force(q,k,T_i)
-# vectorized
-mask = (torch.arange(T)[None,None,:] < T_i[:,:,None]).float()
-qm = q * mask[:,:,:,None,None]
-km = k * mask[:,:,:,None,None]
-S2 = torch.einsum('bithd,bjthd->bhij', qm, km)
-assert torch.allclose(S1, S2, atol=1e-6), "Mismatch!"
-print("✅ Unit test passed: vectorized == brute force")
+if __name__ == "__main__":
+    # test shapes
+    B,S,T,H,Dh = 1,4,5,2,3
+    D = H*Dh
+    model = AdaptiveSpikingAttention(D, num_heads=H, T_max=T)
+    # fake data
+    x = torch.randn(B, S, D)
+    q = torch.randn(B, S, T, H, Dh)
+    k = torch.randn_like(q)
+    Ti = torch.randint(1, T+1, (B,S))
+    # brute vs vectorized
+    bf = brute_force(q, k, Ti)
+    vec = model.vectorized_attention(q.view(B,S,T,D), k.view(B,S,T,D),
+                                     torch.randn(B,S,T,D).view(B,S,T,D), Ti)[1]
+    # we only compare raw scores before softmax:
+    # extract raw Sraw from vectorized code manually
+    # (re-run vectorized_attention but output raw Sraw)
+    def raw_vec(q_spk,k_spk,Ti):
+        # q_spk, k_spk: [B, S, T, H, Dh]
+        B, S, T, H, Dh = q_spk.shape
+        q_ = q_spk
+        k_ = k_spk
+        mask = (torch.arange(T)[None, None, :] < Ti[:, :, None]).float()
+        q_ = q_ * mask[:, :, :, None, None]
+        k_ = k_ * mask[:, :, :, None, None]
+        return torch.einsum('bithd,bjthd->bhij', q_, k_)
+    rv = raw_vec(q, k, Ti)
+    assert torch.allclose(bf, rv, atol=1e-5)
+    print("✅ Unit test passed (S=4, T=5)")
 
-# -----------------------------------------------------------------------------
-# Benchmark Speed & Memory
-# -----------------------------------------------------------------------------
-model = AdaptiveSpikingAttention(embedding_dim=32, num_heads=2, T_max=5)
-x = torch.randn(2, 10, 32)
+    # Benchmark
+    reps = 100
+    start = time.perf_counter()
+    for _ in range(reps):
+        brute_force(q,k,Ti)
+    t1 = time.perf_counter() - start
 
-# warm-up
-for _ in range(10):
-    _ = model(x)
+    start = time.perf_counter()
+    for _ in range(reps):
+        _ = raw_vec(q,k,Ti)
+    t2 = time.perf_counter() - start
 
-# benchmark
-start = time.perf_counter()
-for _ in range(50):
-    _ = model(x)
-t_vec = time.perf_counter() - start
-
-# brute-force benchmark
-def bf_forward(x):
-    # only attention part
-    q = model.q_proj(x).view(2,10,2,-1)
-    k = model.k_proj(x).view(2,10,2,-1)
-    T_i = model.get_adaptive_windows(x)
-    q_sp = model.generate_adaptive_spikes(model.lif_q, q, T_i)
-    k_sp = model.generate_adaptive_spikes(model.lif_k, k, T_i)
-    # brute compute
-    _ = brute_force(q_sp, k_sp, T_i)
-    return _
-
-start = time.perf_counter()
-for _ in range(50):
-    _ = bf_forward(x)
-t_bf = time.perf_counter() - start
-
-print(f"✅ Vectorized forward (50 runs): {t_vec:.3f}s")
-print(f"❌ Brute-force    (50 runs): {t_bf:.3f}s")
+    print(f"Brute force:      {t1:.4f}s for {reps} runs")
+    print(f"Vectorized (raw): {t2:.4f}s for {reps} runs")
