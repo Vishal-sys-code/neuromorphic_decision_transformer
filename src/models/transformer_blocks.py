@@ -6,7 +6,7 @@ class SpikingTransformerBlock(nn.Module):
     def __init__(self, embedding_dim, num_heads, T_max=20, lambda_reg=1e-3):
         super().__init__()
         
-        # 🔥 Replace standard attention with adaptive spiking attention
+        # Replace standard attention with adaptive spiking attention
         self.attention = AdaptiveSpikingAttention(
             embedding_dim=embedding_dim,
             num_heads=num_heads,
