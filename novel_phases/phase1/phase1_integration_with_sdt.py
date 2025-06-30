@@ -375,23 +375,26 @@ class SpikingDecisionTransformer(nn.Module):
                  num_layers: int = 6,
                  num_heads: int = 8,
                  T_max: int = 20,
-                 max_length: int = 1000,
+                 max_length: int = 20, # Context window K for transformer
+                 max_episode_len: int = 1000, # Max steps in an episode for timestep embedding
                  dropout: float = 0.1):
         super().__init__()
         
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.embedding_dim = embedding_dim
-        self.max_length = max_length
+        self.max_length = max_length # K, context window
+        self.max_episode_len = max_episode_len
         
         # Embeddings
         self.state_embedding = nn.Linear(state_dim, embedding_dim)
         self.action_embedding = nn.Linear(action_dim, embedding_dim)
         self.return_embedding = nn.Linear(1, embedding_dim)
-        self.timestep_embedding = nn.Embedding(max_length, embedding_dim)
+        self.timestep_embedding = nn.Embedding(self.max_episode_len, embedding_dim) # Use max_episode_len here
         
         # Positional embeddings
-        self.position_embedding = nn.Embedding(max_length * 3, embedding_dim)  # 3 for s, a, r
+        # max_length here is K (context window). The sequence given to transformer is K*3 tokens long.
+        self.position_embedding = nn.Embedding(max_length * 3, embedding_dim)
         
         # Spiking transformer layers
         self.layers = nn.ModuleList([
@@ -423,31 +426,32 @@ class SpikingDecisionTransformer(nn.Module):
         """
         batch_size, seq_len = states.shape[:2]
         
-        # DEBUG: Print input shapes
-        print('DEBUG: states shape:', states.shape)
-        print('DEBUG: actions shape:', actions.shape)
-        print('DEBUG: returns_to_go shape:', returns_to_go.shape)
-        print('DEBUG: batch_size:', batch_size, 'seq_len:', seq_len, 'embedding_dim:', self.embedding_dim)
         # Embed all inputs
-        state_embeddings = self.state_embedding(states)
-        action_embeddings = self.action_embedding(actions)
-        return_embeddings = self.return_embedding(returns_to_go)
-        # DEBUG: Print embedding shapes
-        print('DEBUG: state_embeddings:', state_embeddings.shape)
-        print('DEBUG: action_embeddings:', action_embeddings.shape)
-        print('DEBUG: return_embeddings:', return_embeddings.shape)
-        # Stack embeddings: [R_1, s_1, a_1, R_2, s_2, a_2, ...]
-        stacked = torch.stack([
-            return_embeddings, state_embeddings, action_embeddings
-        ], dim=2)
-        print('DEBUG: stacked shape:', stacked.shape)
-        sequence_embeddings = stacked.reshape(batch_size, seq_len * 3, self.embedding_dim)
-        print('DEBUG: sequence_embeddings shape:', sequence_embeddings.shape)
-        # Add time embeddings (repeated for R, s, a)
-        time_embeddings = time_embeddings.repeat_interleave(3, dim=1)
-        sequence_embeddings = sequence_embeddings + time_embeddings
+        state_embs = self.state_embedding(states)
+        action_embs = self.action_embedding(actions)
+        return_embs = self.return_embedding(returns_to_go)
+        
+        # Stack embeddings: [R_t, s_t, a_t] form a triplet for each time step t
+        # Sequence becomes: [R_0, s_0, a_0,  R_1, s_1, a_1, ... R_{K-1}, s_{K-1}, a_{K-1}]
+        # Resulting in a sequence of length K*3 for the transformer
+        stacked_embs = torch.stack(
+            [return_embs, state_embs, action_embs], dim=2
+        ) # Shape: [batch_size, seq_len, 3, embedding_dim]
+        
+        sequence_embeddings = stacked_embs.reshape(
+            batch_size, seq_len * 3, self.embedding_dim
+        ) # Shape: [batch_size, seq_len * 3, embedding_dim]
+        
+        # Add time embeddings
+        # `timesteps` are [batch_size, seq_len], representing the time index of (s_t) or the triplet (R_t,s_t,a_t)
+        # `self.timestep_embedding` expects indices up to `self.max_length` (which is K)
+        time_embs = self.timestep_embedding(timesteps) # Shape: [batch_size, seq_len, embedding_dim]
+        # Each time embedding corresponds to a (R,s,a) group, so repeat it for each element in the group
+        time_embs_repeated = time_embs.repeat_interleave(3, dim=1) # Shape: [batch_size, seq_len * 3, embedding_dim]
+        sequence_embeddings = sequence_embeddings + time_embs_repeated
         
         # Add positional embeddings
+        # The sequence length for position embeddings is seq_len * 3
         positions = torch.arange(3 * seq_len, device=states.device)
         sequence_embeddings = sequence_embeddings + self.position_embedding(positions)
         
@@ -505,7 +509,8 @@ def get_default_config():
         'num_layers': 6,
         'num_heads': 8,
         'T_max': 20,
-        'max_length': 1000,
+        'max_length': 20, # K, context window
+        'max_episode_len': 1000, # Default max episode length for timestep embedding
         'dropout': 0.1,
         'lambda_reg': 1e-3
     }
@@ -536,21 +541,19 @@ def create_spiking_dt_model(config: Dict) -> SpikingDecisionTransformer:
         num_layers=config.get('num_layers', 6),
         num_heads=config.get('num_heads', 8),
         T_max=config.get('T_max', 20),
-        max_length=config.get('max_length', 1000),
+        max_length=config.get('max_length', 20), # K
+        max_episode_len=config.get('max_episode_len', 1000), # Max episode len
         dropout=config.get('dropout', 0.1)
     )
 
-def compute_spiking_loss(predictions: torch.Tensor, targets: torch.Tensor, 
+def compute_spiking_loss(action_loss: torch.Tensor, 
                         metrics: Dict, reg_weight: float = 1.0) -> torch.Tensor:
-    """Compute loss including spiking regularization"""
-    # Base prediction loss
-    pred_loss = F.mse_loss(predictions, targets)
-    
+    """Compute total loss including spiking regularization and a pre-computed action_loss."""
     # Regularization from spiking attention
-    reg_loss = 0.0
+    model_reg_loss = 0.0
     if 'avg_reg_loss' in metrics:
-        reg_loss = metrics['avg_reg_loss']
+        model_reg_loss = metrics['avg_reg_loss'] # Use the value from metrics
     
-    total_loss = pred_loss + reg_weight * reg_loss
+    total_loss = action_loss + reg_weight * model_reg_loss
     
     return total_loss
