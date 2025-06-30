@@ -177,37 +177,65 @@ class TrajectoryBuffer:
 
 def collect_trajectories(env_name: str, state_dim: int, act_dim: int, act_type: str,
                          offline_steps: int, max_episode_len: int, gamma: float, seed: int):
-    """Collects offline_steps env steps with a random policy."""
     env = gym.make(env_name)
-    # It's good practice to seed the env for reproducibility if it supports it, though random policy diminishes this
-    # env.seed(seed) # Deprecated, use env.reset(seed=seed)
-    
+
     trajectories = []
     buf = TrajectoryBuffer(max_episode_len, state_dim, act_dim, act_type)
     
     print(f"Collecting {offline_steps} steps from {env_name} using a random policy...")
     
     current_steps = 0
-    obs, _ = env.reset(seed=seed) # Seed on reset
     
+    raw_reset_output = env.reset(seed=seed)
+    if isinstance(raw_reset_output, tuple) and len(raw_reset_output) == 2 and isinstance(raw_reset_output[1], dict):
+        obs, info_dict = raw_reset_output
+    else:
+        obs = raw_reset_output
+        info_dict = {}
+
+    episode_step_count = 0
     while current_steps < offline_steps:
         action = env.action_space.sample()
-        next_obs, reward, terminated, truncated, _ = env.step(action)
-        done = terminated or truncated
         
+        step_output = env.step(action)
+        
+        if len(step_output) == 5:
+            next_obs, reward, terminated, truncated, info_dict = step_output
+            done = terminated or truncated
+        elif len(step_output) == 4:
+            next_obs, reward, done, info_dict_step = step_output # Use different var name for step info
+            terminated = done
+            # Check for truncation more reliably if possible
+            truncated = done and (info_dict_step.get('TimeLimit.truncated', False) or episode_step_count + 1 >= max_episode_len if max_episode_len > 0 else False)
+            info_dict.update(info_dict_step) # Merge step info if needed
+        else:
+            raise ValueError(f"Unexpected number of values from env.step(): {len(step_output)}. Output: {step_output}")
+
         buf.add(obs.astype(np.float32), action, reward)
         
         obs = next_obs
         current_steps += 1
+        episode_step_count +=1
         
-        if done or len(buf) == max_episode_len:
+        if done or (max_episode_len > 0 and episode_step_count >= max_episode_len):
             trajectories.append(buf.get_trajectory())
             buf.reset()
-            obs, _ = env.reset() # No need to re-seed here for subsequent episodes with random policy
-            if current_steps % (offline_steps // 10) == 0 and offline_steps > 0: # Log progress
-                 print(f"  Collected {current_steps}/{offline_steps} steps...")
+            
+            raw_reset_output_loop = env.reset()
+            if isinstance(raw_reset_output_loop, tuple) and len(raw_reset_output_loop) == 2 and isinstance(raw_reset_output_loop[1], dict):
+                obs, info_dict = raw_reset_output_loop
+            else:
+                obs = raw_reset_output_loop
+                info_dict = {}
+            episode_step_count = 0
+
+            # Log progress carefully
+            if offline_steps > 0 : # Avoid division by zero if offline_steps is 0
+                log_point = offline_steps // 10
+                if log_point == 0 : log_point = 1 # Ensure it logs for small offline_steps
+                if current_steps % log_point == 0:
+                    print(f"  Collected {current_steps}/{offline_steps} steps...")
     
-    # After the loop, add any remaining trajectory in the buffer
     if len(buf) > 0:
         trajectories.append(buf.get_trajectory())
         print(f"  Added final partial trajectory of length {len(buf)}.")
