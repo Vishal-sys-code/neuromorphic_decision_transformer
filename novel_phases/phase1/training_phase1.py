@@ -207,6 +207,12 @@ def collect_trajectories(env_name: str, state_dim: int, act_dim: int, act_type: 
             if current_steps % (offline_steps // 10) == 0 and offline_steps > 0: # Log progress
                  print(f"  Collected {current_steps}/{offline_steps} steps...")
     
+    # After the loop, add any remaining trajectory in the buffer
+    if len(buf) > 0:
+        trajectories.append(buf.get_trajectory())
+        print(f"  Added final partial trajectory of length {len(buf)}.")
+        buf.reset()
+
     env.close()
     print(f"Finished collecting {len(trajectories)} trajectories ({current_steps} total steps).")
     return trajectories
