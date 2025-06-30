@@ -3,15 +3,17 @@ SNN-DT Models Package
 Integrated Spiking Neural Networks for Decision Transformers
 """
 
-from ...models.adaptive_attention import (
+# Assuming 'models' is a top-level directory accessible from PYTHONPATH
+from models.adaptive_attention import (
     LIFNeuron as Phase1LIFNeuron,
     AdaptiveSpikingAttention as Phase1AdaptiveAttention
 )
 
-from ...models.spiking_layers import (
+# The components below are defined in phase1_integration_with_sdt.py within this package
+from .phase1_integration_with_sdt import (
     LIFNeuron,
     SpikingLinear,
-    AdaptiveSpikingAttention,
+    AdaptiveSpikingAttention, # Note: This is different from Phase1AdaptiveAttention above
     SpikingTransformerBlock,
     SpikingDecisionTransformer,
     create_spiking_dt_model,
