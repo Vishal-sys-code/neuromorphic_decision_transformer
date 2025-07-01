@@ -75,7 +75,7 @@ class SNNDecisionTransformer(DecisionTransformer):
         if input_args[0] is not None:
             self.captured_pre_syn_for_action = input_args[0].detach()
 
-    def _hook_capture_post_syn_for_action_logits(self, module, input_args, output):
+    def _hook_capture_post_syn_for_action_logits(self, module, input, output):
         # output is the direct output of self.predict_action (logits)
         if output is not None:
             self.captured_post_syn_for_action_logits = output.detach()
