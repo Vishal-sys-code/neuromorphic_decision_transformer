@@ -86,7 +86,7 @@ class SNNDecisionTransformer(DecisionTransformer):
             return
 
         # Hook to capture the input to the nn.Linear layer inside self.predict_action
-        self.handle_pre_hook = self.action_linear_layer_ref.register_forward_hook(self._hook_capture_pre_syn_for_action)
+        self.handle_pre_hook = self.action_linear_layer_ref.register_forward_pre_hook(self._hook_capture_pre_syn_for_action)
 
         # Hook to capture the output of the entire self.predict_action nn.Sequential module
         self.handle_post_hook = self.predict_action.register_forward_hook(self._hook_capture_post_syn_for_action_logits)
