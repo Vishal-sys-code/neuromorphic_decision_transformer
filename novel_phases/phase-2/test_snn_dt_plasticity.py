@@ -4,14 +4,14 @@ import sys
 import os
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
+project_root = os.path.dirname(os.path.dirname(current_dir)) 
 spiking_mind_rl_root = os.path.join(project_root, "SpikingMindRL")
-sys.path.insert(0, spiking_mind_rl_root)
-sys.path.insert(0, os.path.join(spiking_mind_rl_root, "external"))
-sys.path.insert(0, os.path.join(spiking_mind_rl_root, "src"))
+sys.path.insert(0, spiking_mind_rl_root) 
+sys.path.insert(0, os.path.join(spiking_mind_rl_root, "external")) 
+sys.path.insert(0, os.path.join(spiking_mind_rl_root, "src")) 
 
 try:
-    from models.snn_dt import SNNDecisionTransformer
+    from src.models.snn_dt import SNNDecisionTransformer
     from transformers import GPT2Config
 except Exception as e:
     print(f"Import Error: {e}. Ensure SpikingMindRL, external submodule, and transformers lib are correctly pathed and installed.")
@@ -25,7 +25,7 @@ BATCH_SIZE, SEQ_LENGTH = 2, 5
 def create_dummy_input(device):
     states = torch.rand(BATCH_SIZE, SEQ_LENGTH, STATE_DIM, device=device)
     actions = torch.rand(BATCH_SIZE, SEQ_LENGTH, ACT_DIM, device=device)
-    rewards = torch.rand(BATCH_SIZE, SEQ_LENGTH, 1, device=device)
+    rewards = torch.rand(BATCH_SIZE, SEQ_LENGTH, 1, device=device) 
     returns_to_go = torch.rand(BATCH_SIZE, SEQ_LENGTH, 1, device=device)
     timesteps = torch.randint(0, MAX_EP_LEN, (BATCH_SIZE, SEQ_LENGTH), device=device)
     attention_mask = torch.ones(BATCH_SIZE, SEQ_LENGTH, device=device, dtype=torch.long)
@@ -58,7 +58,7 @@ def run_tests():
         return
 
     dummy_inputs = create_dummy_input(device)
-    _ = model_with_plasticity(*dummy_inputs)
+    _ = model_with_plasticity(*dummy_inputs) 
     pre_syn, post_syn_logits = model_with_plasticity.get_captured_action_head_io()
 
     assert pre_syn is not None, "Pre-syn data not captured."
@@ -71,11 +71,11 @@ def run_tests():
     pre_syn_cleared, post_syn_logits_cleared = model_with_plasticity.get_captured_action_head_io()
     assert pre_syn_cleared is None and post_syn_logits_cleared is None, "Data not cleared."
     print("Data clearing successful.")
-
+    
     model_with_plasticity.remove_hooks()
     print("remove_hooks called.")
-
-    model_with_plasticity.captured_pre_syn_for_action = torch.tensor(1.0)
+    
+    model_with_plasticity.captured_pre_syn_for_action = torch.tensor(1.0) 
     model_with_plasticity.captured_post_syn_for_action_logits = torch.tensor(1.0)
     _ = model_with_plasticity(*dummy_inputs)
     pre_after_remove, post_after_remove = model_with_plasticity.get_captured_action_head_.io() # Typo: get_captured_action_head_.io
@@ -88,4 +88,3 @@ def run_tests():
 
 if __name__ == "__main__":
     run_tests()
-```
