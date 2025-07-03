@@ -71,14 +71,11 @@ class CustomLIFCell(LIFCell):
             # it uses its own internal state, which is fine for non-recurrent use.
             # For recurrent use, state should be explicitly managed.
             # Norse LIFCell's default behavior handles this if state is None.
-            # We get the initial state for v and i from the parent.
-            # The eligibility trace is handled separately as it persists across calls differently.
-            initial_parent_state = super().get_initial_state(batch_size=x.shape[0], inputs=x)
-            if state is None:
-                state = initial_parent_state
-
+            # The parent LIFCell.forward will handle state initialization if state is None.
+            pass # No need to explicitly get initial state here.
 
         # Perform the standard LIF cell computation
+        # If state is None, super().forward(x, None) should correctly initialize it.
         s_out, next_state = super().forward(x, state) # next_state is (v_next, i_next)
 
         # Update eligibility trace
