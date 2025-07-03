@@ -7,6 +7,67 @@ import math
 import torch.nn as nn
 import torch
 from .snn_lif import LIFNeuronLayer
+from dataclasses import dataclass
+
+@dataclass
+class LIFParameters:
+    threshold: float = 1.0
+    decay_constant: float = 0.9
+    reset_potential: float = 0.0
+    # alpha: float = 0.3 # Membrane potential decay time constant related, 1.0 / tau_mem
+    # beta: float = 0.8 # Synaptic current decay time constant related, 1.0 / tau_syn (if using synaptic current dynamics)
+
+
+class LIFCell(nn.Module):
+    """
+    A Leaky Integrate-and-Fire (LIF) neuron cell that processes input current
+    and produces spikes. It does not have its own weights (linear layer).
+    It maintains membrane potential state.
+    """
+    def __init__(self, input_size: int, hidden_size: int, p: LIFParameters):
+        super().__init__()
+        if input_size != hidden_size:
+            # This cell doesn't project, it just applies LIF dynamics.
+            # For clarity, often input_size = hidden_size = num_neurons
+            # However, the terms are kept for consistency with some layer definitions.
+            # We'll primarily use hidden_size as the number of neurons in this cell.
+            pass # Not raising an error, but good to be aware.
+
+        self.num_neurons = hidden_size
+        self.p = p
+
+    def forward(self, current_input: torch.Tensor, v_prev: torch.Tensor = None):
+        """
+        Args:
+            current_input: Input current tensor of shape (batch_size, num_neurons).
+            v_prev: Optional previous membrane potential, shape (batch_size, num_neurons).
+                    If None, it's initialized to zeros.
+
+        Returns:
+            spikes: Binary spike tensor of shape (batch_size, num_neurons).
+            v_new_reset: Updated membrane potential after spiking and reset.
+        """
+        batch_size = current_input.shape[0]
+        if v_prev is None:
+            v_prev = torch.zeros(batch_size, self.num_neurons, device=current_input.device)
+
+        # Membrane potential update: v(t) = v(t-1) * decay + I(t)
+        v_new = v_prev * self.p.decay_constant + current_input
+
+        # Spike generation: s(t) = 1 if v(t) > threshold, else 0
+        spikes = (v_new > self.p.threshold).float()
+
+        # Reset mechanism: if spiked, potential goes to reset_potential, otherwise stays
+        # Using v_new * (1-spikes) ensures that if a neuron spikes, its potential used for reset is its value *before* reset.
+        # More accurately, it's v_new that is reset.
+        # v_after_reset = v_new * (1 - spikes) + self.p.reset_potential * spikes # Common way
+        
+        # Let's ensure reset is clean:
+        v_new_reset = v_new.clone() # Clone v_new before reset
+        v_new_reset[spikes == 1] = self.p.reset_potential # Reset only spiking neurons
+
+        return spikes, v_new_reset
+
 
 def rate_encode(x: torch.Tensor, time_window: int, x_min: float = 0.0, x_max: float = 1.0):
     """
