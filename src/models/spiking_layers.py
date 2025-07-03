@@ -6,7 +6,7 @@ Email: pandeyvishal.mlprof@gmail.com
 import math
 import torch.nn as nn
 import torch
-from .snn_lif import LIFNeuronLayer
+from .snn_lif import LIFNeuronLayer # This import is from the original file, kept for other components
 from dataclasses import dataclass
 
 @dataclass
@@ -14,9 +14,6 @@ class LIFParameters:
     threshold: float = 1.0
     decay_constant: float = 0.9
     reset_potential: float = 0.0
-    # alpha: float = 0.3 # Membrane potential decay time constant related, 1.0 / tau_mem
-    # beta: float = 0.8 # Synaptic current decay time constant related, 1.0 / tau_syn (if using synaptic current dynamics)
-
 
 class LIFCell(nn.Module):
     """
@@ -26,13 +23,8 @@ class LIFCell(nn.Module):
     """
     def __init__(self, input_size: int, hidden_size: int, p: LIFParameters):
         super().__init__()
-        if input_size != hidden_size:
-            # This cell doesn't project, it just applies LIF dynamics.
-            # For clarity, often input_size = hidden_size = num_neurons
-            # However, the terms are kept for consistency with some layer definitions.
-            # We'll primarily use hidden_size as the number of neurons in this cell.
-            pass # Not raising an error, but good to be aware.
-
+        # input_size and hidden_size are often the same (num_neurons) as this cell doesn't project.
+        # We'll primarily use hidden_size as the number of neurons in this cell.
         self.num_neurons = hidden_size
         self.p = p
 
@@ -57,17 +49,11 @@ class LIFCell(nn.Module):
         # Spike generation: s(t) = 1 if v(t) > threshold, else 0
         spikes = (v_new > self.p.threshold).float()
 
-        # Reset mechanism: if spiked, potential goes to reset_potential, otherwise stays
-        # Using v_new * (1-spikes) ensures that if a neuron spikes, its potential used for reset is its value *before* reset.
-        # More accurately, it's v_new that is reset.
-        # v_after_reset = v_new * (1 - spikes) + self.p.reset_potential * spikes # Common way
-        
-        # Let's ensure reset is clean:
-        v_new_reset = v_new.clone() # Clone v_new before reset
+        # Reset mechanism: if spiked, potential goes to reset_potential
+        v_new_reset = v_new.clone() # Work on a clone for reset
         v_new_reset[spikes == 1] = self.p.reset_potential # Reset only spiking neurons
 
         return spikes, v_new_reset
-
 
 def rate_encode(x: torch.Tensor, time_window: int, x_min: float = 0.0, x_max: float = 1.0):
     """
@@ -110,7 +96,7 @@ class SpikingSelfAttention(nn.Module):
         """
         B, S, E = x.shape
         # 1) Encode embeddings into spike trains
-        spikes = rate_encode(x, self.time_window)  # [T, B, S, E]
+        spikes_input_encoded = rate_encode(x, self.time_window)  # [T, B, S, E]
 
         # 2) Accumulate Q, K, V over time
         Q_acc = torch.zeros(B, self.num_heads, S, self.head_dim, device=x.device)
@@ -119,7 +105,7 @@ class SpikingSelfAttention(nn.Module):
         q_state = k_state = v_state = None
 
         for t in range(self.time_window):
-            inp = spikes[t].reshape(B * S, E)
+            inp = spikes_input_encoded[t].reshape(B * S, E)
             q_spk, q_state = self.q_proj(inp, q_state)
             k_spk, k_state = self.k_proj(inp, k_state)
             v_spk, v_state = self.v_proj(inp, v_state)
