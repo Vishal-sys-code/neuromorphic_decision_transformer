@@ -52,7 +52,7 @@ class SNNDecisionTransformer(DecisionTransformer):
         if self.enable_action_head_plasticity:
             if not isinstance(self.predict_action, nn.Sequential) or not isinstance(self.predict_action[0], nn.Linear):
                 raise TypeError("SNNDT: self.predict_action is not nn.Sequential with Linear as first element. Plasticity rule cannot be applied as expected.")
-
+            
             self.action_linear_layer_ref = self.predict_action[0] # Direct reference to the nn.Linear layer
 
             self.captured_pre_syn_for_action = None
@@ -75,7 +75,7 @@ class SNNDecisionTransformer(DecisionTransformer):
         if input_args[0] is not None:
             self.captured_pre_syn_for_action = input_args[0].detach()
 
-    def _hook_capture_post_syn_for_action_logits(self, module, input, output):
+    def _hook_capture_post_syn_for_action_logits(self, module, input_args, output):
         # output is the direct output of self.predict_action (logits)
         if output is not None:
             self.captured_post_syn_for_action_logits = output.detach()
@@ -84,16 +84,16 @@ class SNNDecisionTransformer(DecisionTransformer):
         if not hasattr(self, 'action_linear_layer_ref'):
             print("SNNDT Warning: action_linear_layer_ref not found. Hooks for plasticity not registered.")
             return
-
+        
         # Hook to capture the input to the nn.Linear layer inside self.predict_action
-        self.handle_pre_hook = self.action_linear_layer_ref.register_forward_pre_hook(self._hook_capture_pre_syn_for_action)
-
+        self.handle_pre_hook = self.action_linear_layer_ref.register_forward_hook(self._hook_capture_pre_syn_for_action)
+        
         # Hook to capture the output of the entire self.predict_action nn.Sequential module
         self.handle_post_hook = self.predict_action.register_forward_hook(self._hook_capture_post_syn_for_action_logits)
 
     def get_captured_action_head_io(self):
         """
-        Returns the captured input to the action head's linear layer and
+        Returns the captured input to the action head's linear layer and 
         the captured output logits from the action head.
         Called by the training loop after a forward pass.
         """
@@ -106,12 +106,12 @@ class SNNDecisionTransformer(DecisionTransformer):
         """
         self.captured_pre_syn_for_action = None
         self.captured_post_syn_for_action_logits = None
-
+    
     def forward(self, states, actions, rewards, returns_to_go, timesteps, attention_mask=None):
         # If plasticity is enabled, ensure io is cleared before forward pass
         if self.enable_action_head_plasticity:
             self.clear_captured_action_head_io()
-
+            
         # The hooks will capture the necessary data during the super().forward() call
         return super().forward(states, actions, rewards, returns_to_go, timesteps, attention_mask)
 
