@@ -18,8 +18,10 @@ class SimpleSNN(nn.Module):
         self.encoder = PoissonEncoder(seq_length=10) 
 
         self.fc1 = nn.Linear(input_size, hidden_size)
-        if self.use_three_factor_rule_active: # This controls if LIF1 is Custom or Standard, not directly trace for FC1
-            # The actual trace for fc1 is manually managed if use_three_factor_rule_active is true later
+        # Note: The type of lif1 (CustomLIFCell vs StandardLIFCell) is less critical now,
+        # as fc1_eligibility_trace is manually managed.
+        # However, keeping CustomLIFCell if plasticity is active is fine.
+        if self.use_three_factor_rule_active: 
             self.lif1 = CustomLIFCell(input_size=hidden_size, hidden_size=hidden_size, dt=0.001)
         else:
             from norse.torch import LIFCell as StandardLIFCell 
@@ -27,9 +29,8 @@ class SimpleSNN(nn.Module):
 
         self.fc2 = nn.Linear(hidden_size, output_size)
         
-        # Trace related attributes for fc1, managed if use_three_factor_rule_active
         self.fc1_eligibility_trace = None
-        self.trace_decay_fc1 = 0.95
+        self.trace_decay_fc1 = 0.95 # Decaying trace factor
 
 
     def forward(self, x_static): 
@@ -37,8 +38,6 @@ class SimpleSNN(nn.Module):
         s1 = None 
         lif1_output_spikes_over_time = []
 
-        # Initialize fc1_eligibility_trace here if it's the first pass for this model instance
-        # and if plasticity is conceptually active for fc1
         if self.use_three_factor_rule_active and self.fc1_eligibility_trace is None:
              self.fc1_eligibility_trace = torch.zeros(
                 self.fc1.out_features, self.fc1.in_features, 
@@ -70,22 +69,21 @@ class SimpleSNN(nn.Module):
 # --- Training Function ---
 def train_model(model, criterion, optimizer, num_epochs, batch_size, input_size, output_size, 
                 device, current_local_learning_rate, clip_local_update, 
-                print_metrics=False):
+                print_metrics=False, run_label=""):
     epoch_losses = []
+    print(f"\n--- Starting Training Run: {run_label} ---")
+    print(f"Local LR: {current_local_learning_rate}, Clip: {clip_local_update if current_local_learning_rate > 0 else 'N/A'}")
+
     for epoch in range(num_epochs):
         model.train()
         running_loss = 0.0
         num_batches = 0
 
-        # Reset traces at the start of each epoch
         if hasattr(model, 'reset_fc1_trace') and model.use_three_factor_rule_active and current_local_learning_rate > 0:
             model.reset_fc1_trace()
-        if isinstance(model.lif1, CustomLIFCell) and model.use_three_factor_rule_active and current_local_learning_rate > 0:
-             model.lif1.reset_trace()
+        # No need to reset lif1's internal trace as it's not directly used for fc1 plasticity
 
-        # Dummy data generation for each epoch for simplicity in this example
-        # In a real scenario, you'd use a DataLoader
-        for _ in range(50): # Simulate 50 batches per epoch
+        for batch_idx in range(50): # Simulate 50 batches per epoch
             dummy_static_input = torch.rand(batch_size, input_size, device=device) 
             dummy_labels = torch.randint(0, output_size, (batch_size,), device=device)
             num_batches += 1
@@ -96,20 +94,22 @@ def train_model(model, criterion, optimizer, num_epochs, batch_size, input_size,
             optimizer.zero_grad()
             loss.backward()
             
-            # --- Metrics: Gradient Norm (for fc1) ---
+            fc1_grad_sample = None
             fc1_grad_norm = None
             if model.fc1.weight.grad is not None:
                 fc1_grad_norm = model.fc1.weight.grad.norm().item()
+                fc1_grad_sample = model.fc1.weight.grad.detach().cpu().numpy()[0, :min(5, model.fc1.in_features)] # Sample of first row
             
             optimizer.step()
             running_loss += loss.item()
 
-            # --- Three-factor local update (if enabled by current_local_learning_rate) ---
             local_update_norm = None
+            local_delta_W_sample = None
             if model.use_three_factor_rule_active and current_local_learning_rate > 0:
                 if model.fc1_eligibility_trace is not None:
                     trace_for_fc1 = model.fc1_eligibility_trace
-                    g_t = 1.0 / (loss.item() + 1e-2) 
+                    # Simplified G_t for this conceptual example
+                    g_t = 1.0 if loss.item() < 0.5 else -0.1 # Reward good, penalize bad, more distinct than 1/(loss)
                     g_t_tensor = torch.tensor(g_t, device=model.fc1.weight.device)
                     
                     delta_W = apply_three_factor_update(
@@ -121,26 +121,28 @@ def train_model(model, criterion, optimizer, num_epochs, batch_size, input_size,
                     )
                     if delta_W is not None:
                         local_update_norm = delta_W.norm().item()
+                        local_delta_W_sample = delta_W.detach().cpu().numpy()[0, :min(5, model.fc1.in_features)] # Sample of first row
                 else:
-                    if print_metrics and (epoch + 1) % (num_epochs // 4) == 0 : # Print less frequently
-                         print(f"Epoch {epoch+1}: fc1_eligibility_trace is None, skipping 3-factor update.")
+                    if print_metrics and (epoch + 1) % (num_epochs // 4) == 0 and batch_idx == 0:
+                         print(f"Epoch {epoch+1} ({run_label}): fc1_eligibility_trace is None, skipping 3-factor update.")
 
-
-            if print_metrics and (epoch + 1) % (num_epochs // 4) == 0 and _ == 0 : # Print for first batch of milestone epochs
-                print(f"Epoch [{epoch+1}/{num_epochs}] (Batch 1): Loss: {loss.item():.4f}")
+            if print_metrics and (epoch + 1) % (num_epochs // 4) == 0 and batch_idx == 0 : 
+                print(f"Epoch [{epoch+1}/{num_epochs}] ({run_label}, Batch 1): Loss: {loss.item():.4f}")
                 if fc1_grad_norm is not None:
                     print(f"  FC1 Grad Norm: {fc1_grad_norm:.4e}")
+                    if fc1_grad_sample is not None : print(f"  FC1 Grad Sample (first 5 of 1st out_feat): {fc1_grad_sample}")
                 if local_update_norm is not None:
                     print(f"  Local Update Norm (FC1): {local_update_norm:.4e}")
+                    if local_delta_W_sample is not None : print(f"  Local Delta_W Sample (first 5 of 1st out_feat): {local_delta_W_sample}")
                 if model.use_three_factor_rule_active and current_local_learning_rate > 0 and model.fc1_eligibility_trace is not None:
-                    trace_stats = (model.fc1_eligibility_trace.mean().item(), model.fc1_eligibility_trace.std().item(),
-                                   model.fc1_eligibility_trace.min().item(), model.fc1_eligibility_trace.max().item())
+                    trace = model.fc1_eligibility_trace.detach().cpu()
+                    trace_stats = (trace.mean().item(), trace.std().item(), trace.min().item(), trace.max().item())
                     print(f"  FC1 Eligibility Trace Stats (Mean/Std/Min/Max): {trace_stats[0]:.2e} / {trace_stats[1]:.2e} / {trace_stats[2]:.2e} / {trace_stats[3]:.2e}")
         
         epoch_avg_loss = running_loss / num_batches
         epoch_losses.append(epoch_avg_loss)
-        if (epoch + 1) % (num_epochs // 10) == 0 : # Print epoch average loss less frequently
-             print(f"Epoch [{epoch+1}/{num_epochs}] Average Loss: {epoch_avg_loss:.4f}")
+        if (epoch + 1) % (num_epochs // 10) == 0 : 
+             print(f"Epoch [{epoch+1}/{num_epochs}] ({run_label}) Average Loss: {epoch_avg_loss:.4f}")
              
     return epoch_losses
 
@@ -150,10 +152,12 @@ input_size = 50
 hidden_size = 100 
 output_size = 10 
 learning_rate_bp = 0.001 
-base_local_learning_rate = 0.005 # For the run WITH plasticity
+# Adjusted local learning parameters
+base_local_learning_rate = 0.05 # Increased from 0.005
+clip_local_update = 0.2      # Increased from 0.01 
+
 num_epochs = 100 
 batch_size = 32
-clip_local_update = 0.01 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 print(f"Device: {device}")
@@ -161,9 +165,6 @@ print(f"Model: input_size={input_size}, hidden_size={hidden_size}, output_size={
 print(f"Epochs: {num_epochs}, Batch Size: {batch_size}, BP LR: {learning_rate_bp}\n")
 
 # --- Run 1: With Three-Factor Update ---
-print("--- Training: WITH Three-Factor Updates ---")
-print(f"Local LR: {base_local_learning_rate}, Clip: {clip_local_update}")
-# Model instantiation: use_three_factor_rule_active=True enables trace mechanism
 model_with_3f = SimpleSNN(input_size, hidden_size, output_size, use_three_factor_rule_active=True).to(device)
 criterion_with_3f = nn.CrossEntropyLoss()
 optimizer_with_3f = optim.Adam(model_with_3f.parameters(), lr=learning_rate_bp)
@@ -172,31 +173,23 @@ losses_with_3f = train_model(
     model=model_with_3f, criterion=criterion_with_3f, optimizer=optimizer_with_3f,
     num_epochs=num_epochs, batch_size=batch_size, input_size=input_size, output_size=output_size,
     device=device, current_local_learning_rate=base_local_learning_rate, 
-    clip_local_update=clip_local_update, print_metrics=True
+    clip_local_update=clip_local_update, print_metrics=True, run_label="With 3-Factor"
 )
-print("--- Finished Training WITH Three-Factor Updates ---\n")
-
 
 # --- Run 2: WITHOUT Three-Factor Update (local_lr = 0) ---
-print("--- Training: WITHOUT Three-Factor Updates (Ablation) ---")
-# Model instantiation: use_three_factor_rule_active=False disables trace accumulation and CustomLIF
-# For a fair comparison of only the update rule, we should use the same model architecture (with trace mechanism enabled)
-# but set local_learning_rate to 0.
-# If use_three_factor_rule_active is False, fc1_eligibility_trace is never created.
-model_no_3f = SimpleSNN(input_size, hidden_size, output_size, use_three_factor_rule_active=True).to(device) # Still True to allow trace mechanism for fair comparison
+model_no_3f = SimpleSNN(input_size, hidden_size, output_size, use_three_factor_rule_active=True).to(device) 
 criterion_no_3f = nn.CrossEntropyLoss()
 optimizer_no_3f = optim.Adam(model_no_3f.parameters(), lr=learning_rate_bp)
 
 losses_no_3f = train_model(
     model=model_no_3f, criterion=criterion_no_3f, optimizer=optimizer_no_3f,
     num_epochs=num_epochs, batch_size=batch_size, input_size=input_size, output_size=output_size,
-    device=device, current_local_learning_rate=0.0, # Key change for ablation
-    clip_local_update=clip_local_update, print_metrics=False # Less verbose for ablation run
+    device=device, current_local_learning_rate=0.0, 
+    clip_local_update=clip_local_update, print_metrics=False, run_label="Without 3-Factor (Ablation)"
 )
-print("--- Finished Training WITHOUT Three-Factor Updates ---\n")
-
 
 # --- Output for Plotting ---
+print("\n--- Ablation Study Results ---")
 print("Loss data for plotting (copy these arrays):")
 print(f"losses_with_3f = {losses_with_3f}")
 print(f"losses_no_3f = {losses_no_3f}")
