@@ -37,18 +37,18 @@ class SimpleSNN(nn.Module):
     def forward(self, x_static): # x_static is (batch_size, input_features)
         # Encode static input to spikes over time
         spikes_over_time = self.encoder(x_static) # (time_steps, batch_size, input_features)
-
+        
         # Initialize states
         # For CustomLIFCell, state is (v,i). Trace is managed internally.
         # For StandardLIFCell, state is also (v,i).
         s1 = None # self.lif1.get_initial_state(x_static.shape[0], x_static.device) -> Norse cells handle this internally if None
-
+        
         # List to store spikes from lif1 for fc2 input
         lif1_output_spikes_over_time = []
 
         for t in range(spikes_over_time.shape[0]): # Iterate over time steps
             x_t = spikes_over_time[t] # (batch_size, input_features)
-
+            
             # Apply fc1. Note: For CustomLIFCell, the pre-synaptic activity for the trace
             # should be the input to fc1 (x_t), and post-synaptic activity is output of lif1.
             # Our current CustomLIFCell's forward expects input `x` to be pre-synaptic spikes for its *own* trace.
@@ -119,7 +119,7 @@ class SimpleSNN(nn.Module):
 
             # Current pass:
             lif1_current_in = self.fc1(x_t) # Current into LIF neurons
-
+            
             if self.use_custom_lif:
                 # To correctly update the trace for fc1 using the current CustomLIFCell:
                 # The CustomLIFCell's trace is (cell_input_size, cell_output_size).
@@ -214,7 +214,7 @@ class SimpleSNN(nn.Module):
                 # Let's apply to fc1.
                 # Pre-activity: x_t (batch, input_size)
                 # Post-activity: s_lif1 (batch, hidden_size) - This is output of self.lif1 processing self.fc1(x_t)
-
+                
                 # Standard LIF processing using self.lif1 (could be CustomLIFCell or StandardLIFCell)
                 # If lif1 is CustomLIFCell, its internal trace is updated based on lif1_current_in and s_lif1.
                 # This is fine, we can use that trace if lif1 *is* the layer we target.
@@ -229,14 +229,14 @@ class SimpleSNN(nn.Module):
                 # Correct CustomLIFCell trace update logic:
                 #   batch_trace_update = torch.matmul(pre_spikes.t(), post_spikes) / batch_size
                 #   self.eligibility_trace.mul_(decay).add_(batch_trace_update)
-
+                
                 # We need to manually manage the trace for fc1 here
                 # Assume trace_decay_fc1 = 0.95 (should be a class member)
                 if not hasattr(self, 'trace_decay_fc1'): self.trace_decay_fc1 = 0.95
 
                 pre_for_fc1_trace = x_t.detach()
                 post_for_fc1_trace = s_lif1.detach() # s_lif1 comes from self.lif1(self.fc1(x_t), ...)
-
+                
                 batch_fc1_trace_update = torch.matmul(pre_for_fc1_trace.t(), post_for_fc1_trace) / x_static.shape[0]
                 self.fc1_eligibility_trace.mul_(self.trace_decay_fc1).add_(batch_fc1_trace_update)
 
@@ -245,15 +245,15 @@ class SimpleSNN(nn.Module):
 
 
             lif1_output_spikes_over_time.append(s_lif1)
-
+        
         # Stack spikes from lif1
         lif1_output_spikes_over_time = torch.stack(lif1_output_spikes_over_time) # (time, batch, hidden_size)
-
+        
         # For fc2, let's sum spikes over time from lif1 and pass through fc2
         # This is a common way to get a final classification score from spikes
         summed_s_lif1 = torch.sum(lif1_output_spikes_over_time, dim=0) # (batch, hidden_size)
         output = self.fc2(summed_s_lif1) # (batch, output_size)
-
+        
         return output # Return the direct output of fc2
 
     def reset_fc1_trace(self):
@@ -297,7 +297,7 @@ if use_three_factor:
 for epoch in range(num_epochs):
     # Dummy data for each epoch
     # Static features, encoder will create spike trains
-    dummy_static_input = torch.rand(batch_size, input_size)
+    dummy_static_input = torch.rand(batch_size, input_size) 
     dummy_labels = torch.randint(0, output_size, (batch_size,))
 
     # Reset traces if applicable (e.g., at the start of a trajectory/batch)
@@ -335,7 +335,7 @@ for epoch in range(num_epochs):
             #    This is a simplification; G_t is usually time-dependent. Here, one G_t for the batch.
             g_t = 1.0 / (loss.item() + 1e-2) # Example: higher reward for lower loss
             g_t_tensor = torch.tensor(g_t, device=model.fc1.weight.device)
-
+            
             # 3. Apply the update to fc1
             apply_three_factor_update(
                 layer_to_update=model.fc1, # The nn.Linear layer
