@@ -67,6 +67,8 @@ def apply_three_factor_update(
     # assuming the trace is for a single "episode" or "batch" contributing to G_t.
     # The caller should handle this based on their specific logic for trace accumulation.
     # For example: custom_lif_cell_instance.reset_trace()
+    
+    return delta_W # Return the computed weight change for analysis
 
 # Example Usage (Illustrative)
 if __name__ == '__main__':
