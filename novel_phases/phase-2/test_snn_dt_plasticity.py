@@ -2,41 +2,67 @@ import torch
 import torch.nn as nn
 import sys
 import os
+import copy
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir)) 
-spiking_mind_rl_root = os.path.join(project_root, "SpikingMindRL")
-sys.path.insert(0, spiking_mind_rl_root) 
-sys.path.insert(0, os.path.join(spiking_mind_rl_root, "external")) 
-sys.path.insert(0, os.path.join(spiking_mind_rl_root, "src")) 
+# --- Path Setup --- 
+# Assuming the script is in project_root/novel_phases/phase-2/
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Add src and external to sys.path more directly if SpikingMindRL is the project_root
+# This handles cases where SpikingMindRL might be a sub-directory or the root itself.
+src_path = os.path.join(project_root, 'src')
+external_submodule_path = os.path.join(project_root, 'external') # Path to the 'external' directory itself
+
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+if external_submodule_path not in sys.path:
+    sys.path.insert(0, external_submodule_path)
+
+# Ensure submodules within 'external' like 'decision-transformer' are also accessible if needed by imports
+# For instance, if 'external/decision_transformer/gym/...' is directly imported elsewhere.
+# The SNNDecisionTransformer itself handles its relative import for the base class correctly.
 
 try:
-    from src.models.snn_dt import SNNDecisionTransformer
-    from transformers import GPT2Config
+    from src.models.snn_dt import SNNDecisionTransformer # Should now work if src_path is correct
+    # from transformers import GPT2Config # Not directly used in this test script for model config
+except ImportError as e:
+    print(f"Import Error: {e}.\nEnsure 'src' and 'external' directories are correctly structured and accessible.")
+    print(f"Current sys.path includes: {project_root}, {src_path}, {external_submodule_path}")
+    sys.exit(1)
 except Exception as e:
-    print(f"Import Error: {e}. Ensure SpikingMindRL, external submodule, and transformers lib are correctly pathed and installed.")
+    print(f"An unexpected error occurred during imports: {e}")
     sys.exit(1)
 
-STATE_DIM, ACT_DIM, HIDDEN_SIZE = 4, 2, 128
-MAX_LENGTH, MAX_EP_LEN = 10, 100
-N_LAYER, N_HEAD = 3, 1
-BATCH_SIZE, SEQ_LENGTH = 2, 5
+# --- Test Configuration --- 
+STATE_DIM, ACT_DIM, HIDDEN_SIZE = 4, 2, 128 # Standard DT dimensions
+MAX_LENGTH, MAX_EP_LEN = 10, 100 # Max sequence length for transformer, max episode length for embeddings
+N_LAYER, N_HEAD = 3, 1 # Transformer config
+BATCH_SIZE, SEQ_LENGTH = 2, 5 # Test batch and sequence dimensions
 
-def create_dummy_input(device):
-    states = torch.rand(BATCH_SIZE, SEQ_LENGTH, STATE_DIM, device=device)
-    actions = torch.rand(BATCH_SIZE, SEQ_LENGTH, ACT_DIM, device=device)
-    rewards = torch.rand(BATCH_SIZE, SEQ_LENGTH, 1, device=device) 
-    returns_to_go = torch.rand(BATCH_SIZE, SEQ_LENGTH, 1, device=device)
-    timesteps = torch.randint(0, MAX_EP_LEN, (BATCH_SIZE, SEQ_LENGTH), device=device)
-    attention_mask = torch.ones(BATCH_SIZE, SEQ_LENGTH, device=device, dtype=torch.long)
+# --- Helper Functions --- 
+def create_dummy_input(device, batch_size=BATCH_SIZE, seq_length=SEQ_LENGTH, make_rtg_positive=False):
+    states = torch.rand(batch_size, seq_length, STATE_DIM, device=device)
+    actions = torch.rand(batch_size, seq_length, ACT_DIM, device=device) # Actual actions taken
+    rewards = torch.rand(batch_size, seq_length, 1, device=device) 
+    if make_rtg_positive:
+        # Ensure returns_to_go are positive and non-trivial for testing weight updates
+        returns_to_go = torch.rand(batch_size, seq_length, 1, device=device) + 0.1
+    else:
+        returns_to_go = torch.rand(batch_size, seq_length, 1, device=device)
+    timesteps = torch.randint(0, MAX_EP_LEN, (batch_size, seq_length), device=device)
+    attention_mask = torch.ones(batch_size, seq_length, device=device, dtype=torch.long)
     return states, actions, rewards, returns_to_go, timesteps, attention_mask
 
-def run_tests():
-    print("Starting Minimal SNNDT Plasticity Hook Test...")
+# --- Test Execution --- 
+def run_new_plasticity_tests():
+    print("--- Starting SNNDT Three-Factor Rule Test ---")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    model_args = {
+    # Standard Decision Transformer arguments
+    model_core_args = {
         'state_dim': STATE_DIM, 'act_dim': ACT_DIM, 'hidden_size': HIDDEN_SIZE,
         'max_length': MAX_LENGTH, 'max_ep_len': MAX_EP_LEN,
         'n_layer': N_LAYER, 'n_head': N_HEAD, 'action_tanh': False,
@@ -44,47 +70,85 @@ def run_tests():
         'resid_pdrop': 0.1, 'attn_pdrop': 0.1,
     }
 
+    # New parameters for our modified SNNDecisionTransformer's action head
+    snn_action_head_args = {
+        'time_window': 10,       # For SpikingTransformerBlocks (inherited usage)
+        'lif_threshold': 0.05,   # Lowered threshold to encourage spiking for testing
+        'action_lr': 1e-3        # Learning rate for the action_lin weights
+    }
+    
+    model_args = {**model_core_args, **snn_action_head_args}
+
     try:
-        model_with_plasticity = SNNDecisionTransformer(
-            **model_args, enable_action_head_plasticity=True
-        ).to(device)
-        print("SNNDT with plasticity instantiated.")
-        assert hasattr(model_with_plasticity, 'action_linear_layer_ref')
-        assert hasattr(model_with_plasticity, 'handle_pre_hook')
-        assert hasattr(model_with_plasticity, 'handle_post_hook')
-        print("Hook attributes found.")
+        model = SNNDecisionTransformer(**model_args).to(device)
+        print("SNNDT with new three-factor rule action head instantiated successfully.")
     except Exception as e:
-        print(f"Instantiation Error (Plasticity Model): {type(e).__name__}: {e}")
-        return
+        print(f"ERROR: Instantiation Failed: {type(e).__name__}: {e}")
+        return # Exit test if model can't be created
 
-    dummy_inputs = create_dummy_input(device)
-    _ = model_with_plasticity(*dummy_inputs) 
-    pre_syn, post_syn_logits = model_with_plasticity.get_captured_action_head_io()
-
-    assert pre_syn is not None, "Pre-syn data not captured."
-    assert pre_syn.shape == (BATCH_SIZE, SEQ_LENGTH, HIDDEN_SIZE), f"Pre-syn shape mismatch. Got {pre_syn.shape}"
-    assert post_syn_logits is not None, "Post-syn logits not captured."
-    assert post_syn_logits.shape == (BATCH_SIZE, SEQ_LENGTH, ACT_DIM), f"Post-syn logits shape mismatch. Got {post_syn_logits.shape}"
-    print("Data capture successful.")
-
-    model_with_plasticity.clear_captured_action_head_io()
-    pre_syn_cleared, post_syn_logits_cleared = model_with_plasticity.get_captured_action_head_io()
-    assert pre_syn_cleared is None and post_syn_logits_cleared is None, "Data not cleared."
-    print("Data clearing successful.")
+    # Test 1: Check weight changes after a forward pass in training mode
+    print("\n--- Test 1: Weight Update Check ---")
+    model.train() # Ensure model is in training mode for updates
     
-    model_with_plasticity.remove_hooks()
-    print("remove_hooks called.")
-    
-    model_with_plasticity.captured_pre_syn_for_action = torch.tensor(1.0) 
-    model_with_plasticity.captured_post_syn_for_action_logits = torch.tensor(1.0)
-    _ = model_with_plasticity(*dummy_inputs)
-    pre_after_remove, post_after_remove = model_with_plasticity.get_captured_action_head_.io() # Typo: get_captured_action_head_.io
-    assert pre_after_remove is None and post_after_remove is None, "Data not cleared by fwd pass after hook removal."
-    print("Hook removal test passed.")
+    # Create inputs designed to likely cause weight updates (positive RTG)
+    dummy_inputs = create_dummy_input(device, make_rtg_positive=True)
+    states, actions, rewards, returns_to_go, timesteps, attention_mask = dummy_inputs
 
-    del model_with_plasticity
-    print("Model deleted (triggers __del__ for hook removal).")
-    print("Minimal SNNDT Plasticity Hook Test Completed Successfully!")
+    initial_weights = model.action_lin.weight.data.clone()
+
+    print(f"Performing forward pass 1 (Batch Counter: {model.batch_counter})...")
+    # The SNNDecisionTransformer's forward method will print spike/delta_W diagnostics
+    _ = model(states, actions, rewards, returns_to_go, timesteps, attention_mask)
+    print("Forward pass 1 complete.")
+
+    weights_after_pass1 = model.action_lin.weight.data.clone()
+    weights_changed = not torch.equal(initial_weights, weights_after_pass1)
+    
+    print(f"Initial action_lin weight norm: {torch.norm(initial_weights).item():.4f}")
+    print(f"Action_lin weight norm after pass 1: {torch.norm(weights_after_pass1).item():.4f}")
+    assert weights_changed, (
+        "FAIL: action_lin weights did not change after the first forward pass in training mode. "
+        "Check for spikes and non-zero returns_to_go. Diagnostics from model should indicate activity."
+    )
+    print("PASS: action_lin weights changed after first pass.")
+
+    # Test 2: Check batch_counter increment and further diagnostic prints
+    print("\n--- Test 2: Batch Counter & Subsequent Passes Check ---")
+    # Expect batch_counter to have incremented if it was < 5
+    # Perform a few more passes to see diagnostics if batch_counter is still low
+    for i in range(4):
+        current_batch_count = model.batch_counter # Get counter before potential increment
+        print(f"Performing forward pass {i+2} (Batch Counter before this pass: {current_batch_count})...")
+        _ = model(states, actions, rewards, returns_to_go, timesteps, attention_mask)
+        print(f"Forward pass {i+2} complete. Batch counter is now {model.batch_counter}.")
+        # We expect the counter to increment until it reaches 5, then stop incrementing for these checks.
+        if current_batch_count < 5:
+            assert model.batch_counter == current_batch_count + 1, f"FAIL: Batch counter did not increment as expected. Was {current_batch_count}, now {model.batch_counter}"
+        else:
+            assert model.batch_counter == 5, f"FAIL: Batch counter expected to stay at 5, but is {model.batch_counter}"
+    print("PASS: Batch counter behavior and multiple forward passes seem okay (check console for diagnostics).")
+
+    # Test 3: Ensure model runs in eval mode without error (and no weight updates)
+    print("\n--- Test 3: Eval Mode Check ---")
+    model.eval()
+    weights_before_eval_pass = model.action_lin.weight.data.clone()
+    print(f"Performing forward pass in eval mode (Batch Counter: {model.batch_counter})...")
+    try:
+        _ = model(states, actions, rewards, returns_to_go, timesteps, attention_mask)
+        print("Forward pass in eval mode successful.")
+    except Exception as e:
+        assert False, f"FAIL: Model errored during forward pass in eval mode: {type(e).__name__}: {e}"
+    
+    weights_after_eval_pass = model.action_lin.weight.data.clone()
+    assert torch.equal(weights_before_eval_pass, weights_after_eval_pass), (
+        "FAIL: action_lin weights changed during forward pass in eval mode. Updates should only occur in training mode."
+    )
+    print("PASS: action_lin weights did not change in eval mode.")
+
+    del model
+    print("\nModel deleted.")
+    print("--- SNNDT Three-Factor Rule Test Completed Successfully! ---")
+    print("Review console output for detailed diagnostic messages from the model's forward pass regarding spikes and delta_W.")
 
 if __name__ == "__main__":
-    run_tests()
+    run_new_plasticity_tests()
