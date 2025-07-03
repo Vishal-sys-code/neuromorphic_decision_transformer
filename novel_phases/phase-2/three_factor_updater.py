@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from typing import Optional
 
 def apply_three_factor_update(
     layer_to_update: nn.Module,
@@ -40,7 +41,7 @@ def apply_three_factor_update(
 
     # Ensure return_to_go is on the same device as the trace and weights
     return_to_go = return_to_go.to(eligibility_trace.device)
-
+    
     # Compute the raw weight update
     # ΔW_O = η_local * eligibility_trace * G_t
     # G_t can be a scalar or a tensor that needs broadcasting.
@@ -89,26 +90,26 @@ if __name__ == '__main__':
     # Simulate some pre and post synaptic activity to populate the trace
     # In a real scenario, this trace would build up over time steps in a sequence
     pre_spikes = (torch.rand(batch_size, input_dim) > 0.5).float() # (batch, input_dim)
-
+    
     # To get post-synaptic spikes, we'd typically pass current through the linear layer, then to LIF
     # For this example, let's assume `lif_cell_for_trace` directly gives post-synaptic spikes
     # and its internal trace corresponds to `linear_layer`.
     # This part is a bit conceptual for a standalone example.
     # Let's manually set the trace for demonstration.
     # lif_cell_for_trace.eligibility_trace = torch.rand_like(linear_layer.weight.data) * 0.1
-
+    
     # More realistically, let's simulate one step of the custom LIF cell
     # to get some trace values.
     # The `forward` of CustomLIFCell takes `x` which are pre-synaptic spikes to *itself*.
     # If `CustomLIFCell` *is* the layer, its input `x` is pre-synaptic.
     # If `CustomLIFCell` is *after* `linear_layer`, then `x` for `CustomLIFCell` is output of `linear_layer`.
     # Let's assume the trace in `lif_cell_for_trace` is the one we want to use.
-
+    
     # Simulate a forward pass to populate the trace
     # This `input_current_for_lif` would be `linear_layer(pre_spikes)` if we model it fully.
     # For simplicity, let's assume `pre_spikes` are direct inputs to `lif_cell_for_trace`
     # and its trace is relevant for `linear_layer`.
-
+    
     _ = lif_cell_for_trace(pre_spikes, None) # This updates lif_cell_for_trace.eligibility_trace
     current_trace = lif_cell_for_trace.eligibility_trace.clone()
     print(f"\nEligibility trace (simulated):\n{current_trace}")
@@ -162,7 +163,7 @@ if __name__ == '__main__':
 
     G_t_vector = torch.randn(output_dim) # Example: one G_t value per output feature
     print(f"G_t_vector (shape {G_t_vector.shape}):\n{G_t_vector}")
-
+    
     apply_three_factor_update(
         layer_to_update=linear_layer,
         eligibility_trace=current_trace_broadcast,
