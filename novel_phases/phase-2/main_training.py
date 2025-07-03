@@ -190,12 +190,12 @@ class SimpleSNN(nn.Module):
                 # Pre-synaptic spikes: x_t
                 # Post-synaptic spikes: s_lif1
                 # We need a place to store this trace. Let's add it to the model.
+                # The trace should match the shape of fc1.weight: (out_features, in_features)
                 if not hasattr(self, 'fc1_eligibility_trace'):
-                    self.fc1_eligibility_trace = torch.zeros_like(self.fc1.weight.data.T) # (in, out) -> (out, in) for .T
-                                                                                            # fc1.weight is (out, in)
-                                                                                            # trace should be (in, out)
-                    self.fc1_eligibility_trace = torch.zeros(self.fc1.in_features, self.fc1.out_features, device=x_static.device)
-
+                    self.fc1_eligibility_trace = torch.zeros(
+                        self.fc1.out_features, self.fc1.in_features, 
+                        device=x_static.device, dtype=self.fc1.weight.dtype
+                    )
 
                 # Standard LIF processing for s_lif1
                 # (Using a dummy LIF cell here for s_lif1 generation if lif1 is not CustomLIFCell,
@@ -234,10 +234,11 @@ class SimpleSNN(nn.Module):
                 # Assume trace_decay_fc1 = 0.95 (should be a class member)
                 if not hasattr(self, 'trace_decay_fc1'): self.trace_decay_fc1 = 0.95
 
-                pre_for_fc1_trace = x_t.detach()
-                post_for_fc1_trace = s_lif1.detach() # s_lif1 comes from self.lif1(self.fc1(x_t), ...)
+                pre_for_fc1_trace = x_t.detach() # Shape: (batch, fc1.in_features)
+                post_for_fc1_trace = s_lif1.detach() # Shape: (batch, fc1.out_features)
                 
-                batch_fc1_trace_update = torch.matmul(pre_for_fc1_trace.t(), post_for_fc1_trace) / x_static.shape[0]
+                # To get trace shape (out_features, in_features): post.T @ pre
+                batch_fc1_trace_update = torch.matmul(post_for_fc1_trace.t(), pre_for_fc1_trace) / x_static.shape[0]
                 self.fc1_eligibility_trace.mul_(self.trace_decay_fc1).add_(batch_fc1_trace_update)
 
             else: # Not using custom lif, just standard processing
