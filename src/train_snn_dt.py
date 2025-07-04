@@ -47,7 +47,8 @@ from src.utils.trajectory_buffer import TrajectoryBuffer
 from src.utils.helpers import compute_returns_to_go, simple_logger, save_checkpoint
 # from src.models.snn_dt_patch import SNNDecisionTransformer  # or DecisionTransformer
 # from .models.snn_dt_patch import SNNDecisionTransformer  # or DecisionTransformer
-from ..src.models.snn_dt_patch import SNNDecisionTransformer  # or DecisionTransformer
+# from ..src.models.snn_dt_patch import SNNDecisionTransformer  # or DecisionTransformer # Original problematic import
+from src.models.snn_dt_patch import SNNDecisionTransformer  # Corrected import
 # Uncomment the following line to use the original DecisionTransformer
 # from src.models.snn_dt_gpt2_attention import SNNDecisionTransformer  # or DecisionTransformer
 
