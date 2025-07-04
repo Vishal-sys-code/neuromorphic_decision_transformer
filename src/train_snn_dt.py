@@ -8,8 +8,17 @@ Collect trajectories first, then train in batch (return-conditioned).
 
 # Offline Decision Transformer Training
 import os
+import sys # Added sys import
 import random
 import pickle
+
+# --- Prepend Project Root to sys.path ---
+# This allows Python to find the 'src' package when running this script directly,
+# especially in environments like Kaggle or when the script is not run as a module from the root.
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+# --- End sys.path modification ---
 
 import gym
 import numpy as np
