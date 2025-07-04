@@ -74,7 +74,10 @@ class SpikingSelfAttention(nn.Module):
     def __init__(self,
                  embed_dim: int,
                  num_heads: int = 1,
-                 time_window: int = 10):
+                 time_window: int = 10,
+                 positional_encoder=None, # Optional PositionalSpikeEncoder module
+                 dendritic_router=None    # Optional DendriticRouter module
+                 ):
         super().__init__()
         assert embed_dim % num_heads == 0, "embed_dim must be divisible by num_heads"
         self.embed_dim = embed_dim
@@ -89,6 +92,10 @@ class SpikingSelfAttention(nn.Module):
         # Final spiking output projection
         self.out_proj = LIFNeuronLayer(embed_dim, embed_dim)
 
+        # Store modular Phase 3 components
+        self.positional_encoder = positional_encoder
+        self.dendritic_router = dendritic_router
+
     def forward(self, x: torch.Tensor):
         """
         x: [batch, seq_len, embed_dim]
@@ -96,7 +103,15 @@ class SpikingSelfAttention(nn.Module):
         """
         B, S, E = x.shape
         # 1) Encode embeddings into spike trains
-        spikes_input_encoded = rate_encode(x, self.time_window)  # [T, B, S, E]
+        # Ensure time_window is positive before encoding
+        if self.time_window <= 0:
+            # Fallback or error for invalid time_window, though typically it's a fixed positive hyperparameter.
+            # For now, let's assume it's always > 0 as per typical usage.
+            # If it could be zero, this path needs robust handling (e.g., skip spiking part or error).
+             spikes_input_encoded = torch.zeros(0, B, S, E, device=x.device) # Or handle error
+        else:
+            spikes_input_encoded = rate_encode(x, self.time_window)  # [T, B, S, E]
+
 
         # 2) Accumulate Q, K, V over time
         Q_acc = torch.zeros(B, self.num_heads, S, self.head_dim, device=x.device)
@@ -115,6 +130,11 @@ class SpikingSelfAttention(nn.Module):
             kh = k_spk.view(B, S, self.num_heads, self.head_dim).transpose(1, 2)
             vh = v_spk.view(B, S, self.num_heads, self.head_dim).transpose(1, 2)
 
+            # --- Apply Positional Spike Encoding (if module provided) ---
+            if self.positional_encoder is not None:
+                qh, kh, vh = self.positional_encoder(qh, kh, vh, t)
+            # --- End Positional Spike Encoding ---
+
             Q_acc += qh
             K_acc += kh
             V_acc += vh
@@ -125,6 +145,11 @@ class SpikingSelfAttention(nn.Module):
         attn = torch.softmax(scores, dim=-1)
         # weighted sum: [B, heads, S, head_dim]
         out_h = torch.einsum('bhqk,bhkd->bhqd', attn, V_acc)
+
+        # --- Apply Dendritic Routing (if module provided) ---
+        if self.dendritic_router is not None:
+            out_h = self.dendritic_router(out_h)
+        # --- End Dendritic Routing ---
 
         # 4) Merge heads & final spiking projection
         out = out_h.transpose(1, 2).contiguous().view(B * S, E)
