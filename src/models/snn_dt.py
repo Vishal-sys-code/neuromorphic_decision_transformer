@@ -5,27 +5,47 @@ Email: pandeyvishal.mlprof@gmail.com
 import os, sys
 # Path setup for external modules, assuming a specific project structure.
 # This might need adjustment based on how the project is run.
-# root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# ext = os.path.join(root, "external")
-# if ext not in sys.path:
-#     sys.path.insert(0, ext)
+# Determine the project root directory to allow imports from 'novel_phases'
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 import math
 import torch
 import torch.nn as nn
 from external.decision_transformer.gym.decision_transformer.models.decision_transformer import DecisionTransformer
-from external.decision_transformer.gym.decision_transformer.models.trajectory_gpt2 import TransformerBlock as TransformerBlock
-from .spiking_layers import SpikingSelfAttention, LIFCell, LIFParameters # Corrected: was src.models.spiking_layers
+from external.decision_transformer.gym.decision_transformer.models.trajectory_gpt2 import TransformerBlock as HuggingFaceTransformerBlock # Renamed to avoid conflict
+from .spiking_layers import SpikingSelfAttention, LIFCell, LIFParameters
+
+# Import Phase 3 modules
+from ...novel_phases.phase3.positional_spike_encoder import PositionalSpikeEncoder
+from ...novel_phases.phase3.dendritic_routing import DendriticRouter
 
 class SpikingTransformerBlock(nn.Module):
-    def __init__(self, block: TransformerBlock, time_window: int):
+    def __init__(self, 
+                 block: HuggingFaceTransformerBlock, 
+                 time_window: int, 
+                 use_phase3_features: bool = True):
         super().__init__()
         self.ln1 = block.ln_1
         self.ln2 = block.ln_2
+        
+        num_heads = block.attn.n_head
+        embed_dim = block.ln_1.normalized_shape[0] # This is typically n_embd
+
+        self.pos_encoder = None
+        self.dendritic_router = None
+
+        if use_phase3_features:
+            self.pos_encoder = PositionalSpikeEncoder(num_heads=num_heads, time_window=time_window)
+            self.dendritic_router = DendriticRouter(num_heads=num_heads)
+
         self.snn_attn = SpikingSelfAttention(
-            embed_dim=block.ln_1.normalized_shape[0],
-            num_heads=block.attn.n_head,
-            time_window=time_window
+            embed_dim=embed_dim,
+            num_heads=num_heads,
+            time_window=time_window,
+            positional_encoder=self.pos_encoder,
+            dendritic_router=self.dendritic_router
         )
         self.ff = block.mlp
 
@@ -37,11 +57,19 @@ class SpikingTransformerBlock(nn.Module):
         return hidden_states
 
 class SNNDecisionTransformer(DecisionTransformer):
-    def __init__(self, *args, time_window: int = 10, lif_threshold: float = 0.1, action_lr: float = 1e-3, **kwargs):
+    def __init__(self, 
+                 *args, 
+                 time_window: int = 10, 
+                 lif_threshold: float = 0.1, 
+                 action_lr: float = 1e-3, 
+                 use_phase3_features: bool = True, # Added flag for Phase 3 features
+                 **kwargs):
         super().__init__(*args, **kwargs) 
 
         self.transformer.h = nn.ModuleList([
-            SpikingTransformerBlock(block, time_window)
+            SpikingTransformerBlock(block, 
+                                    time_window, 
+                                    use_phase3_features=use_phase3_features) # Pass flag
             for block in self.transformer.h
         ])
 
