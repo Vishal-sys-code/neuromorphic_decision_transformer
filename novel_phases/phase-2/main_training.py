@@ -1,3 +1,7 @@
+"""
+Authored by: Vishal Pandey
+Reviewed by: Debasmita Biswas
+"""
 import torch
 import torch.nn as nn
 import torch.optim as optim
