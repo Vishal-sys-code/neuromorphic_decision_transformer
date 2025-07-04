@@ -16,9 +16,19 @@ import pickle
 # This allows Python to find the 'src' package when running this script directly,
 # especially in environments like Kaggle or when the script is not run as a module from the root.
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+# if PROJECT_ROOT not in sys.path: # Temporarily comment this out for diagnostics
+#     sys.path.insert(0, PROJECT_ROOT) # Temporarily comment this out for diagnostics
 # --- End sys.path modification ---
+
+# --- Start Debug Prints ---
+print("--- DEBUG INFO ---")
+print(f"Current CWD: {os.getcwd()}")
+print(f"PROJECT_ROOT variable: {PROJECT_ROOT}")
+print("sys.path contents:")
+for p_idx, p_val in enumerate(sys.path):
+    print(f"  sys.path[{p_idx}]: {p_val}")
+print("--- END DEBUG INFO ---")
+# --- End Debug Prints ---
 
 import gym
 import numpy as np
