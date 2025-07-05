@@ -123,7 +123,7 @@ def collect_trajectories(env_name="CartPole-v1"):
         if done:
             trajectories.append(buf.get_trajectory())
             buf.reset()
-    return trajectories
+    return trajectories, env.action_space.n
 
 def train_offline_dt(env_name="CartPole-v1"):
     set_seed(SEED)
@@ -131,7 +131,8 @@ def train_offline_dt(env_name="CartPole-v1"):
 
     # 1. Collect & save
     print("Collecting trajectories...")
-    trajectories = collect_trajectories(env_name)
+    trajectories, act_dim_from_env = collect_trajectories(env_name)
+    # Save only trajectories, not act_dim
     with open("offline_data.pkl","wb") as f:
         pickle.dump(trajectories, f)
 
@@ -143,7 +144,7 @@ def train_offline_dt(env_name="CartPole-v1"):
     dt_conf = dt_config.copy()
     dt_conf.update(
         state_dim=dataset[0]["states"].shape[-1],
-        act_dim=int(dataset[0]["actions"].max().item())+1,
+        act_dim=act_dim_from_env, # Use action dim from environment
         max_length=max_length,
     )
     model = SNNDecisionTransformer(**dt_conf).to(DEVICE)
