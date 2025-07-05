@@ -2,75 +2,31 @@ import torch
 import torch.nn as nn
 
 class DendriticRouter(nn.Module):
+    """
+    Given multi-head spike outputs Y: [B, L, H, d, T] or [B, L, H, d] (after summing T),
+    computes gates per head and re-weights.
+    """
+
     def __init__(self, num_heads: int):
         super().__init__()
-        self.num_heads = num_heads
-
-        # MLP for gating head outputs
-        # Input: [B, H], Output: [B, H] (sigmoid activated)
-        # Using num_heads * 2 as a simple hidden layer dimension for expressiveness
-        hidden_dim_routing = self.num_heads * 2
-        
+        self.H = num_heads
+        # tiny MLP: maps from H → H gates
         self.routing_mlp = nn.Sequential(
-            nn.Linear(self.num_heads, hidden_dim_routing),
-            nn.ReLU(),
-            nn.Linear(hidden_dim_routing, self.num_heads),
+            nn.Linear(self.H, self.H),
             nn.Sigmoid()
         )
 
-    def forward(self, out_h: torch.Tensor):
-        """
-        Applies learned dendritic-style routing to the attention head outputs.
+    def forward(self, y_heads: torch.Tensor):
+        # y_heads: [B, L, H, d]  (assume summed over T already)
+        B, L, H, d = y_heads.shape
 
-        Args:
-            out_h (torch.Tensor): Output of attention heads,
-                                  shape [B, H, S, head_dim] (Batch, Heads, SeqLen, HeadDim).
+        # 1) Summarize per head: sum over features
+        summary = y_heads.sum(dim=-1)  # [B, L, H]
 
-        Returns:
-            torch.Tensor: Gated head outputs, same shape as out_h.
-        """
-        B, H, S, D_head = out_h.shape
+        # 2) Compute gates: flatten B×L into one batch for MLP
+        gates = self.routing_mlp(summary.view(-1, H))  # [(B×L), H]
+        gates = gates.view(B, L, H)  # [B, L, H]
 
-        # Summarize head activity: Sum over sequence length (S) and head dimension (D_head)
-        # head_summary: [B, H]
-        head_summary = out_h.sum(dim=[2, 3])
-        
-        # Get gates from MLP: gates [B, H]
-        gates = self.routing_mlp(head_summary)
-
-        # Apply gating to each head's output vector
-        # gates need to be reshaped to [B, H, 1, 1] for broadcasting
-        gated_out_h = gates.unsqueeze(-1).unsqueeze(-1) * out_h
-        
-        return gated_out_h
-
-if __name__ == '__main__':
-    # Example Usage
-    B, H, S, D_head = 2, 4, 10, 16  # Batch, Heads, SeqLen, HeadDim
-
-    router = DendriticRouter(num_heads=H)
-
-    # Dummy input for head outputs
-    dummy_out_h = torch.randn(B, H, S, D_head)
-    
-    gated_output = router(dummy_out_h)
-
-    print("Original out_h shape:", dummy_out_h.shape)
-    print("Gated out_h shape:", gated_output.shape)
-
-    # Check if gating happened (some values might be scaled)
-    # print("\nOriginal out_h sample (batch 0, head 0, token 0, first 4 features):", dummy_out_h[0,0,0,:4])
-    # print("Gated out_h sample (batch 0, head 0, token 0, first 4 features):", gated_output[0,0,0,:4])
-    
-    # Inspect MLP weights (example for the first layer)
-    # print("\nRouting MLP first layer weights shape:", router.routing_mlp[0].weight.shape)
-    # print("Routing MLP first layer weights (sample):", router.routing_mlp[0].weight)
-    
-    # For a production model, ensure parameters are moved to the correct device, e.g.
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # router.to(device)
-    # dummy_out_h = dummy_out_h.to(device)
-    # This example assumes CPU.
-    # The DendriticRouter will use the device of its parameters for calculations.
-    # Input tensor out_h should be on the same device.
-    pass
+        # 3) Apply gates
+        gated = (gates.unsqueeze(-1) * y_heads).sum(dim=2)  # [B, L, d]
+        return gated
