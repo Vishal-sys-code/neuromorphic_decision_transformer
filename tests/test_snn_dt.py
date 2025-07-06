@@ -2,8 +2,8 @@ import pytest
 import torch
 # Adjust import path as needed
 from src.models.snn_dt import SNNDT
-from ..novel_phases.phase3.positional_spike_encoder import PositionalSpikeEncoder
-from ..novel_phases.phase3.dendritic_routing import DendriticRouter
+from novel_phases.phase3.positional_spike_encoder import PositionalSpikeEncoder
+from novel_phases.phase3.dendritic_routing import DendriticRouter
 
 # Default parameters for tests
 DEFAULT_EMBED_DIM = 32 # Smaller for faster tests
