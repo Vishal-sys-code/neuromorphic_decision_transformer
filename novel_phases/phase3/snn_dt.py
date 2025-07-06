@@ -4,116 +4,111 @@ from .positional_spike_encoder import PositionalSpikeEncoder
 from .dendritic_routing import DendriticRouter
 
 class SNNDT(nn.Module):
-    def __init__(self, embed_dim: int = 128, num_heads: int = 4, window_length: int = 10, num_layers: int = 1): # Added num_layers
+    def __init__(self, embed_dim: int = 128, num_heads: int = 4, window_length: int = 10, num_layers: int = 1,
+                 use_pos_encoder: bool = True, use_router: bool = True): # Added ablation flags
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.T = window_length
-        self.num_layers = num_layers # Store num_layers
+        self.num_layers = num_layers
+        self.use_pos_encoder = use_pos_encoder
+        self.use_router = use_router
 
         # Placeholder for rate coder
-        # This should take embeddings [B, L, d] and return rate_spikes [B, L, d, T]
-        self.rate_coder = nn.Identity() # Replace with your actual rate coder, e.g., a learned layer or a fixed function
+        self.rate_coder = nn.Identity() # Replace with your actual rate coder
 
-        self.pos_encoder = PositionalSpikeEncoder(num_heads=self.num_heads,
-                                                  window_length=self.T)
+        if self.use_pos_encoder:
+            self.pos_encoder = PositionalSpikeEncoder(num_heads=self.num_heads,
+                                                      window_length=self.T)
+        else:
+            self.pos_encoder = None # Explicitly set to None if not used
         
-        # Placeholder for spiking attention mechanism
-        # This should take masked_spikes [B, L, H, d, T] and return y_heads [B, L, H, d, T]
-        # This is a simplified placeholder. You'll likely have a list of these for multiple layers.
         self.spiking_attention_layers = nn.ModuleList([
             nn.Identity() for _ in range(self.num_layers) # Replace with your actual spiking attention layer(s)
         ])
 
-        self.router = DendriticRouter(num_heads=self.num_heads)
+        if self.use_router:
+            self.router = DendriticRouter(num_heads=self.num_heads)
+        else:
+            self.router = None # Explicitly set to None if not used
 
-        # Placeholder for feed-forward network
         self.ffn = nn.Sequential(
             nn.Linear(self.embed_dim, self.embed_dim * 4),
             nn.ReLU(),
             nn.Linear(self.embed_dim * 4, self.embed_dim)
         )
-        # Layer normalization
         self.ln1 = nn.LayerNorm(self.embed_dim)
         self.ln2 = nn.LayerNorm(self.embed_dim)
 
 
-    def forward(self, embeddings: torch.Tensor): # Input is embeddings [B, L, d]
-        x = embeddings # Input to the first layer
+    def forward(self, embeddings: torch.Tensor):
+        x = embeddings 
+
+        # Compute global positional mask once if pos_encoder is enabled and intended to be static per input
+        # If pos_encoder is dynamic per layer, it should be inside the loop.
+        # For this ablation, let's assume it's based on initial embeddings or current layer input 'x'.
+        # The prompt implies pos_encoder is a module that's either on or off.
+        
+        # Initial rate coding (if applicable only once at the start)
+        # current_spikes = self.rate_coder(x) # Assuming rate_coder outputs [B,L,d,T]
+        # For simplicity, let's assume rate_coder is applied inside the loop or x is already spikes.
 
         for i in range(self.num_layers):
-            # --- Start of a single SNN Block ---
-            # original rate_spikes: [B, L, d, T]
-            # Assuming rate_coder takes [B, L, d] and outputs [B, L, d, T]
-            # If your rate coder is part of the attention, adjust accordingly.
-            # For this example, let's assume rate_coder is applied to the input of each block 'x'
+            # Rate coding: Applied at the beginning of each block to current input 'x'
+            # This assumes 'x' becomes continuous after each block.
+            if x.dim() == 4 and x.size(3) == self.T: # if x is already [B,L,d,T] from a previous SNN op
+                rate_spikes = x
+            else: # Assuming x is [B,L,d]
+                rate_spikes = self.rate_coder(x) # This should output [B,L,d,T]
             
-            # If rate_coder is meant to be applied only once at the beginning:
-            if i == 0: # Apply rate coder only before the first layer
-                 # Ensure x has 3 dimensions [B, L, d] before passing to rate_coder
-                if x.dim() == 4 and x.size(3) == self.T: # if x is already [B,L,d,T]
-                    rate_spikes = x 
-                elif x.dim() == 5: # if x is [B,L,H,d,T]
-                    # This case should not happen if x is properly managed
-                    # Potentially sum over H and T if needed, or re-evaluate flow
-                    # For now, let's assume x is [B,L,d] or gets processed to it
-                    pass # Add appropriate handling if this state is possible
-                else: # Assuming x is [B,L,d]
-                    rate_spikes = self.rate_coder(x) 
-            else: # For subsequent layers, x is the output of the previous block [B,L,d]
-                 # We need to decide if rate_coder is applied again or if x is already in spike domain
-                 # For now, assume x from previous layer is [B,L,d] and needs re-coding
-                 # This part is crucial and depends on your specific SNN architecture
-                 # If x is already spikes, then rate_coder might not be needed here.
-                 # Let's assume for now that each block re-codes.
-                rate_spikes = self.rate_coder(x)
+            # Ensure rate_spikes has T dimension
+            if rate_spikes.dim() == 3: # If rate_coder outputs [B,L,d]
+                rate_spikes = rate_spikes.unsqueeze(-1).expand(-1,-1,-1, self.T)
 
 
-            # 1) get positional mask: [H, T]
-            # The positional encoder expects embeddings [B,L,d].
-            # We should pass the original embeddings or the current block's input 'x'
-            # Using 'x' which is the input to the current layer
-            pos_mask = self.pos_encoder(x) # pos_encoder expects [B, L, d]
+            # 1) Apply positional encoding if enabled
+            if self.use_pos_encoder and self.pos_encoder:
+                # pos_encoder expects [B, L, d] (current layer input x)
+                pos_mask = self.pos_encoder(x) # Output: [H, T]
+                # Expand rate_spikes to [B, L, H, d, T]
+                expanded_rate_spikes = rate_spikes.unsqueeze(2).expand(-1, -1, self.num_heads, -1, -1)
+                # pos_mask broadcast: [1, 1, H, 1, T]
+                masked_spikes = expanded_rate_spikes * pos_mask.unsqueeze(0).unsqueeze(1).unsqueeze(3)
+            else:
+                # No positional encoding, or baseline. Spikes are not masked by position.
+                # Ensure expanded_rate_spikes is still created for consistent input to attention
+                expanded_rate_spikes = rate_spikes.unsqueeze(2).expand(-1, -1, self.num_heads, -1, -1)
+                masked_spikes = expanded_rate_spikes # No phase mask applied
 
-            # 2) expand rate_spikes to [B, L, H, d, T] and multiply by pos_mask
-            # Ensure rate_spikes is [B, L, d, T]
-            if rate_spikes.dim() == 3: # If rate_coder outputs [B,L,d] for some reason
-                rate_spikes = rate_spikes.unsqueeze(-1).expand(-1,-1,-1, self.T) # Add T dimension
-
-            expanded_rate_spikes = rate_spikes.unsqueeze(2).expand(-1, -1, self.num_heads, -1, -1)
-            # pos_mask is [H, T]. Expand it for broadcasting:
-            # [1, 1, H, 1, T] to multiply with [B, L, H, d, T]
-            masked_spikes = expanded_rate_spikes * pos_mask.unsqueeze(0).unsqueeze(1).unsqueeze(3)
-
-            # 3) feed masked_spikes into each head’s LIF projections
-            #    you’ll get y_heads: [B, L, H, d, T]
-            # This is a placeholder. Your actual spiking_attention might be more complex
-            # or part of a larger structure.
-            # Pass to the i-th attention layer
+            # 2) Spiking attention
             y_heads = self.spiking_attention_layers[i](masked_spikes) # y_heads: [B, L, H, d, T]
 
-            # 4) sum over time T: [B, L, H, d]
-            y_heads_summed_time = y_heads.sum(dim=-1)
+            # 3) Sum over time T
+            y_heads_summed_time = y_heads.sum(dim=-1) # Shape: [B, L, H, d]
 
-            # 5) apply routing
-            merged = self.router(y_heads_summed_time)  # [B, L, d]
+            # 4) Apply routing if enabled, else simple merge
+            if self.use_router and self.router:
+                merged = self.router(y_heads_summed_time)  # Shape: [B, L, d]
+            else:
+                # Baseline or no router: sum/mean across heads
+                # Assuming d_head = embed_dim / num_heads for typical attention.
+                # Here, y_heads_summed_time is [B, L, H, d]. If d is full embed_dim per head:
+                # merged = y_heads_summed_time.sum(dim=2) # Summing features from H heads.
+                # If d is d_k (embed_dim // num_heads), then we might need to reshape/concat.
+                # For now, let's assume d is full embed_dim and we average.
+                # The DendriticRouter also outputs [B,L,d], so this should be compatible.
+                # A common way to combine heads if d is d_k is to concat and then Linear.
+                # Given the current DendriticRouter sums weighted contributions,
+                # a simple sum/mean is a reasonable alternative for "no routing".
+                merged = y_heads_summed_time.mean(dim=2) # Averaging over H heads
 
-            # 6) continue with your usual residual & feed‑forward
-            #    Standard Transformer-like block: Add & Norm, FFN, Add & Norm
-            #    x is the input to this block (from previous layer or initial embeddings)
-            
-            # First residual connection and LayerNorm
-            x_residual = x + merged # Add output of attention/routing to the input of the block
+            # 5) Residual connection, LayerNorm, FFN
+            x_residual = x + merged 
             x_norm1 = self.ln1(x_residual)
-
-            # Feed-forward network
             ffn_output = self.ffn(x_norm1)
+            x = self.ln2(x_norm1 + ffn_output)
 
-            # Second residual connection and LayerNorm
-            x = self.ln2(x_norm1 + ffn_output) # Output of this block, input to the next
-            # --- End of a single SNN Block ---
-
-        return x # Final output after all layers [B, L, d]
+        return x
 
 # Example Usage (Illustrative)
 if __name__ == '__main__':
