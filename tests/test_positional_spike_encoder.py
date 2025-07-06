@@ -44,6 +44,7 @@ def test_pse_forward_pass_output_values(pse_model):
     B, L, d = 2, 5, 8
     embeddings = torch.randn(B, L, d)
     
+    pse_model.eval() # Set model to evaluation mode
     pos_mask = pse_model(embeddings)
     
     assert torch.all((pos_mask == 0) | (pos_mask == 1)), \
