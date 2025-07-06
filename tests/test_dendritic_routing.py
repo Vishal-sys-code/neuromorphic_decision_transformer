@@ -1,7 +1,8 @@
 import pytest
 import torch
+import torch.nn.functional as F
 # Adjust import path as needed
-from ..novel_phases.phase3.dendritic_routing import DendriticRouter
+from novel_phases.phase3.dendritic_routing import DendriticRouter
 
 @pytest.fixture
 def dr_model():
@@ -78,7 +79,7 @@ def test_dr_routing_mlp_non_trivial_weights_after_training_placeholder(dr_model)
     for _ in range(5): # Few steps
         optimizer.zero_grad()
         gated_output = dr_model(y_heads_input)
-        loss = torch.mse_loss(gated_output, dummy_target)
+        loss = F.mse_loss(gated_output, dummy_target)
         loss.backward()
         optimizer.step()
 
