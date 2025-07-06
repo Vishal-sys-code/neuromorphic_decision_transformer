@@ -1,4 +1,6 @@
 import torch
+import argparse
+import os
 # Assuming your models are in SpikingMindRL.src.models
 # Adjust the import path if your project structure is different
 # For example, if SpikingMindRL is the top-level package recognized by Python:
@@ -9,99 +11,131 @@ from src.models.snn_dt import SNNDT
 # If SpikingMindRL is in PYTHONPATH and src is a package:
 # from src.models.snn_dt import SNNDT
 
-def main():
-    print("Starting main training script...")
+def main(args):
+    print(f"Starting main training script with args: {args}")
 
-    # Configuration (replace with your actual configuration loading)
-    batch_size = 16
-    seq_length = 50
-    embed_dim = 128
-    num_heads = 4
-    window_length = 10 # T
-    num_layers = 2    # Number of SNN layers in SNNDT
-    learning_rate = 1e-4
-    num_epochs = 100
+    # Configuration (replace with your actual configuration loading or use args)
+    batch_size = args.batch_size
+    seq_length = args.seq_length
+    embed_dim = args.embed_dim
+    num_heads = args.num_heads
+    window_length = args.window_length # T
+    num_layers = args.num_layers    # Number of SNN layers in SNNDT
+    learning_rate = args.lr
+    num_epochs = args.epochs
+    
+    use_pos_encoder_flag = True
+    use_router_flag = True
+
+    if args.ablation_mode == "baseline":
+        use_pos_encoder_flag = False
+        use_router_flag = False
+        print("Running in ABLATION MODE: BASELINE (Rate coding only)")
+    elif args.ablation_mode == "pos_only":
+        use_pos_encoder_flag = True
+        use_router_flag = False
+        print("Running in ABLATION MODE: +POSITIONAL SPIKES (Positional Encoder ON, Router OFF)")
+    elif args.ablation_mode == "router_only":
+        use_pos_encoder_flag = False
+        use_router_flag = True
+        print("Running in ABLATION MODE: +ROUTING ONLY (Positional Encoder OFF, Router ON)")
+    elif args.ablation_mode == "full":
+        use_pos_encoder_flag = True
+        use_router_flag = True
+        print("Running in ABLATION MODE: FULL (Positional Encoder ON, Router ON)")
+    else:
+        print("Warning: Unknown ablation mode. Defaulting to full configuration.")
+
 
     # Initialize the model
-    # Ensure these parameters match those expected by your SNNDT's __init__
     model = SNNDT(
         embed_dim=embed_dim,
         num_heads=num_heads,
         window_length=window_length,
-        num_layers=num_layers
+        num_layers=num_layers,
+        use_pos_encoder=use_pos_encoder_flag,
+        use_router=use_router_flag
     )
 
     # Dummy data (replace with your actual data loading and preprocessing)
-    # Input embeddings: [B, L, d]
     dummy_input_embeddings = torch.randn(batch_size, seq_length, embed_dim)
-    # Target data (shape depends on your task, e.g., next token prediction, classification)
-    # For example, if predicting a sequence of the same dimension:
     dummy_targets = torch.randn(batch_size, seq_length, embed_dim)
-    # Or for classification, targets might be class indices:
-    # dummy_targets_classification = torch.randint(0, num_classes, (batch_size,))
 
-    # Loss function (choose based on your task)
-    # For regression-like tasks or predicting continuous embeddings:
     criterion = torch.nn.MSELoss()
-    # For classification:
-    # criterion = torch.nn.CrossEntropyLoss()
-
-    # Optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    print(f"Model initialized: {model}")
+    print(f"Model initialized for mode: {args.ablation_mode}")
+    print(f"  Positional Encoder: {'Enabled' if use_pos_encoder_flag else 'Disabled'}")
+    print(f"  Router: {'Enabled' if use_router_flag else 'Disabled'}")
     print(f"Number of parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+
+    log_dir = os.path.join(args.log_dir, args.ablation_mode)
+    checkpoint_dir = os.path.join(args.checkpoint_dir, args.ablation_mode)
+    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    
+    print(f"Logging to: {log_dir}")
+    print(f"Saving checkpoints to: {checkpoint_dir}")
 
     # Training loop
     for epoch in range(num_epochs):
-        model.train() # Set model to training mode
-
-        # Forward pass
-        outputs = model(dummy_input_embeddings) # [B, L, d]
-
-        # Calculate loss
-        # Ensure shapes of outputs and targets match what criterion expects
+        model.train() 
+        outputs = model(dummy_input_embeddings)
         loss = criterion(outputs, dummy_targets)
-
-        # Backward pass and optimization
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
+        print(f"Epoch [{epoch+1}/{num_epochs}], Mode: {args.ablation_mode}, Loss: {loss.item():.4f}")
 
-        # Validation step (highly recommended)
-        if (epoch + 1) % 10 == 0: # Example: validate every 10 epochs
-            model.eval() # Set model to evaluation mode
+        if (epoch + 1) % args.val_interval == 0:
+            model.eval() 
             with torch.no_grad():
-                # Use a validation dataset here
-                val_outputs = model(dummy_input_embeddings) # Replace with validation data
-                val_loss = criterion(val_outputs, dummy_targets) # Replace with validation targets
-                print(f"Validation Loss after Epoch {epoch+1}: {val_loss.item():.4f}")
+                val_outputs = model(dummy_input_embeddings) 
+                val_loss = criterion(val_outputs, dummy_targets)
+                print(f"Validation Loss after Epoch {epoch+1} (Mode: {args.ablation_mode}): {val_loss.item():.4f}")
             
-            # Inspect learned parameters (as suggested in the prompt)
-            if hasattr(model, 'pos_encoder'):
+            if use_pos_encoder_flag and hasattr(model, 'pos_encoder') and model.pos_encoder is not None:
                 print(f"  Positional Encoder Freqs: {model.pos_encoder.freq.data.numpy().round(3)}")
                 print(f"  Positional Encoder Phases: {model.pos_encoder.phase.data.numpy().round(3)}")
-            if hasattr(model, 'router') and hasattr(model.router, 'routing_mlp'):
-                 # Accessing the first linear layer of the sequential MLP
+            if use_router_flag and hasattr(model, 'router') and model.router is not None and hasattr(model.router, 'routing_mlp'):
                 if len(model.router.routing_mlp) > 0 and isinstance(model.router.routing_mlp[0], torch.nn.Linear):
                     print(f"  Router MLP Layer 1 Weights (sample): {model.router.routing_mlp[0].weight.data[0,:5].numpy().round(3)}")
+        
+        if (epoch + 1) % args.save_interval == 0:
+            checkpoint_path = os.path.join(checkpoint_dir, f"model_epoch_{epoch+1}.pt")
+            torch.save(model.state_dict(), checkpoint_path)
+            print(f"Saved checkpoint to {checkpoint_path}")
 
 
-    print("Training finished.")
+    print(f"Training finished for mode: {args.ablation_mode}.")
+    final_model_path = os.path.join(checkpoint_dir, "model_final.pt")
+    torch.save(model.state_dict(), final_model_path)
+    print(f"Saved final model to {final_model_path}")
 
-    # TODO: Add code for saving the model, further evaluation, etc.
 
 if __name__ == "__main__":
-    # This basic structure assumes you might run this script directly.
-    # For pytest, you'd typically import functions or classes to test,
-    # not run the main training loop.
+    parser = argparse.ArgumentParser(description="SNN-DT Training Script with Ablations")
+    parser.add_argument('--ablation_mode', type=str, default="full",
+                        choices=["baseline", "pos_only", "router_only", "full"],
+                        help='Ablation mode to run.')
+    # Basic training params (can be overridden by a config file later)
+    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--seq_length', type=int, default=50)
+    parser.add_argument('--embed_dim', type=int, default=128)
+    parser.add_argument('--num_heads', type=int, default=4)
+    parser.add_argument('--window_length', type=int, default=10, help="T, time window for spiking dynamics")
+    parser.add_argument('--num_layers', type=int, default=2, help="Number of SNN layers in SNNDT")
+    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--epochs', type=int, default=100) # Reduced for quick test, original was 100
     
-    # To make this runnable, ensure SpikingMindRL/src/models/ is accessible.
-    # If you run from SpikingMindRL/src/, the import `from models.snn_dt import SNNDT` should work.
-    # If you run from SpikingMindRL/, you might need to adjust python path or use:
-    # `python -m src.main_training` and ensure src has an __init__.py
+    # Logging and saving
+    parser.add_argument('--log_dir', type=str, default="logs_phase3")
+    parser.add_argument('--checkpoint_dir', type=str, default="checkpoints_phase3")
+    parser.add_argument('--val_interval', type=int, default=5, help="Epoch interval for validation") # original 10
+    parser.add_argument('--save_interval', type=int, default=10, help="Epoch interval for saving checkpoints") # new
+
+    cli_args = parser.parse_args()
     
-    # For now, let's create __init__.py files to make them importable as packages.
-    main()
+    # Ensure src.models.snn_dt is accessible
+    main(cli_args)
