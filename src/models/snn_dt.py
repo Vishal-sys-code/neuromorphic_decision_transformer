@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from ...novel_phases.phase3.positional_spike_encoder import PositionalSpikeEncoder
-from ...novel_phases.phase3.dendritic_routing import DendriticRouter
+from novel_phases.phase3.positional_spike_encoder import PositionalSpikeEncoder
+from novel_phases.phase3.dendritic_routing import DendriticRouter
 
 class SNNDT(nn.Module):
     def __init__(self, embed_dim: int = 128, num_heads: int = 4, window_length: int = 10, num_layers: int = 1): # Added num_layers
