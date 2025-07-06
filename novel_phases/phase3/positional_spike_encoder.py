@@ -26,8 +26,13 @@ class PositionalSpikeEncoder(nn.Module):
         # 2) Build positional masks: [H, T]
         t = torch.arange(self.T, device=device).float()  # [T]
         wave = torch.sin(self.freq.unsqueeze(1) * t + self.phase.unsqueeze(1))  # [H, T]
-        # Using sigmoid for a differentiable approximation of the step function
-        pos_mask = torch.sigmoid(wave)  # [H, T]
+        
+        if self.training:
+            # Use sigmoid for a differentiable approximation during training
+            pos_mask = torch.sigmoid(wave)  # [H, T]
+        else:
+            # Use hard threshold during evaluation/inference
+            pos_mask = (wave > 0).float()  # [H, T]
 
         # 3) Expand to [B, L, H, d, T]
         #    assume rate_spikes is computed earlier, you’ll multiply by pos_mask
