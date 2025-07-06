@@ -2,7 +2,7 @@ import pytest
 import torch
 # Adjust the import path based on your project structure and how pytest discovers tests
 # If 'SpikingMindRL' is the root and in PYTHONPATH, and 'src' is a package:
-from ..novel_phases.phase3.positional_spike_encoder import PositionalSpikeEncoder
+from novel_phases.phase3.positional_spike_encoder import PositionalSpikeEncoder
 
 # Or, if tests are run from within 'SpikingMindRL/tests' and 'src' is a sibling:
 # from ..src.models.positional_spike_encoder import PositionalSpikeEncoder
