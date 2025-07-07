@@ -5,14 +5,14 @@ from .dendritic_routing import DendriticRouter
 
 class SNNDT(nn.Module):
     def __init__(self, embed_dim: int = 128, num_heads: int = 4, window_length: int = 10, num_layers: int = 1,
-                 use_pos_encoder: bool = True, use_router: bool = True): # Added ablation flags
+                 use_pos_encoder: bool = True, use_router: bool = True): # <<-- MAKE SURE THIS LINE HAS use_pos_encoder and use_router
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.T = window_length
         self.num_layers = num_layers
-        self.use_pos_encoder = use_pos_encoder
-        self.use_router = use_router
+        self.use_pos_encoder = use_pos_encoder # <<-- MAKE SURE THIS LINE IS PRESENT
+        self.use_router = use_router       # <<-- MAKE SURE THIS LINE IS PRESENT
 
         # Placeholder for rate coder
         self.rate_coder = nn.Identity() # Replace with your actual rate coder
@@ -21,16 +21,16 @@ class SNNDT(nn.Module):
             self.pos_encoder = PositionalSpikeEncoder(num_heads=self.num_heads,
                                                       window_length=self.T)
         else:
-            self.pos_encoder = None # Explicitly set to None if not used
+            self.pos_encoder = None 
         
         self.spiking_attention_layers = nn.ModuleList([
-            nn.Identity() for _ in range(self.num_layers) # Replace with your actual spiking attention layer(s)
+            nn.Identity() for _ in range(self.num_layers) 
         ])
 
         if self.use_router:
             self.router = DendriticRouter(num_heads=self.num_heads)
         else:
-            self.router = None # Explicitly set to None if not used
+            self.router = None
 
         self.ffn = nn.Sequential(
             nn.Linear(self.embed_dim, self.embed_dim * 4),
