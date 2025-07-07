@@ -1,16 +1,22 @@
 import sys
 import os
 
+
 # Add the project root to sys.path
 # This assumes main_training.py is in SpikingMindRL/novel_phases/phase3/
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+# Get the absolute path of the current script file
+script_path = os.path.abspath(__file__)
+# Get the directory containing the script
+script_dir = os.path.dirname(script_path)
+# Calculate the project root by going up two levels from script_dir
+project_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Now the import should work
-from src.models.snn_dt import SNNDT
 import torch
 import argparse
+# import os # Already imported above
+from src.models.snn_dt import SNNDT
 
 def main(args):
     print(f"Starting main training script with args: {args}")
