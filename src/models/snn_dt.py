@@ -4,19 +4,24 @@ from novel_phases.phase3.positional_spike_encoder import PositionalSpikeEncoder
 from novel_phases.phase3.dendritic_routing import DendriticRouter
 
 class SNNDT(nn.Module):
-    def __init__(self, embed_dim: int = 128, num_heads: int = 4, window_length: int = 10, num_layers: int = 1): # Added num_layers
+    def __init__(self, embed_dim: int = 128, num_heads: int = 4, window_length: int = 10, num_layers: int = 1, use_pos_encoder: bool = True, use_router: bool = True): # Added num_layers
         super().__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.T = window_length
         self.num_layers = num_layers # Store num_layers
+        self.use_pos_encoder = use_pos_encoder
+        self.use_router = use_router
 
         # Placeholder for rate coder
         # This should take embeddings [B, L, d] and return rate_spikes [B, L, d, T]
         self.rate_coder = nn.Identity() # Replace with your actual rate coder, e.g., a learned layer or a fixed function
 
-        self.pos_encoder = PositionalSpikeEncoder(num_heads=self.num_heads,
-                                                  window_length=self.T)
+        if self.use_pos_encoder:
+            self.pos_encoder = PositionalSpikeEncoder(num_heads=self.num_heads,
+                                                      window_length=self.T)
+        else:
+            self.pos_encoder = None # Or nn.Identity() if it needs to be callable but do nothing
         
         # Placeholder for spiking attention mechanism
         # This should take masked_spikes [B, L, H, d, T] and return y_heads [B, L, H, d, T]
@@ -25,7 +30,10 @@ class SNNDT(nn.Module):
             nn.Identity() for _ in range(self.num_layers) # Replace with your actual spiking attention layer(s)
         ])
 
-        self.router = DendriticRouter(num_heads=self.num_heads)
+        if self.use_router:
+            self.router = DendriticRouter(num_heads=self.num_heads)
+        else:
+            self.router = None # Or nn.Identity() if it needs to be callable but do nothing
 
         # Placeholder for feed-forward network
         self.ffn = nn.Sequential(
@@ -69,21 +77,32 @@ class SNNDT(nn.Module):
                 rate_spikes = self.rate_coder(x)
 
 
-            # 1) get positional mask: [H, T]
+            # 1) get positional mask: [H, T] (if pos_encoder is enabled)
             # The positional encoder expects embeddings [B,L,d].
             # We should pass the original embeddings or the current block's input 'x'
             # Using 'x' which is the input to the current layer
-            pos_mask = self.pos_encoder(x) # pos_encoder expects [B, L, d]
+            if self.pos_encoder:
+                pos_mask = self.pos_encoder(x) # pos_encoder expects [B, L, d]
+            else:
+                # If no pos_encoder, create a dummy pos_mask that doesn't alter spikes, e.g. all ones.
+                # It should be shape [H, T]
+                # Or, the logic below needs to handle masked_spikes = expanded_rate_spikes
+                pos_mask = torch.ones(self.num_heads, self.T, device=x.device, dtype=x.dtype)
 
-            # 2) expand rate_spikes to [B, L, H, d, T] and multiply by pos_mask
+
+            # 2) expand rate_spikes to [B, L, H, d, T] and optionally multiply by pos_mask
             # Ensure rate_spikes is [B, L, d, T]
             if rate_spikes.dim() == 3: # If rate_coder outputs [B,L,d] for some reason
                 rate_spikes = rate_spikes.unsqueeze(-1).expand(-1,-1,-1, self.T) # Add T dimension
 
             expanded_rate_spikes = rate_spikes.unsqueeze(2).expand(-1, -1, self.num_heads, -1, -1)
-            # pos_mask is [H, T]. Expand it for broadcasting:
-            # [1, 1, H, 1, T] to multiply with [B, L, H, d, T]
-            masked_spikes = expanded_rate_spikes * pos_mask.unsqueeze(0).unsqueeze(1).unsqueeze(3)
+            
+            if self.pos_encoder:
+                # pos_mask is [H, T]. Expand it for broadcasting:
+                # [1, 1, H, 1, T] to multiply with [B, L, H, d, T]
+                masked_spikes = expanded_rate_spikes * pos_mask.unsqueeze(0).unsqueeze(1).unsqueeze(3)
+            else:
+                masked_spikes = expanded_rate_spikes # No positional encoding applied
 
             # 3) feed masked_spikes into each head’s LIF projections
             #    you’ll get y_heads: [B, L, H, d, T]
@@ -95,8 +114,13 @@ class SNNDT(nn.Module):
             # 4) sum over time T: [B, L, H, d]
             y_heads_summed_time = y_heads.sum(dim=-1)
 
-            # 5) apply routing
-            merged = self.router(y_heads_summed_time)  # [B, L, d]
+            # 5) apply routing (if router is enabled)
+            if self.router:
+                merged = self.router(y_heads_summed_time)  # [B, L, d]
+            else:
+                # If no router, sum/mean over heads dimension H.
+                # y_heads_summed_time is [B, L, H, d]. We need [B, L, d].
+                merged = y_heads_summed_time.sum(dim=2) # Summing over heads as a simple merge
 
             # 6) continue with your usual residual & feed‑forward
             #    Standard Transformer-like block: Add & Norm, FFN, Add & Norm
