@@ -1,16 +1,15 @@
 """
-🧠 Phase 1 Comprehensive Training: Spiking Decision Transformer with Adaptive Temporal Windows
-DeepMind Research-Grade Implementation
+Phase 1 Comprehensive Training: Spiking Decision Transformer with Adaptive Temporal Windows
 
 This script demonstrates the novelty of Phase 1 integration between:
 1. Adaptive Spiking Windows (ASW) - Dynamic temporal processing
 2. Spiking Decision Transformer (SDT) - Neuromorphic sequential decision making
 
 Key Research Contributions:
-✨ Adaptive temporal window learning for complexity-aware processing
-✨ Energy-efficient spike-based attention mechanism  
-✨ Biological plausibility through LIF neuron integration
-✨ Multi-scale entropy analysis for attention diversity
+- Adaptive temporal window learning for complexity-aware processing
+- Energy-efficient spike-based attention mechanism  
+- Biological plausibility through LIF neuron integration
+- Multi-scale entropy analysis for attention diversity
 """
 
 import torch

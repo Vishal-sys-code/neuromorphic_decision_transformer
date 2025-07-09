@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🚀 Quick Execution Script for Phase1 Training
+Quick Execution Script for Phase1 Training
 Run this to start the Phase1 integration training and see the novelty in action!
 """
 
