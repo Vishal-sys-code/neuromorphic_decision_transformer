@@ -209,7 +209,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SNN-DT Validation Loss Plotting Script")
-    parser.add_argument('--data_path', type=str, default='../../saved_models/offline_data_CartPole-v1.pkl', help='Path to the dataset')
+    parser.add_argument('--data_path', type=str, default='../../saved_models/offline_data_Acrobot-v1.pkl', help='Path to the dataset')
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--seq_length', type=int, default=50)
     parser.add_argument('--embed_dim', type=int, default=128)
