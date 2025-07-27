@@ -20,21 +20,87 @@ def load_data(path):
         return pickle.load(f)
 
 def main(args):
+
     # Load the dataset
     data = load_data(args.data_path)
-    # Unpack only the first 6 elements, ignore extras
-    states, actions, returns, _, _, _ = data[:6]
+
+    # Auto-detect data format and extract arrays
+    if isinstance(data, dict):
+        # Try common keys
+        key_map = {k.lower(): k for k in data.keys()}
+        def get_key(*candidates):
+            for c in candidates:
+                if c in key_map:
+                    return key_map[c]
+            return None
+        states_key = get_key('states', 'observations', 'obs')
+        actions_key = get_key('actions', 'acts', 'action')
+        returns_key = get_key('returns', 'rewards', 'reward', 'rtg')
+        if not (states_key and actions_key and returns_key):
+            raise ValueError(f"Could not find required keys in dataset. Found keys: {list(data.keys())}")
+        states = data[states_key]
+        actions = data[actions_key]
+        returns = data[returns_key]
+    elif isinstance(data, (list, tuple)):
+        # If tuple/list of arrays or dicts
+        if len(data) >= 3 and all(isinstance(x, (np.ndarray, list)) for x in data[:3]):
+            states, actions, returns = data[:3]
+        elif len(data) >= 1 and isinstance(data[0], dict):
+            # List of dicts, stack values
+            def pick_first(d, keys):
+                for k in keys:
+                    v = d.get(k)
+                    if v is not None:
+                        return v
+                return None
+            states = [pick_first(d, ['states', 'observations', 'obs']) for d in data]
+            actions = [pick_first(d, ['actions', 'acts', 'action']) for d in data]
+            returns = [pick_first(d, ['returns', 'rewards', 'reward', 'rtg']) for d in data]
+        else:
+            raise ValueError("Unsupported data format for list/tuple dataset.")
+    else:
+        raise ValueError(f"Unsupported dataset type: {type(data)}")
 
 
-    # Ensure states, actions, returns are at least 1D numpy arrays for slicing
-    def ensure_1d_array(x):
-        arr = np.array(x)
-        if arr.ndim == 0:
-            arr = np.expand_dims(arr, 0)
-        return arr
-    states = ensure_1d_array(states)
-    actions = ensure_1d_array(actions)
-    returns = ensure_1d_array(returns)
+    def pad_and_stack(arrays):
+        # Convert all arrays to at least 2D numpy arrays
+        # Only keep arrays that are numeric (filter out string/invalid entries)
+        numeric_arrays = []
+        for arr in arrays:
+            arr_np = np.atleast_2d(np.array(arr))
+            # Try converting to float, skip if fails
+            try:
+                arr_np = arr_np.astype(np.float32)
+                numeric_arrays.append(arr_np)
+            except (ValueError, TypeError):
+                print(f"Warning: Skipping non-numeric array in pad_and_stack: {arr}")
+        arrays = numeric_arrays
+        # Handle empty input
+        if len(arrays) == 0:
+            return np.empty((0, 0, 0), dtype=np.float32)
+        # Find the max length along the first dimension and feature dimension
+        max_len = max(arr.shape[0] for arr in arrays)
+        max_feat = max(arr.shape[1] if arr.ndim > 1 else 1 for arr in arrays)
+        padded_arrays = []
+        for arr in arrays:
+            pad_len = max_len - arr.shape[0]
+            feat_pad = max_feat - (arr.shape[1] if arr.ndim > 1 else 1)
+            # Pad to (max_len, max_feat)
+            if arr.ndim == 1:
+                arr = arr[:, None]
+            arr = np.pad(arr, ((0, pad_len), (0, feat_pad)), 'constant')
+            padded_arrays.append(arr)
+        # Convert to float32 for torch compatibility
+        return np.stack(padded_arrays).astype(np.float32)
+
+    states = pad_and_stack(states)
+    actions = pad_and_stack(actions)
+    returns = pad_and_stack(returns)
+
+    # Check for empty arrays after filtering
+    if states.shape[0] == 0 or actions.shape[0] == 0 or returns.shape[0] == 0:
+        raise ValueError("No valid numeric data found in states, actions, or returns. Please check your dataset and preprocessing.")
+
 
     # For simplicity, using a subset of data for this example
     # In a real scenario, you'd use a proper train/validation split
@@ -45,6 +111,7 @@ def main(args):
     val_states = torch.from_numpy(states[100:120]).float()
     val_actions = torch.from_numpy(actions[100:120]).float()
     val_returns = torch.from_numpy(returns[100:120]).float()
+
 
     ablation_modes = ["baseline", "pos_only", "router_only", "full"]
     results = {}
@@ -64,35 +131,66 @@ def main(args):
             use_router=use_router_flag
         )
 
+        # Add input projector if needed
+        input_dim = train_states.shape[-1]
+        if input_dim != args.embed_dim:
+            projector = torch.nn.Linear(input_dim, args.embed_dim)
+        else:
+            projector = torch.nn.Identity()
+
+        # Add target projector if needed
+        target_dim = train_returns.shape[-1]
+        if target_dim != args.embed_dim:
+            target_projector = torch.nn.Linear(target_dim, args.embed_dim)
+        else:
+            target_projector = torch.nn.Identity()
+
         criterion = torch.nn.MSELoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        optimizer = torch.optim.Adam(list(model.parameters()) + list(projector.parameters()) + list(target_projector.parameters()), lr=args.lr)
         
         val_loss_history = []
 
         for epoch in range(args.epochs):
             # Training step
             model.train()
-            # This is a simplified training step. In a real scenario, you would iterate through batches of your data.
-            # Here, we'll just use a single batch for demonstration.
+            projector.train()
             optimizer.zero_grad()
-            # The model expects inputs of shape (batch_size, seq_length, embed_dim).
-            # The loaded data is not in this format, so we'll use dummy inputs for now.
-            dummy_input_embeddings = torch.randn(args.batch_size, args.seq_length, args.embed_dim)
-            dummy_targets = torch.randn(args.batch_size, args.seq_length, args.embed_dim)
-            outputs = model(dummy_input_embeddings)
-            loss = criterion(outputs, dummy_targets)
+            # Use real data for training
+            x = train_states
+            y = train_returns
+            if x.dim() == 2:
+                x = x.unsqueeze(0)
+                y = y.unsqueeze(0)
+            elif x.dim() == 3:
+                pass
+            else:
+                raise ValueError("train_states shape not supported")
+            x_proj = projector(x)
+            y_proj = target_projector(y)
+            outputs = model(x_proj)
+            loss = criterion(outputs, y_proj)
             loss.backward()
             optimizer.step()
 
             if (epoch + 1) % args.val_interval == 0:
                 model.eval()
+                projector.eval()
                 with torch.no_grad():
-                    # Similar to training, we use a dummy validation set
-                    val_outputs = model(dummy_input_embeddings)
-                    val_loss = criterion(val_outputs, dummy_targets)
+                    x_val = val_states
+                    y_val = val_returns
+                    if x_val.dim() == 2:
+                        x_val = x_val.unsqueeze(0)
+                        y_val = y_val.unsqueeze(0)
+                    elif x_val.dim() == 3:
+                        pass
+                    else:
+                        raise ValueError("val_states shape not supported")
+                    x_val_proj = projector(x_val)
+                    y_val_proj = target_projector(y_val)
+                    val_outputs = model(x_val_proj)
+                    val_loss = criterion(val_outputs, y_val_proj)
                     val_loss_history.append(val_loss.item())
                     print(f"Epoch [{epoch+1}/{args.epochs}], Mode: {mode}, Val Loss: {val_loss.item():.4f}")
-        
         results[mode] = val_loss_history
 
     # Plotting the results
