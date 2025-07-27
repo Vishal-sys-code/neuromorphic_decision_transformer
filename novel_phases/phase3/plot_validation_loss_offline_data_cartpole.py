@@ -1,0 +1,224 @@
+import sys
+import os
+import torch
+import pickle
+import argparse
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Add the project root to sys.path
+script_path = os.path.abspath(__file__)
+script_dir = os.path.dirname(script_path)
+project_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from src.models.snn_dt import SNNDT
+
+def load_data(path):
+    with open(path, 'rb') as f:
+        return pickle.load(f)
+
+def main(args):
+
+    # Load the dataset
+    data = load_data(args.data_path)
+
+    # Auto-detect data format and extract arrays
+    if isinstance(data, dict):
+        # Try common keys
+        key_map = {k.lower(): k for k in data.keys()}
+        def get_key(*candidates):
+            for c in candidates:
+                if c in key_map:
+                    return key_map[c]
+            return None
+        states_key = get_key('states', 'observations', 'obs')
+        actions_key = get_key('actions', 'acts', 'action')
+        returns_key = get_key('returns', 'rewards', 'reward', 'rtg')
+        if not (states_key and actions_key and returns_key):
+            raise ValueError(f"Could not find required keys in dataset. Found keys: {list(data.keys())}")
+        states = data[states_key]
+        actions = data[actions_key]
+        returns = data[returns_key]
+    elif isinstance(data, (list, tuple)):
+        # If tuple/list of arrays or dicts
+        if len(data) >= 3 and all(isinstance(x, (np.ndarray, list)) for x in data[:3]):
+            states, actions, returns = data[:3]
+        elif len(data) >= 1 and isinstance(data[0], dict):
+            # List of dicts, stack values
+            def pick_first(d, keys):
+                for k in keys:
+                    v = d.get(k)
+                    if v is not None:
+                        return v
+                return None
+            states = [pick_first(d, ['states', 'observations', 'obs']) for d in data]
+            actions = [pick_first(d, ['actions', 'acts', 'action']) for d in data]
+            returns = [pick_first(d, ['returns', 'rewards', 'reward', 'rtg']) for d in data]
+        else:
+            raise ValueError("Unsupported data format for list/tuple dataset.")
+    else:
+        raise ValueError(f"Unsupported dataset type: {type(data)}")
+
+
+    def pad_and_stack(arrays):
+        # Convert all arrays to at least 2D numpy arrays
+        # Only keep arrays that are numeric (filter out string/invalid entries)
+        numeric_arrays = []
+        for arr in arrays:
+            arr_np = np.atleast_2d(np.array(arr))
+            # Try converting to float, skip if fails
+            try:
+                arr_np = arr_np.astype(np.float32)
+                numeric_arrays.append(arr_np)
+            except (ValueError, TypeError):
+                print(f"Warning: Skipping non-numeric array in pad_and_stack: {arr}")
+        arrays = numeric_arrays
+        # Handle empty input
+        if len(arrays) == 0:
+            return np.empty((0, 0, 0), dtype=np.float32)
+        # Find the max length along the first dimension and feature dimension
+        max_len = max(arr.shape[0] for arr in arrays)
+        max_feat = max(arr.shape[1] if arr.ndim > 1 else 1 for arr in arrays)
+        padded_arrays = []
+        for arr in arrays:
+            pad_len = max_len - arr.shape[0]
+            feat_pad = max_feat - (arr.shape[1] if arr.ndim > 1 else 1)
+            # Pad to (max_len, max_feat)
+            if arr.ndim == 1:
+                arr = arr[:, None]
+            arr = np.pad(arr, ((0, pad_len), (0, feat_pad)), 'constant')
+            padded_arrays.append(arr)
+        # Convert to float32 for torch compatibility
+        return np.stack(padded_arrays).astype(np.float32)
+
+    states = pad_and_stack(states)
+    actions = pad_and_stack(actions)
+    returns = pad_and_stack(returns)
+
+    # Check for empty arrays after filtering
+    if states.shape[0] == 0 or actions.shape[0] == 0 or returns.shape[0] == 0:
+        raise ValueError("No valid numeric data found in states, actions, or returns. Please check your dataset and preprocessing.")
+
+
+    # For simplicity, using a subset of data for this example
+    # In a real scenario, you'd use a proper train/validation split
+    train_states = torch.from_numpy(states[:100]).float()
+    train_actions = torch.from_numpy(actions[:100]).float()
+    train_returns = torch.from_numpy(returns[:100]).float()
+
+    val_states = torch.from_numpy(states[100:120]).float()
+    val_actions = torch.from_numpy(actions[100:120]).float()
+    val_returns = torch.from_numpy(returns[100:120]).float()
+
+
+    ablation_modes = ["baseline", "pos_only", "router_only", "full"]
+    results = {}
+
+    for mode in ablation_modes:
+        print(f"Running ablation mode: {mode}")
+
+        use_pos_encoder_flag = mode in ["pos_only", "full"]
+        use_router_flag = mode in ["router_only", "full"]
+
+        model = SNNDT(
+            embed_dim=args.embed_dim,
+            num_heads=args.num_heads,
+            window_length=args.window_length,
+            num_layers=args.num_layers,
+            use_pos_encoder=use_pos_encoder_flag,
+            use_router=use_router_flag
+        )
+
+        # Add input projector if needed
+        input_dim = train_states.shape[-1]
+        if input_dim != args.embed_dim:
+            projector = torch.nn.Linear(input_dim, args.embed_dim)
+        else:
+            projector = torch.nn.Identity()
+
+        # Add target projector if needed
+        target_dim = train_returns.shape[-1]
+        if target_dim != args.embed_dim:
+            target_projector = torch.nn.Linear(target_dim, args.embed_dim)
+        else:
+            target_projector = torch.nn.Identity()
+
+        criterion = torch.nn.MSELoss()
+        optimizer = torch.optim.Adam(list(model.parameters()) + list(projector.parameters()) + list(target_projector.parameters()), lr=args.lr)
+        
+        val_loss_history = []
+
+        for epoch in range(args.epochs):
+            # Training step
+            model.train()
+            projector.train()
+            optimizer.zero_grad()
+            # Use real data for training
+            x = train_states
+            y = train_returns
+            if x.dim() == 2:
+                x = x.unsqueeze(0)
+                y = y.unsqueeze(0)
+            elif x.dim() == 3:
+                pass
+            else:
+                raise ValueError("train_states shape not supported")
+            x_proj = projector(x)
+            y_proj = target_projector(y)
+            outputs = model(x_proj)
+            loss = criterion(outputs, y_proj)
+            loss.backward()
+            optimizer.step()
+
+            if (epoch + 1) % args.val_interval == 0:
+                model.eval()
+                projector.eval()
+                with torch.no_grad():
+                    x_val = val_states
+                    y_val = val_returns
+                    if x_val.dim() == 2:
+                        x_val = x_val.unsqueeze(0)
+                        y_val = y_val.unsqueeze(0)
+                    elif x_val.dim() == 3:
+                        pass
+                    else:
+                        raise ValueError("val_states shape not supported")
+                    x_val_proj = projector(x_val)
+                    y_val_proj = target_projector(y_val)
+                    val_outputs = model(x_val_proj)
+                    val_loss = criterion(val_outputs, y_val_proj)
+                    val_loss_history.append(val_loss.item())
+                    print(f"Epoch [{epoch+1}/{args.epochs}], Mode: {mode}, Val Loss: {val_loss.item():.4f}")
+        results[mode] = val_loss_history
+
+    # Plotting the results
+    plt.figure(figsize=(12, 8))
+    for mode, losses in results.items():
+        epochs = np.arange(1, args.epochs + 1, args.val_interval)
+        plt.plot(epochs, losses, label=mode)
+
+    plt.title('Validation Loss vs. Epoch for each Ablation Mode')
+    plt.xlabel('Epoch')
+    plt.ylabel('Validation Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('validation_loss_vs_epoch_cartpole.png')
+    print("Plot saved as validation_loss_vs_epoch_cartpole.png")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="SNN-DT Validation Loss Plotting Script")
+    parser.add_argument('--data_path', type=str, default='../../saved_models/offline_data_CartPole-v1.pkl', help='Path to the dataset')
+    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--seq_length', type=int, default=50)
+    parser.add_argument('--embed_dim', type=int, default=128)
+    parser.add_argument('--num_heads', type=int, default=4)
+    parser.add_argument('--window_length', type=int, default=10, help="T, time window for spiking dynamics")
+    parser.add_argument('--num_layers', type=int, default=2, help="Number of SNN layers in SNNDT")
+    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--val_interval', type=int, default=5)
+    
+    cli_args = parser.parse_args()
+    main(cli_args)
