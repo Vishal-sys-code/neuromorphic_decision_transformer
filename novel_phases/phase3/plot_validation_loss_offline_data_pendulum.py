@@ -20,6 +20,14 @@ def load_data(path):
         return pickle.load(f)
 
 def main(args):
+    # Utility: mask padded values in the loss
+    def masked_mse_loss(pred, target, mask):
+        diff = (pred - target) ** 2
+        diff = diff * mask.unsqueeze(-1)  # mask: [batch, seq]
+        denom = mask.sum() * pred.shape[-1]
+        if denom == 0:
+            return torch.tensor(0.0, device=pred.device)
+        return diff.sum() / denom
 
     # Load the dataset
     data = load_data(args.data_path)
@@ -104,13 +112,35 @@ def main(args):
 
     # For simplicity, using a subset of data for this example
     # In a real scenario, you'd use a proper train/validation split
-    train_states = torch.from_numpy(states[:100]).float()
-    train_actions = torch.from_numpy(actions[:100]).float()
-    train_returns = torch.from_numpy(returns[:100]).float()
+    
+    split_idx = int(len(states) * 0.8)
+    train_states = torch.from_numpy(states[:split_idx]).float()
+    train_actions = torch.from_numpy(actions[:split_idx]).float()
+    train_returns = torch.from_numpy(returns[:split_idx]).float()
 
-    val_states = torch.from_numpy(states[100:120]).float()
-    val_actions = torch.from_numpy(actions[100:120]).float()
-    val_returns = torch.from_numpy(returns[100:120]).float()
+    val_states = torch.from_numpy(states[split_idx:]).float()
+    val_actions = torch.from_numpy(actions[split_idx:]).float()
+    val_returns = torch.from_numpy(returns[split_idx:]).float()
+
+    # Pad returns to match the sequence length of states
+    def pad_to_seq_len(tensor, target_seq_len):
+        # Also return a mask for valid (unpadded) timesteps
+        # tensor: [batch, seq, feat] or [batch, feat]
+        if tensor.dim() == 2:
+            tensor = tensor.unsqueeze(1)  # [batch, 1, feat]
+        pad_len = target_seq_len - tensor.shape[1]
+        mask = torch.ones(tensor.shape[0], tensor.shape[1], dtype=torch.float32, device=tensor.device)
+        if pad_len > 0:
+            pad_shape = list(tensor.shape)
+            pad_shape[1] = pad_len
+            pad_tensor = torch.zeros(*pad_shape, dtype=tensor.dtype, device=tensor.device)
+            tensor = torch.cat([tensor, pad_tensor], dim=1)
+            mask = torch.cat([mask, torch.zeros(tensor.shape[0], pad_len, device=tensor.device)], dim=1)
+        return tensor, mask
+
+    seq_len = train_states.shape[1]
+    train_returns, train_mask = pad_to_seq_len(train_returns, seq_len)
+    val_returns, val_mask = pad_to_seq_len(val_returns, val_states.shape[1])
 
 
     ablation_modes = ["baseline", "pos_only", "router_only", "full"]
@@ -168,7 +198,13 @@ def main(args):
             x_proj = projector(x)
             y_proj = target_projector(y)
             outputs = model(x_proj)
-            loss = criterion(outputs, y_proj)
+            # Check for NaN/Inf in data
+            if torch.isnan(outputs).any() or torch.isnan(y_proj).any():
+                print("NaN detected in outputs or targets during training!")
+            # Masked loss to ignore padded values
+            loss = masked_mse_loss(outputs, y_proj, train_mask)
+            if torch.isnan(loss) or torch.isinf(loss):
+                print("NaN or Inf loss detected during training!")
             loss.backward()
             optimizer.step()
 
@@ -178,9 +214,11 @@ def main(args):
                 with torch.no_grad():
                     x_val = val_states
                     y_val = val_returns
+                    mask_val = val_mask
                     if x_val.dim() == 2:
                         x_val = x_val.unsqueeze(0)
                         y_val = y_val.unsqueeze(0)
+                        mask_val = mask_val.unsqueeze(0)
                     elif x_val.dim() == 3:
                         pass
                     else:
@@ -188,7 +226,10 @@ def main(args):
                     x_val_proj = projector(x_val)
                     y_val_proj = target_projector(y_val)
                     val_outputs = model(x_val_proj)
-                    val_loss = criterion(val_outputs, y_val_proj)
+                    # Masked loss for validation
+                    val_loss = masked_mse_loss(val_outputs, y_val_proj, mask_val)
+                    if torch.isnan(val_loss) or torch.isinf(val_loss):
+                        print("NaN or Inf loss detected during validation!")
                     val_loss_history.append(val_loss.item())
                     print(f"Epoch [{epoch+1}/{args.epochs}], Mode: {mode}, Val Loss: {val_loss.item():.4f}")
         results[mode] = val_loss_history
@@ -204,7 +245,7 @@ def main(args):
     plt.ylabel('Validation Loss')
     plt.legend()
     plt.grid(True)
-    plt.savefig('validation_loss_vs_epoch_acrobot.png')
+    plt.savefig('validation_loss_vs_epoch_pendulum.png')
     print("Plot saved as validation_loss_vs_epoch_pendulum.png")
 
 if __name__ == "__main__":
@@ -217,7 +258,7 @@ if __name__ == "__main__":
     parser.add_argument('--window_length', type=int, default=10, help="T, time window for spiking dynamics")
     parser.add_argument('--num_layers', type=int, default=2, help="Number of SNN layers in SNNDT")
     parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--val_interval', type=int, default=5)
     
     cli_args = parser.parse_args()
