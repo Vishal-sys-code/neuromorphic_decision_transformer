@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from .positional_spike_encoder import PositionalSpikeEncoder
 from .dendritic_routing import DendriticRouter
+from .snn_layers import RateCoder, SpikingAttention
 
 class SNNDT(nn.Module):
     def __init__(self, embed_dim: int = 128, num_heads: int = 4, window_length: int = 10, num_layers: int = 1,
@@ -15,7 +16,7 @@ class SNNDT(nn.Module):
         self.use_router = use_router       # <<-- MAKE SURE THIS LINE IS PRESENT
 
         # Placeholder for rate coder
-        self.rate_coder = nn.Identity() # Replace with your actual rate coder
+        self.rate_coder = RateCoder(embed_dim, window_length)
 
         if self.use_pos_encoder:
             self.pos_encoder = PositionalSpikeEncoder(num_heads=self.num_heads,
@@ -24,7 +25,7 @@ class SNNDT(nn.Module):
             self.pos_encoder = None 
         
         self.spiking_attention_layers = nn.ModuleList([
-            nn.Identity() for _ in range(self.num_layers) 
+            SpikingAttention(embed_dim, num_heads, window_length) for _ in range(self.num_layers)
         ])
 
         if self.use_router:
