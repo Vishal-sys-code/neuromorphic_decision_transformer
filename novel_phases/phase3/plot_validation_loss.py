@@ -22,14 +22,26 @@ def load_data(path):
 def main(args):
     # Load the dataset
     data = load_data(args.data_path)
-    states, actions, returns, _, _, _ = data
-    
+    # Unpack only the first 6 elements, ignore extras
+    states, actions, returns, _, _, _ = data[:6]
+
+
+    # Ensure states, actions, returns are at least 1D numpy arrays for slicing
+    def ensure_1d_array(x):
+        arr = np.array(x)
+        if arr.ndim == 0:
+            arr = np.expand_dims(arr, 0)
+        return arr
+    states = ensure_1d_array(states)
+    actions = ensure_1d_array(actions)
+    returns = ensure_1d_array(returns)
+
     # For simplicity, using a subset of data for this example
     # In a real scenario, you'd use a proper train/validation split
     train_states = torch.from_numpy(states[:100]).float()
     train_actions = torch.from_numpy(actions[:100]).float()
     train_returns = torch.from_numpy(returns[:100]).float()
-    
+
     val_states = torch.from_numpy(states[100:120]).float()
     val_actions = torch.from_numpy(actions[100:120]).float()
     val_returns = torch.from_numpy(returns[100:120]).float()
@@ -99,7 +111,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SNN-DT Validation Loss Plotting Script")
-    parser.add_argument('--data_path', type=str, default='saved_models/offline_data_CartPole-v1.pkl', help='Path to the dataset')
+    parser.add_argument('--data_path', type=str, default='../../saved_models/offline_data_CartPole-v1.pkl', help='Path to the dataset')
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--seq_length', type=int, default=50)
     parser.add_argument('--embed_dim', type=int, default=128)
