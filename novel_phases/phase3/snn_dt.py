@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from .positional_spike_encoder import PositionalSpikeEncoder
-from .dendritic_routing import DendriticRouter
-from .snn_layers import RateCoder, SpikingAttention
+from positional_spike_encoder import PositionalSpikeEncoder
+from dendritic_routing import DendriticRouter
+from snn_layers import RateCoder, SpikingAttention
 
 class SNNDT(nn.Module):
     def __init__(self, embed_dim: int = 128, num_heads: int = 4, window_length: int = 10, num_layers: int = 1,
@@ -42,8 +42,9 @@ class SNNDT(nn.Module):
         self.ln2 = nn.LayerNorm(self.embed_dim)
 
 
-    def forward(self, embeddings: torch.Tensor):
-        x = embeddings 
+    def forward(self, embeddings: torch.Tensor, return_gates: bool = False):
+        x = embeddings
+        all_gates = []
 
         # Compute global positional mask once if pos_encoder is enabled and intended to be static per input
         # If pos_encoder is dynamic per layer, it should be inside the loop.
@@ -67,41 +68,48 @@ class SNNDT(nn.Module):
                 rate_spikes = rate_spikes.unsqueeze(-1).expand(-1,-1,-1, self.T)
 
 
-            # 1) Apply positional encoding if enabled
+            # Reshape rate_spikes to [B, L, H, d_k, T] for multi-head attention
+            B, L, d, T = rate_spikes.shape
+            assert d == self.embed_dim, f"Expected d == embed_dim, got {d} vs {self.embed_dim}"
+            assert d % self.num_heads == 0, f"embed_dim {self.embed_dim} not divisible by num_heads {self.num_heads}"
+            d_k = self.embed_dim // self.num_heads
+            rate_spikes = rate_spikes.view(B, L, self.num_heads, d_k, T)
+
             if self.use_pos_encoder and self.pos_encoder:
-                # pos_encoder expects [B, L, d] (current layer input x)
-                pos_mask = self.pos_encoder(x) # Output: [H, T]
-                # Expand rate_spikes to [B, L, H, d, T]
-                expanded_rate_spikes = rate_spikes.unsqueeze(2).expand(-1, -1, self.num_heads, -1, -1)
+                pos_mask = self.pos_encoder(x) # [H, T]
                 # pos_mask broadcast: [1, 1, H, 1, T]
-                masked_spikes = expanded_rate_spikes * pos_mask.unsqueeze(0).unsqueeze(1).unsqueeze(3)
+                masked_spikes = rate_spikes * pos_mask.unsqueeze(0).unsqueeze(1).unsqueeze(3)
             else:
-                # No positional encoding, or baseline. Spikes are not masked by position.
-                # Ensure expanded_rate_spikes is still created for consistent input to attention
-                expanded_rate_spikes = rate_spikes.unsqueeze(2).expand(-1, -1, self.num_heads, -1, -1)
-                masked_spikes = expanded_rate_spikes # No phase mask applied
+                masked_spikes = rate_spikes
 
             # 2) Spiking attention
             y_heads = self.spiking_attention_layers[i](masked_spikes) # y_heads: [B, L, H, d, T]
 
-            # 3) Sum over time T
-            y_heads_summed_time = y_heads.sum(dim=-1) # Shape: [B, L, H, d]
+
+            # 3) Sum over time T and flatten heads/features for residual connection
+            y_heads_summed_time = y_heads.sum(dim=-1)  # [B, L, H, d_k]
+            B, L, H, d_k = y_heads_summed_time.shape
 
             # 4) Apply routing if enabled, else simple merge
             if self.use_router and self.router:
-                merged = self.router(y_heads_summed_time)  # Shape: [B, L, d]
+                merged, gates = self.router(y_heads_summed_time)
+                # Try to reshape only if possible, else print shape for debugging
+                if merged.numel() == B * L * H * d_k:
+                    merged = merged.reshape(B, L, H * d_k)
+                else:
+                    print(f"[DEBUG] Router output shape: {merged.shape}, expected ({B}, {L}, {H}, {d_k}) or ({B}, {L}, {H * d_k})")
+                    # If already [B, L, embed_dim], leave as is; if [B, L, d_k], repeat to match shape
+                    if merged.shape == (B, L, d_k) and H == 1:
+                        merged = merged.reshape(B, L, d_k)
+                    elif merged.shape == (B, L, d_k):
+                        # Repeat across heads if needed (not ideal, but avoids crash)
+                        merged = merged.repeat(1, 1, H)
+                    # else: leave as is
+                if return_gates:
+                    all_gates.append(gates)
             else:
-                # Baseline or no router: sum/mean across heads
-                # Assuming d_head = embed_dim / num_heads for typical attention.
-                # Here, y_heads_summed_time is [B, L, H, d]. If d is full embed_dim per head:
-                # merged = y_heads_summed_time.sum(dim=2) # Summing features from H heads.
-                # If d is d_k (embed_dim // num_heads), then we might need to reshape/concat.
-                # For now, let's assume d is full embed_dim and we average.
-                # The DendriticRouter also outputs [B,L,d], so this should be compatible.
-                # A common way to combine heads if d is d_k is to concat and then Linear.
-                # Given the current DendriticRouter sums weighted contributions,
-                # a simple sum/mean is a reasonable alternative for "no routing".
-                merged = y_heads_summed_time.mean(dim=2) # Averaging over H heads
+                # Baseline or no router: mean across heads, then flatten
+                merged = y_heads_summed_time.mean(dim=2).reshape(B, L, H * d_k)  # [B, L, embed_dim]
 
             # 5) Residual connection, LayerNorm, FFN
             x_residual = x + merged 
@@ -109,6 +117,8 @@ class SNNDT(nn.Module):
             ffn_output = self.ffn(x_norm1)
             x = self.ln2(x_norm1 + ffn_output)
 
+        if return_gates:
+            return x, torch.stack(all_gates, dim=1)  # Return gates from all layers
         return x
 
 # Example Usage (Illustrative)
