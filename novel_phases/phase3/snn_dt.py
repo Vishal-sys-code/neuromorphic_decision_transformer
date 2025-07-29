@@ -42,9 +42,10 @@ class SNNDT(nn.Module):
         self.ln2 = nn.LayerNorm(self.embed_dim)
 
 
-    def forward(self, embeddings: torch.Tensor, return_gates: bool = False):
+    def forward(self, embeddings: torch.Tensor, return_gates: bool = False, return_spikes: bool = False):
         x = embeddings
         all_gates = []
+        all_spikes = []
 
         # Compute global positional mask once if pos_encoder is enabled and intended to be static per input
         # If pos_encoder is dynamic per layer, it should be inside the loop.
@@ -63,6 +64,9 @@ class SNNDT(nn.Module):
             else: # Assuming x is [B,L,d]
                 rate_spikes = self.rate_coder(x) # This should output [B,L,d,T]
             
+            if return_spikes:
+                all_spikes.append(rate_spikes)
+
             # Ensure rate_spikes has T dimension
             if rate_spikes.dim() == 3: # If rate_coder outputs [B,L,d]
                 rate_spikes = rate_spikes.unsqueeze(-1).expand(-1,-1,-1, self.T)
@@ -117,8 +121,12 @@ class SNNDT(nn.Module):
             ffn_output = self.ffn(x_norm1)
             x = self.ln2(x_norm1 + ffn_output)
 
+        if return_gates and return_spikes:
+            return x, torch.stack(all_gates, dim=1), torch.cat(all_spikes, dim=0)
         if return_gates:
-            return x, torch.stack(all_gates, dim=1)  # Return gates from all layers
+            return x, torch.stack(all_gates, dim=1)
+        if return_spikes:
+            return x, torch.cat(all_spikes, dim=0)
         return x
 
 # Example Usage (Illustrative)
