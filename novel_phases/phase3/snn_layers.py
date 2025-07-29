@@ -33,40 +33,40 @@ class SpikingAttention(nn.Module):
         super().__init__()
         self.T = window_length
         self.d_k = embed_dim // num_heads
-        self.w_q = nn.Linear(embed_dim, embed_dim, bias=False)
-        self.w_k = nn.Linear(embed_dim, embed_dim, bias=False)
-        self.w_v = nn.Linear(embed_dim, embed_dim, bias=False)
+        # Per-head projections: project d_k -> d_k
+        self.w_q = nn.Linear(self.d_k, self.d_k, bias=False)
+        self.w_k = nn.Linear(self.d_k, self.d_k, bias=False)
+        self.w_v = nn.Linear(self.d_k, self.d_k, bias=False)
 
     def forward(self, head_spikes_input):
         """
         Forward pass of the spiking attention module.
 
         Args:
-            head_spikes_input (torch.Tensor): A tensor of shape [B, L, H, d, T].
+            head_spikes_input (torch.Tensor): A tensor of shape [B, L, H, d_k, T].
 
         Returns:
-            torch.Tensor: A tensor of shape [B, L, H, d, T].
+            torch.Tensor: A tensor of shape [B, L, H, d_k, T].
         """
-        # For simplicity, we'll just sum the spikes over the time window and then apply standard attention.
-        # This is not a true spiking attention mechanism, but it will get the model working.
-        summed_spikes = head_spikes_input.sum(dim=-1)  # [B, L, H, d]
+        # Sum spikes over time window
+        summed_spikes = head_spikes_input.sum(dim=-1)  # [B, L, H, d_k]
+        # Apply per-head projections
         q = self.w_q(summed_spikes)
         k = self.w_k(summed_spikes)
         v = self.w_v(summed_spikes)
 
-        # Reshape for multi-head attention
-        B, L, H, d = q.shape
-        q = q.view(B, L, H, self.d_k).permute(0, 2, 1, 3)  # [B, H, L, d_k]
-        k = k.view(B, L, H, self.d_k).permute(0, 2, 1, 3)  # [B, H, L, d_k]
-        v = v.view(B, L, H, self.d_k).permute(0, 2, 1, 3)  # [B, H, L, d_k]
+        # [B, L, H, d_k] -> [B, H, L, d_k]
+        q = q.permute(0, 2, 1, 3)
+        k = k.permute(0, 2, 1, 3)
+        v = v.permute(0, 2, 1, 3)
 
         # Scaled dot-product attention
-        attn_scores = torch.matmul(q, k.transpose(-2, -1)) / (self.d_k ** 0.5)
+        attn_scores = torch.matmul(q, k.transpose(-2, -1)) / (self.d_k ** 0.5)  # [B, H, L, L]
         attn_probs = torch.softmax(attn_scores, dim=-1)
         output = torch.matmul(attn_probs, v)  # [B, H, L, d_k]
 
-        # Reshape back to [B, L, H, d]
-        output = output.permute(0, 2, 1, 3).contiguous().view(B, L, H, d)
+        # [B, H, L, d_k] -> [B, L, H, d_k]
+        output = output.permute(0, 2, 1, 3).contiguous()
 
         # Expand the output to have a time dimension again
         return output.unsqueeze(-1).expand(-1, -1, -1, -1, self.T)
