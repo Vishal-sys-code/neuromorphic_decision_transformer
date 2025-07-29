@@ -29,4 +29,4 @@ class DendriticRouter(nn.Module):
 
         # 3) Apply gates
         gated = (gates.unsqueeze(-1) * y_heads).sum(dim=2)  # [B, L, d]
-        return gated
+        return gated, gates
