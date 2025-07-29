@@ -116,7 +116,7 @@ class SNNDT(nn.Module):
 
             # 5) apply routing (if router is enabled)
             if self.router:
-                merged = self.router(y_heads_summed_time)  # [B, L, d]
+                merged, _ = self.router(y_heads_summed_time)  # [B, L, d], ignore gates
             else:
                 # If no router, sum/mean over heads dimension H.
                 # y_heads_summed_time is [B, L, H, d]. We need [B, L, d].
