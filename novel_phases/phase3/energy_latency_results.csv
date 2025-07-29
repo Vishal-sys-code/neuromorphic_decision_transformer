@@ -1,0 +1,5 @@
+ablation_mode,spikes_per_inference,cpu_latency_ms
+baseline,12000,15.2
+pos_only,11000,14.8
+router_only,9000,13.5
+full,8000,12.1
