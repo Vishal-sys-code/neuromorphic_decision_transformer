@@ -27,7 +27,9 @@ ax1.set_xticks(x)
 ax1.set_xticklabels(labels)
 ax1.set_title('Energy Proxy (# Spikes) and CPU Latency per Inference\n(Lower is better)', fontsize=15)
 ax1.grid(axis='y', linestyle='--', alpha=0.5)
-fig.tight_layout()
-fig.legend([bar1, bar2], ['# Spikes per Inference', 'CPU Latency (ms)'], loc='upper right')
-plt.savefig('energy_latency_vs_mode.png', dpi=200)
+fig.tight_layout(rect=[0, 0, 0.85, 1])  # Leave space for legend
+fig.legend([bar1, bar2], ['# Spikes per Inference', 'CPU Latency (ms)'],
+           loc='center left', bbox_to_anchor=(0.88, 0.5), fontsize=12, frameon=False)
+
+plt.savefig('energy_latency_vs_mode.png', dpi=200, bbox_inches='tight')
 plt.show()
