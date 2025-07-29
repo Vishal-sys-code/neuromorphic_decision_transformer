@@ -85,8 +85,17 @@ def main(args):
     print(f"Saving checkpoints to: {checkpoint_dir}")
 
     # Training loop
+    # File to store validation losses
+    val_loss_log_file = 'validation_losses.csv'
+    log_epochs = [20, 50, 100]
+
+    # Write header if file does not exist
+    if not os.path.exists(val_loss_log_file):
+        with open(val_loss_log_file, 'w') as f:
+            f.write('epoch,ablation_mode,validation_loss\n')
+
     for epoch in range(num_epochs):
-        model.train() 
+        model.train()
         outputs = model(dummy_input_embeddings)
         loss = criterion(outputs, dummy_targets)
         optimizer.zero_grad()
@@ -96,19 +105,24 @@ def main(args):
         print(f"Epoch [{epoch+1}/{num_epochs}], Mode: {args.ablation_mode}, Loss: {loss.item():.4f}")
 
         if (epoch + 1) % args.val_interval == 0:
-            model.eval() 
+            model.eval()
             with torch.no_grad():
-                val_outputs = model(dummy_input_embeddings) 
+                val_outputs = model(dummy_input_embeddings)
                 val_loss = criterion(val_outputs, dummy_targets)
                 print(f"Validation Loss after Epoch {epoch+1} (Mode: {args.ablation_mode}): {val_loss.item():.4f}")
-            
+
+                # Log validation loss at specific epochs
+                if (epoch + 1) in log_epochs:
+                    with open(val_loss_log_file, 'a') as f:
+                        f.write(f'{epoch + 1},{args.ablation_mode},{val_loss.item():.4f}\n')
+
             if use_pos_encoder_flag and hasattr(model, 'pos_encoder') and model.pos_encoder is not None:
                 print(f"  Positional Encoder Freqs: {model.pos_encoder.freq.data.numpy().round(3)}")
                 print(f"  Positional Encoder Phases: {model.pos_encoder.phase.data.numpy().round(3)}")
             if use_router_flag and hasattr(model, 'router') and model.router is not None and hasattr(model.router, 'routing_mlp'):
                 if len(model.router.routing_mlp) > 0 and isinstance(model.router.routing_mlp[0], torch.nn.Linear):
                     print(f"  Router MLP Layer 1 Weights (sample): {model.router.routing_mlp[0].weight.data[0,:5].numpy().round(3)}")
-        
+
         if (epoch + 1) % args.save_interval == 0:
             checkpoint_path = os.path.join(checkpoint_dir, f"model_epoch_{epoch+1}.pt")
             torch.save(model.state_dict(), checkpoint_path)
