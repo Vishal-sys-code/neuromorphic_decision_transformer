@@ -34,7 +34,7 @@ def load_model(env_name):
     model.eval()
     return model
 
-def evaluate(env_name, model, episodes=20):
+def evaluate(env_name, model, episodes=50):
     env = gym.make(env_name)
     discrete = hasattr(env.action_space, "n")
     stats = {"returns": [], "lengths": []}
@@ -102,7 +102,7 @@ def evaluate(env_name, model, episodes=20):
         stats["returns"].append(ep_ret)
         stats["lengths"].append(ep_len)
 
-    return np.mean(stats["returns"]), np.mean(stats["lengths"])
+    return np.mean(stats["returns"]), np.std(stats["returns"]), np.mean(stats["lengths"])
 
 if __name__ == "__main__":
     envs = ["CartPole-v1", "MountainCar-v0", "Acrobot-v1", "Pendulum-v1"]
@@ -111,15 +111,15 @@ if __name__ == "__main__":
     for e in envs:
         print(f"Evaluating {e}")
         model = load_model(e)
-        avg_ret, avg_len = evaluate(e, model, episodes=20)
-        records.append({"Environment": e, "AvgReturn": avg_ret, "AvgLength": avg_len})
+        avg_ret, std_ret, avg_len = evaluate(e, model)
+        records.append({"Environment": e, "AvgReturn": avg_ret, "StdReturn": std_ret, "AvgLength": avg_len})
 
     df = pd.DataFrame(records)
     print(df)
 
     # Plot average returns
     plt.figure(figsize=(6,4))
-    plt.bar(df["Environment"], df["AvgReturn"])
+    plt.bar(df["Environment"], df["AvgReturn"], yerr=df["StdReturn"], capsize=5)
     plt.ylabel("Average Return")
     plt.title("Offline DT Evaluation")
     plt.tight_layout()
