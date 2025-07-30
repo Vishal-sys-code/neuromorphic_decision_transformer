@@ -258,7 +258,7 @@ if __name__ == "__main__":
     parser.add_argument('--window_length', type=int, default=10, help="T, time window for spiking dynamics")
     parser.add_argument('--num_layers', type=int, default=2, help="Number of SNN layers in SNNDT")
     parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--val_interval', type=int, default=5)
     
     cli_args = parser.parse_args()
