@@ -152,6 +152,7 @@ def train_offline_dt(env_name="CartPole-v1"):
     loss_fn = nn.CrossEntropyLoss()
 
     # 4. Offline training epochs
+    all_weights = []
     for epoch in range(dt_epochs):
         total_loss = 0.0
         for batch in loader:
@@ -182,7 +183,14 @@ def train_offline_dt(env_name="CartPole-v1"):
         simple_logger({"epoch": epoch, "avg_offline_loss": avg_loss}, epoch)
         save_checkpoint(model, optimizer, f"checkpoints/offline_dt_{env_name}_{epoch}.pt")
 
-    print("✅ Offline Decision Transformer training complete.")
+        # Log weights
+        weights = model.transformer.h[0].attn.snn_attn.q_proj.fc.weight.detach().cpu().numpy()
+        all_weights.append(weights)
+
+    with open("weights.pkl", "wb") as f:
+        pickle.dump(all_weights, f)
+
+    print("Offline Decision Transformer training complete.")
 
 if __name__ == "__main__":
     train_offline_dt()
