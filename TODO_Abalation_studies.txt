@@ -1,0 +1,15 @@
+- Decision SpikeFormer as a Baseline Run.
+- Spike Transformer RL as a Baseline Run
+- Mid-Scale Environment Experiment [MuJoCo HalfCheetah-Small: generate 10k steps (50% expert, 50% random), train SNN-DT, then ablate]
+- Energy Estimate Table [Convert average spikes to joules using neuromorphic hardware specs]
+
+Mid-Scale Environment Experiment is depend on the time:
+If we have the time then we will go for all the MuJoCo Tasks
+- m-e (medium expert) tasks: HalfCheetah, Walker2d, hopper
+- m-r (medium replay) tasks: HalfCheetah, Walker2d, hopper
+- m (medium policy) tasks: HalfCheetah, Walker2d, hopper
+
+
+Otherwise we will go for the firdt baseline run
+
+
