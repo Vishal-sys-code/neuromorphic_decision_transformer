@@ -14,7 +14,7 @@ if PROJECT_ROOT not in sys.path:
 from src.config import DEVICE, SEED, dt_config, max_length
 from src.train_snn_dt import train_offline_dt as train_snn_dt
 from src.train_dsf_dt import train_offline_dsf as train_dsf
-from src.models.snn_dt import SNNDT
+from src.models.snn_dt_patch import SNNDecisionTransformer as SNNDT
 from src.models.dsf_dt import DecisionSpikeFormer
 from src.utils.helpers import get_latest_checkpoint
 
