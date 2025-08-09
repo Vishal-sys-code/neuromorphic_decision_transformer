@@ -1,3 +1,8 @@
+import sys
+import os
+gym_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'baselines', 'DecisionSpikeFormer', 'gym'))
+sys.path.insert(0, gym_path)
+
 import gym
 import numpy as np
 import torch
@@ -7,9 +12,7 @@ from d4rl import infos
 import argparse
 import pickle
 import random
-import sys
 from datetime import datetime
-import os
 
 from evaluation.evaluate_episodes import evaluate_episode_rtg
 from .utils.dsf_utils import discount_cumsum,  get_env_info, get_model_optimizer, get_trainer
@@ -35,26 +38,8 @@ def experiment(variant):
     act_dim = env.action_space.shape[0]
 
     # load dataset
-    if dataset == 'medium-expert':
-        dataset_path = f'data-gym/{env_name}-expert-v2.pkl'
-        with open(dataset_path, 'rb') as f:
-            trajectories = pickle.load(f)
-        dataset_path = f'data-gym/{env_name}-medium-v2.pkl'
-        with open(dataset_path, 'rb') as f:
-            trajectories += pickle.load(f)
-        random.shuffle(trajectories)
-    elif env_name == 'pen' or env_name == 'door' or env_name == 'relocate' or env_name == 'hammer' or env_name == 'kitchen':
-        dataset_path = f'data-gym/{env_name}-{dataset}-v0.pkl'
-        with open(dataset_path, 'rb') as f:
-            trajectories = pickle.load(f)
-    elif env_name == 'maze2d':
-        dataset_path = f'data-gym/{env_name}-{dataset}-v1.pkl'
-        with open(dataset_path, 'rb') as f:
-            trajectories = pickle.load(f)
-    else:
-        dataset_path = f'data-gym/{env_name}-{dataset}-v2.pkl'
-        with open(dataset_path, 'rb') as f:
-            trajectories = pickle.load(f)
+    with open(variant['dataset_path'], 'rb') as f:
+        trajectories = pickle.load(f)
 
     # save all path information into separate lists
     mode = variant.get('mode', 'normal')
@@ -322,3 +307,26 @@ def experiment(variant):
     print(f'The final best iteration is {best_iter}')
 
 
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--env', type=str, default='CartPole-v1')
+    parser.add_argument('--dataset', type=str, default='expert')
+    parser.add_argument('--model_type', type=str, default='dsf')
+    parser.add_argument('--device', type=str, default='cpu')
+    parser.add_argument('--log_to_wandb', type=bool, default=False)
+    parser.add_argument('--save_path', type=str, default='checkpoints/')
+    parser.add_argument('--setting_name', type=str, default=None)
+    parser.add_argument('--K', type=int, default=20)
+    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--num_eval_episodes', type=int, default=10)
+    parser.add_argument('--max_iters', type=int, default=10)
+    parser.add_argument('--num_steps_per_iter', type=int, default=100)
+    parser.add_argument('--pct_traj', type=float, default=1.0)
+
+    args = parser.parse_args()
+
+    # Hardcode the dataset path for simplicity
+    variant = vars(args)
+    variant['dataset_path'] = f'demos/expert_{args.env}.pkl'
+    
+    experiment(variant)
