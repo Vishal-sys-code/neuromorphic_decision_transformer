@@ -88,21 +88,32 @@ def set_seed(seed):
 
 def collect_trajectories(env_name="CartPole-v1"):
     env = gym.make(env_name)
+    is_continuous = isinstance(env.action_space, gym.spaces.Box)
+    act_dim = env.action_space.shape[0] if is_continuous else 1
+    
     trajectories = []
-    buf = TrajectoryBuffer(max_length, env.observation_space.shape[0], 1) # act_dim is 1 for discrete actions
+    buf = TrajectoryBuffer(max_length, env.observation_space.shape[0], act_dim)
     steps = 0
     obs = env.reset()[0]
+    
     while steps < offline_steps:
         action = env.action_space.sample()
-        next_obs, reward, terminated, truncated = env.step(action)
+        next_obs, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
-        buf.add(np.array([obs], dtype=np.float32).reshape(env.observation_space.shape[0],), action, reward)
+        
+        if not is_continuous:
+            action = np.array([action])
+            
+        buf.add(obs.flatten(), action, reward)
         obs = next_obs if not done else env.reset()[0]
         steps += 1
+        
         if done:
             trajectories.append(buf.get_trajectory())
             buf.reset()
-    return trajectories, env.action_space.n
+            
+    act_dim_out = env.action_space.shape[0] if is_continuous else env.action_space.n
+    return trajectories, act_dim_out
 
 def train_offline_dsf(env_name="CartPole-v1"):
     set_seed(SEED)
