@@ -31,6 +31,61 @@ def save_checkpoint(model, optimizer, path):
         'optim_state': optimizer.state_dict(),
     }, path)
 
+import gym
+
+def evaluate_model(model, env_name, max_episodes, max_length, state_dim, act_dim, device, gamma):
+    env = gym.make(env_name)
+    returns = []
+
+    for _ in range(max_episodes):
+        obs = env.reset()[0]
+        states = []
+        actions = []
+        rewards = []
+        returns_to_go = []
+        timesteps = []
+        
+        episode_return = 0
+        t = 0
+        done = False
+
+        while not done:
+            states.append(obs)
+            timesteps.append(t)
+
+            # Prepare inputs for the model
+            current_states = torch.tensor(states, dtype=torch.float32).reshape(1, -1, state_dim).to(device)
+            current_actions = torch.tensor(actions, dtype=torch.long).reshape(1, -1, 1).to(device)
+            current_returns_to_go = torch.tensor(returns_to_go, dtype=torch.float32).reshape(1, -1, 1).to(device)
+            current_timesteps = torch.tensor(timesteps, dtype=torch.long).reshape(1, -1).to(device)
+
+            # Get action from the model
+            action_preds = model.get_action(
+                current_states,
+                current_actions,
+                current_returns_to_go,
+                current_timesteps,
+            )
+            action = action_preds.argmax(dim=-1).item()
+
+            # Step the environment
+            obs, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated
+
+            actions.append(action)
+            rewards.append(reward)
+            episode_return += reward
+
+            # Update returns_to_go (simple approach for evaluation)
+            returns_to_go = [episode_return] + [0] * (len(states) - 1) # This is a simplified RTG for evaluation
+
+            t += 1
+            if t >= max_length: # Limit episode length for evaluation if needed
+                break
+        returns.append(episode_return)
+    env.close()
+    return np.mean(returns)
+
 def get_latest_checkpoint(env_name, model_name, checkpoint_dir="checkpoints"):
     """
     Retrieves the path of the latest checkpoint file for a given model and environment.
@@ -46,7 +101,7 @@ def get_latest_checkpoint(env_name, model_name, checkpoint_dir="checkpoints"):
     # Mapping from model_name to the file pattern prefix
     model_pattern_map = {
         "snn-dt": "offline_dt",
-        "dsf-dt": "dsf_dt"  # Assuming 'dsf-dt' maps to 'dsf_dt' filenames
+        "dsf-dt": "offline_dsf"  # Corrected to match the actual filename prefix
     }
 
     pattern_prefix = model_pattern_map.get(model_name)

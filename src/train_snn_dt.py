@@ -44,7 +44,8 @@ from src.config import (
     dt_config,
 )
 from src.utils.trajectory_buffer import TrajectoryBuffer
-from src.utils.helpers import compute_returns_to_go, simple_logger, save_checkpoint
+from src.utils.helpers import compute_returns_to_go, simple_logger, save_checkpoint, evaluate_model
+from sklearn.model_selection import train_test_split
 # from src.models.snn_dt_patch import SNNDecisionTransformer  # or DecisionTransformer
 # from .models.snn_dt_patch import SNNDecisionTransformer  # or DecisionTransformer
 # from ..src.models.snn_dt_patch import SNNDecisionTransformer  # or DecisionTransformer # Original problematic import
@@ -54,7 +55,7 @@ from src.models.snn_dt_patch import SNNDecisionTransformer  # Corrected import
 
 # 1) Define an offline dataset of DT sequences
 class TrajectoryDataset(Dataset):
-    def __init__(self, trajectories, max_length):
+    def __init__(self, trajectories, max_length, gamma):
         """
         trajectories: list of dicts with 'states', 'actions', 'rewards'
         """
@@ -115,9 +116,9 @@ def collect_trajectories(env_name="CartPole-v1"):
     obs = env.reset()[0]
     while steps < offline_steps:
         action = env.action_space.sample()
-        next_obs, reward, terminated, truncated, _ = env.step(action)
+        next_obs, reward, terminated, truncated = env.step(action)
         done = terminated or truncated
-        buf.add(np.array(obs, dtype=np.float32), action, reward)
+        buf.add(np.array([obs], dtype=np.float32).reshape(env.observation_space.shape[0],), action, reward)
         obs = next_obs if not done else env.reset()[0]
         steps += 1
         if done:
@@ -136,14 +137,20 @@ def train_offline_dt(env_name="CartPole-v1"):
     with open("offline_data.pkl","wb") as f:
         pickle.dump(trajectories, f)
 
+    # Split trajectories into train and validation sets
+    train_trajectories, val_trajectories = train_test_split(trajectories, test_size=0.05, random_state=SEED)
+
     # 2. Build dataset & loader
-    dataset = TrajectoryDataset(trajectories, max_length)
-    loader  = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    train_dataset = TrajectoryDataset(train_trajectories, max_length, gamma)
+    val_dataset = TrajectoryDataset(val_trajectories, max_length, gamma)
+
+    train_loader  = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     # 3. Model & optimizer
     dt_conf = dt_config.copy()
     dt_conf.update(
-        state_dim=dataset[0]["states"].shape[-1],
+        state_dim=train_dataset[0]["states"].shape[-1],
         act_dim=act_dim_from_env, # Use action dim from environment
         max_length=max_length,
     )
@@ -154,8 +161,9 @@ def train_offline_dt(env_name="CartPole-v1"):
     # 4. Offline training epochs
     all_weights = []
     for epoch in range(dt_epochs):
-        total_loss = 0.0
-        for batch in loader:
+        model.train()
+        total_train_loss = 0.0
+        for batch in train_loader:
             states = batch["states"].to(DEVICE)           # [B, S, state_dim]
             actions= batch["actions"].to(DEVICE)          # [B, S, 1]
             returns= batch["returns_to_go"].to(DEVICE)    # [B, S, 1]
@@ -177,10 +185,50 @@ def train_offline_dt(env_name="CartPole-v1"):
             loss.backward()
             optimizer.step()
 
-            total_loss += loss.item()
+            total_train_loss += loss.item()
 
-        avg_loss = total_loss / len(loader)
-        simple_logger({"epoch": epoch, "avg_offline_loss": avg_loss}, epoch)
+        avg_train_loss = total_train_loss / len(train_loader)
+
+        # Validation
+        model.eval()
+        total_val_loss = 0.0
+        with torch.no_grad():
+            for batch in val_loader:
+                states = batch["states"].to(DEVICE)           # [B, S, state_dim]
+                actions= batch["actions"].to(DEVICE)          # [B, S, 1]
+                returns= batch["returns_to_go"].to(DEVICE)    # [B, S, 1]
+                times  = batch["timesteps"].to(DEVICE)        # [B, S]
+
+                # one-hot actions for input embedding
+                actions_in = torch.nn.functional.one_hot(
+                    actions.squeeze(-1), num_classes=dt_conf["act_dim"]
+                ).to(torch.float32)
+
+                # forward: predict next actions
+                _, action_preds, _ = model(states, actions_in, None, returns, times)
+                # compute CE loss on all positions
+                logits = action_preds.view(-1, dt_conf["act_dim"])
+                targets= actions.view(-1)
+                loss = loss_fn(logits, targets)
+                total_val_loss += loss.item()
+        avg_val_loss = total_val_loss / len(val_loader)
+
+        # Evaluate model performance
+        model.reset_total_spike_count() # Reset spike count before evaluation
+        avg_return = evaluate_model(
+            model, env_name, max_episodes=10, max_length=max_length,
+            state_dim=dt_conf["state_dim"], act_dim=dt_conf["act_dim"],
+            device=DEVICE, gamma=gamma
+        )
+        total_spikes = model.get_total_spike_count() # Get spike count after evaluation
+
+        simple_logger({
+            "epoch": epoch,
+            "avg_train_loss": avg_train_loss,
+            "avg_val_loss": avg_val_loss,
+            "avg_return": avg_return,
+            "total_spikes": total_spikes
+        }, epoch)
         save_checkpoint(model, optimizer, f"checkpoints/offline_dt_{env_name}_{epoch}.pt")
 
         # Log weights

@@ -7,14 +7,14 @@ import gym
 import numpy as np
 import torch
 import wandb
-from d4rl import infos
+# from d4rl import infos
 
 import argparse
 import pickle
 import random
 from datetime import datetime
 
-from evaluation.evaluate_episodes import evaluate_episode_rtg
+from .evaluation.evaluate_episodes import evaluate_episode_rtg
 from .utils.dsf_utils import discount_cumsum,  get_env_info, get_model_optimizer, get_trainer
 
 
@@ -231,20 +231,20 @@ def experiment(variant):
                     returns.append(ret)
                     lengths.append(length)
             assert len(returns) == num_seeds * num_eval_episodes
-            if env_name == 'pen' or env_name == 'door' or env_name == 'relocate' or env_name == 'hammer' or env_name == 'kitchen':
-                reward_min = infos.REF_MIN_SCORE[f"{env_name}-{dataset}-v0"]
-                reward_max = infos.REF_MAX_SCORE[f"{env_name}-{dataset}-v0"]
-            elif env_name == 'maze2d':
-                reward_min = infos.REF_MIN_SCORE[f"{env_name}-{dataset}-v1"]
-                reward_max = infos.REF_MAX_SCORE[f"{env_name}-{dataset}-v1"]
-            else:
-                reward_min = infos.REF_MIN_SCORE[f"{env_name}-{dataset}-v2"]
-                reward_max = infos.REF_MAX_SCORE[f"{env_name}-{dataset}-v2"]
+            # if env_name == 'pen' or env_name == 'door' or env_name == 'relocate' or env_name == 'hammer' or env_name == 'kitchen':
+            #     reward_min = infos.REF_MIN_SCORE[f"{env_name}-{dataset}-v0"]
+            #     reward_max = infos.REF_MAX_SCORE[f"{env_name}-{dataset}-v0"]
+            # elif env_name == 'maze2d':
+            #     reward_min = infos.REF_MIN_SCORE[f"{env_name}-{dataset}-v1"]
+            #     reward_max = infos.REF_MAX_SCORE[f"{env_name}-{dataset}-v1"]
+            # else:
+            #     reward_min = infos.REF_MIN_SCORE[f"{env_name}-{dataset}-v2"]
+            #     reward_max = infos.REF_MAX_SCORE[f"{env_name}-{dataset}-v2"]
             return {
                 f'target_{target}_return_mean': np.mean(returns),
                 f'target_{target}_return_std': np.std(returns),
                 f'target_{target}_length_mean': np.mean(lengths),
-                f'target_{target}_d4rl_score': (np.mean(returns) - reward_min) * 100 / (reward_max - reward_min),
+                # f'target_{target}_d4rl_score': (np.mean(returns) - reward_min) * 100 / (reward_max - reward_min),
             }
         return fn
 
@@ -311,7 +311,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--env', type=str, default='CartPole-v1')
     parser.add_argument('--dataset', type=str, default='expert')
-    parser.add_argument('--model_type', type=str, default='dsf')
+    parser.add_argument('--model_type', type=str, default='pssa')
     parser.add_argument('--device', type=str, default='cpu')
     parser.add_argument('--log_to_wandb', type=bool, default=False)
     parser.add_argument('--save_path', type=str, default='checkpoints/')
