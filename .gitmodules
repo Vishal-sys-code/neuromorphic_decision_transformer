@@ -7,3 +7,6 @@
 [submodule "baselines/DecisionSpikeFormer"]
 	path = baselines/DecisionSpikeFormer
 	url = https://github.com/Wei-Nijuan/DecisionSpikeFormer
+[submodule "DecisionSpikeFormer"]
+	path = DecisionSpikeFormer
+	url = git@github.com:Wei-Nijuan/DecisionSpikeFormer.git
