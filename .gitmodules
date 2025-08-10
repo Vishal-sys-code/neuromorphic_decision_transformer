@@ -1,12 +1,6 @@
 [submodule "external/decision-transformer"]
 	path = external/decision-transformer
 	url = https://github.com/kzl/decision-transformer.git
-[submodule "external/decision_transformer"]
-	path = external/decision_transformer
-	url = https://github.com/kzl/decision-transformer.git
-[submodule "baselines/DecisionSpikeFormer"]
-	path = baselines/DecisionSpikeFormer
+[submodule "external/DecisionSpikeFormer"]
+	path = external/DecisionSpikeFormer
 	url = https://github.com/Wei-Nijuan/DecisionSpikeFormer
-[submodule "DecisionSpikeFormer"]
-	path = DecisionSpikeFormer
-	url = git@github.com:Wei-Nijuan/DecisionSpikeFormer.git
