@@ -86,6 +86,7 @@ def set_seed(seed):
     if DEVICE == "cuda":
         torch.cuda.manual_seed_all(seed)
 
+
 def collect_trajectories(env_name="CartPole-v1"):
     env = gym.make(env_name)
     is_continuous = isinstance(env.action_space, gym.spaces.Box)
@@ -94,23 +95,43 @@ def collect_trajectories(env_name="CartPole-v1"):
     trajectories = []
     buf = TrajectoryBuffer(max_length, env.observation_space.shape[0], act_dim)
     steps = 0
-    obs = env.reset()[0]
     
+    # Handle gym's env.reset() return value inconsistency
+    reset_result = env.reset()
+    if isinstance(reset_result, tuple):
+        obs = reset_result[0]
+    else:
+        obs = reset_result
+
     while steps < offline_steps:
         action = env.action_space.sample()
-        next_obs, reward, terminated, truncated, _ = env.step(action)
+        
+        # Handle gym's env.step() return value inconsistency
+        try:
+            # New gym API (returns 5 values)
+            next_obs, reward, terminated, truncated, info = env.step(action)
+        except ValueError:
+            # Old gym API (returns 4 values)
+            next_obs, reward, terminated, info = env.step(action)
+            truncated = info.get('TimeLimit.truncated', False)
+        
         done = terminated or truncated
         
-        if not is_continuous:
-            action = np.array([action])
-            
-        buf.add(obs.flatten(), action, reward)
-        obs = next_obs if not done else env.reset()[0]
-        steps += 1
+        action_to_store = np.array([action]) if not is_continuous else action
+        buf.add(obs.flatten(), action_to_store, reward)
         
         if done:
             trajectories.append(buf.get_trajectory())
             buf.reset()
+            reset_result = env.reset()
+            if isinstance(reset_result, tuple):
+                obs = reset_result[0]
+            else:
+                obs = reset_result
+        else:
+            obs = next_obs
+            
+        steps += 1
             
     act_dim_out = env.action_space.shape[0] if is_continuous else env.action_space.n
     return trajectories, act_dim_out
@@ -121,8 +142,13 @@ def train_offline_dsf(env_name="CartPole-v1"):
 
     print("Collecting trajectories for DSF...")
     trajectories, act_dim_from_env = collect_trajectories(env_name)
-    with open(f"offline_data_{env_name}_dsf.pkl","wb") as f:
+    with open(f"offline_data_{{env_name}}_dsf.pkl","wb") as f:
         pickle.dump(trajectories, f)
+
+    # Determine if the environment is continuous
+    env = gym.make(env_name)
+    is_continuous = isinstance(env.action_space, gym.spaces.Box)
+    env.close()
 
     # Split trajectories into train and validation sets
     train_trajectories, val_trajectories = train_test_split(trajectories, test_size=0.2, random_state=SEED)
@@ -138,15 +164,14 @@ def train_offline_dsf(env_name="CartPole-v1"):
         state_dim=train_dataset[0]["states"].shape[-1],
         act_dim=act_dim_from_env,
         max_length=max_length,
-        # dsf specific params from its config can be added here
     )
     # Add num_training_steps to the config for the model
     dt_conf['num_training_steps'] = dt_epochs * len(train_loader)
-    dt_conf['warmup_ratio'] = 0.1 # Example, should be in config
+    dt_conf['warmup_ratio'] = 0.1
 
     model = DecisionSpikeFormer(**dt_conf).to(DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = nn.MSELoss() if is_continuous else nn.CrossEntropyLoss()
 
     for epoch in range(dt_epochs):
         model.train()
@@ -157,19 +182,23 @@ def train_offline_dsf(env_name="CartPole-v1"):
             returns= batch["returns_to_go"].to(DEVICE)
             times  = batch["timesteps"].to(DEVICE)
 
-            # dsf expects actions to be float
-            actions_in = actions.to(torch.float32)
+            if is_continuous:
+                actions_in = actions.to(torch.float32)
+            else:
+                actions_in = torch.nn.functional.one_hot(actions.squeeze(-1).long(), num_classes=act_dim_from_env).float()
 
             _, action_preds, _ = model(states, actions_in, returns, times)
             
-            logits = action_preds.view(-1, dt_conf["act_dim"])
-            targets= actions.view(-1)
-            loss = loss_fn(logits, targets)
+            if is_continuous:
+                loss = loss_fn(action_preds, actions)
+            else:
+                logits = action_preds.view(-1, dt_conf["act_dim"])
+                targets = actions.view(-1)
+                loss = loss_fn(logits, targets)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
             total_train_loss += loss.item()
 
         avg_train_loss = total_train_loss / len(train_loader)
@@ -184,34 +213,30 @@ def train_offline_dsf(env_name="CartPole-v1"):
                 returns= batch["returns_to_go"].to(DEVICE)
                 times  = batch["timesteps"].to(DEVICE)
 
-                actions_in = actions.to(torch.float32)
+                if is_continuous:
+                    actions_in = actions.to(torch.float32)
+                else:
+                    actions_in = torch.nn.functional.one_hot(actions.squeeze(-1).long(), num_classes=act_dim_from_env).float()
+                
                 _, action_preds, _ = model(states, actions_in, returns, times)
                 
-                logits = action_preds.view(-1, dt_conf["act_dim"])
-                targets= actions.view(-1)
-                loss = loss_fn(logits, targets)
+                if is_continuous:
+                    loss = loss_fn(action_preds, actions)
+                else:
+                    logits = action_preds.view(-1, dt_conf["act_dim"])
+                    targets = actions.view(-1)
+                    loss = loss_fn(logits, targets)
+                    
                 total_val_loss += loss.item()
         avg_val_loss = total_val_loss / len(val_loader)
-
-        # Evaluate model performance
-        model.reset_total_spike_count() # Reset spike count before evaluation
-        avg_return = evaluate_model(
-            model, env_name, max_episodes=10, max_length=max_length,
-            state_dim=dt_conf["state_dim"], act_dim=dt_conf["act_dim"],
-            device=DEVICE, gamma=gamma
-        )
-        total_spikes = model.get_total_spike_count() # Get spike count after evaluation
 
         simple_logger({
             "epoch": epoch,
             "avg_train_loss": avg_train_loss,
             "avg_val_loss": avg_val_loss,
-            "avg_return": avg_return,
-            "total_spikes": total_spikes
         }, epoch)
-        save_checkpoint(model, optimizer, f"checkpoints/offline_dsf_{env_name}_{epoch}.pt")
+        save_checkpoint(model, optimizer, f"checkpoints/offline_dsf_{{env_name}}_{{epoch}}.pt")
 
     print("Offline DecisionSpikeFormer training complete.")
-
 if __name__ == "__main__":
     train_offline_dsf()

@@ -26,12 +26,12 @@ def evaluate_model(model_class, model_config, env_name, model_name, seed):
 
     env = gym.make(env_name)
     # For DecisionSpikeFormer, add env-specific dims to config
-    if model_name == 'dsf-dt':
-        model_config.update({
-            "state_dim": env.observation_space.shape[0],
-            "act_dim": env.action_space.n if isinstance(env.action_space, gym.spaces.Discrete) else env.action_space.shape[0],
-            "max_length": max_length
-        })
+    model_config.update({
+        "state_dim": env.observation_space.shape[0],
+        "act_dim": env.action_space.n if isinstance(env.action_space, gym.spaces.Discrete) else env.action_space.shape[0],
+        "max_length": max_length,
+        "n_ctx": max_length,
+    })
     
     # Add dummy training steps and warmup_ratio if not present, for model constructors that need them
     if 'num_training_steps' not in model_config:
@@ -40,13 +40,14 @@ def evaluate_model(model_class, model_config, env_name, model_name, seed):
         model_config['warmup_ratio'] = 0.1 # dummy value for eval
 
     # Filter model_config to only include parameters expected by the model's constructor
-    import inspect
-    sig = inspect.signature(model_class.__init__)
-    allowed_args = set(sig.parameters.keys())
+    # import inspect
+    # sig = inspect.signature(model_class.__init__)
+    # allowed_args = set(sig.parameters.keys())
     
-    filtered_config = {k: v for k, v in model_config.items() if k in allowed_args}
+    # filtered_config = {k: v for k, v in model_config.items() if k in allowed_args}
 
-    model = model_class(**filtered_config).to(DEVICE)
+    # model = model_class(**filtered_config).to(DEVICE)
+    model = model_class(**model_config).to(DEVICE)
 
     # For models that need state_dim and act_dim as attributes post-initialization
     if not hasattr(model, 'state_dim'):

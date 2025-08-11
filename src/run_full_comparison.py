@@ -12,6 +12,11 @@ import gym
 import pickle
 import time
 
+import numpy as np
+# Monkey-patch numpy for gym compatibility with NumPy 2.0
+if not hasattr(np, 'float_'):
+    np.float_ = np.float64
+
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -64,7 +69,7 @@ def train_model(model_class, trajectories, act_dim, env_name, is_continuous, mod
     
     # Build dataset & loader
     dataset_class = SNNTrajectoryDataset if model_name == "SNN-DT" else DSFTrajectoryDataset
-    dataset = dataset_class(trajectories, max_length)
+    dataset = dataset_class(trajectories, max_length, gamma)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     
     # Model & optimizer
@@ -73,6 +78,7 @@ def train_model(model_class, trajectories, act_dim, env_name, is_continuous, mod
         state_dim=dataset[0]["states"].shape[-1],
         act_dim=act_dim,
         max_length=max_length,
+        n_ctx=max_length, # This line fixes the AttributeError
     )
     if model_name == "DSF-DT":
         dt_conf['num_training_steps'] = dt_epochs * len(loader)

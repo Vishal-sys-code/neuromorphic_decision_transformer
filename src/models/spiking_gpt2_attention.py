@@ -14,7 +14,7 @@ class SpikingGPT2Attention(nn.Module):
         """
         super().__init__()
         self.time_window = time_window
-        self.embed_dim = orig_attn.n_embd
+        self.embed_dim = orig_attn.c_attn.weight.shape[0]
         self.num_heads = orig_attn.n_head
 
         # your spike‑based MHA
