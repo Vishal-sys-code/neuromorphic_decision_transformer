@@ -1,269 +1,262 @@
-"""
-Run a full comparison between SNN-DT and DSF-DT on multiple environments.
-"""
+# ---- robust import bootstrapping (paste at top of file) ----
 import os
 import sys
-import argparse
-import pandas as pd
+from pathlib import Path
+import random
 import numpy as np
 import torch
-import torch.nn as nn
-import gym
-import pickle
-import time
+import inspect
+from datetime import datetime
+from types import SimpleNamespace
+import argparse
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+# Resolve paths
+THIS_FILE = Path(__file__).resolve()
+SRC_ROOT = THIS_FILE.parent           # repo/src
+REPO_ROOT = SRC_ROOT.parent          # repo root
 
-import importlib
+# Ensure src/ is on sys.path so `import models.dsf_models...` resolves.
+# Insert at front so it has highest priority.
+src_root_str = str(SRC_ROOT)
+if src_root_str not in sys.path:
+    sys.path.insert(0, src_root_str)
 
-from src.utils.trajectory_buffer import TrajectoryBuffer
-from src.utils.helpers import compute_returns_to_go
-from src.models.snn_dt_patch import SNNDecisionTransformer
-from src.models.dsf_dt import DecisionSpikeFormer
-from src.train_snn_dt import TrajectoryDataset as SNNTrajectoryDataset, set_seed as snn_set_seed
-from src.train_dsf_dt import TrajectoryDataset as DSFTrajectoryDataset, set_seed as dsf_set_seed, collect_trajectories as dsf_collect_trajectories
-from src.run_benchmark import evaluate_model
+# (Optional) Also ensure repo root is available for other import styles
+repo_root_str = str(REPO_ROOT)
+if repo_root_str not in sys.path:
+    sys.path.insert(0, repo_root_str)
 
-def load_config(env_name):
-    """Dynamically load the configuration file for the given environment."""
+# Debug (uncomment if you want to see search path during runtime)
+# print("[DEBUG] PYTHONPATH (head):", sys.path[:5])
+
+# Now import models using absolute package-style imports (no relative imports).
+try:
+    # primary import style: models package rooted at src/
+    from .models.dsf_models.decision_spikeformer_pssa import SpikeDecisionTransformer, PSSADecisionSpikeFormer
+    from .models.dsf_models.decision_spikeformer_tssa import TSSADecisionSpikeFormer
+    from .models.dsf_models.decision_transformer import DecisionTransformer
+except Exception as e:
+    # Helpful error if import fails
+    raise ImportError(
+        "Failed to import models.dsf_models.*. Make sure 'src/models' exists and contains 'dsf_models' "
+        "and that you are running this script from the repo root or via `python src/run_experiment.py`.\n"
+        f"Original error: {e}"
+    )
+
+# Provide compatibility/aliases used elsewhere
+SNNDecisionTransformer = SpikeDecisionTransformer
+DecisionSpikeFormer = PSSADecisionSpikeFormer
+# ---- end import bootstrapping ----
+
+
+# ---------------------------------------------------------------------
+# Import dataset & training utilities (robust)
+# ---------------------------------------------------------------------
+def try_import_attr(module_name, attr_name):
     try:
-        config_module_name = f"src.configs.{env_name.lower().replace('-', '_')}_config"
-        config = importlib.import_module(config_module_name)
-        return config
-    except ImportError:
-        raise FileNotFoundError(f"Configuration file for environment '{env_name}' not found.")
+        mod = __import__(module_name, fromlist=[attr_name])
+        return getattr(mod, attr_name)
+    except Exception:
+        return None
 
-def collect_shared_dataset(env_name):
-    """Collect a shared dataset for both models"""
-    print(f"Collecting shared dataset for {env_name}...")
-    
-    # Use the DSF collection function as it is already implemented
-    trajectories, act_dim = dsf_collect_trajectories(env_name)
-    
-    # Save the dataset
-    with open(f"shared_offline_data_{env_name}.pkl", "wb") as f:
-        pickle.dump(trajectories, f)
-    
-    print(f"Collected {len(trajectories)} trajectories for {env_name}")
+dsf_collect_trajectories = try_import_attr("data_utils", "dsf_collect_trajectories") or \
+                          try_import_attr("src.data_utils", "dsf_collect_trajectories")
+if dsf_collect_trajectories is None:
+    raise ImportError("Could not import `dsf_collect_trajectories` from data_utils or src.data_utils. "
+                      "Make sure a file data_utils.py exists and defines dsf_collect_trajectories(...)")
+
+train_model = try_import_attr("train_utils", "train_model") or try_import_attr("src.train_utils", "train_model")
+evaluate_model = try_import_attr("train_utils", "evaluate_model") or try_import_attr("src.train_utils", "evaluate_model")
+if train_model is None or evaluate_model is None:
+    raise ImportError("Could not import train_model/evaluate_model from train_utils or src.train_utils. "
+                      "Make sure train_utils.py exists and exports train_model, evaluate_model.")
+
+# ---------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+def make_log_dir(base_dir, env_name, model_type, seed):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_dir = os.path.join(base_dir, f"{env_name}_{model_type}_seed{seed}_{timestamp}")
+    os.makedirs(log_dir, exist_ok=True)
+    return log_dir
+
+def collect_shared_dataset(env_name, offline_steps=10000, max_length=50):
+    print(f"[INFO] Collecting shared dataset for {env_name} (steps={offline_steps}, max_len={max_length})...")
+    trajectories, act_dim = dsf_collect_trajectories(env_name, offline_steps, max_length)
     return trajectories, act_dim
 
-def train_model(model_class, trajectories, act_dim, env_name, is_continuous, model_name, config):
-    """Train a model (SNN-DT or DSF-DT) with shared dataset"""
-    print(f"Training {model_name} with shared dataset for {env_name}...")
-    
-    from torch.utils.data import DataLoader, random_split
-    from src.utils.helpers import simple_logger, save_checkpoint
-    
-    set_seed_fn = snn_set_seed if model_name == "SNN-DT" else dsf_set_seed
-    set_seed_fn(config.SEED)
-    os.makedirs("checkpoints", exist_ok=True)
-    
-    # Build dataset
-    dataset_class = SNNTrajectoryDataset if model_name == "SNN-DT" else DSFTrajectoryDataset
-    dataset = dataset_class(trajectories, config.max_length)
-    
-    # Split dataset into training and validation
-    train_size = int(0.8 * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
-    
-    train_loader = DataLoader(train_dataset, batch_size=config.dt_batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=config.dt_batch_size, shuffle=False)
-    
-    # Model & optimizer
-    dt_conf = config.dt_config.copy()
-    dt_conf.update(
-        state_dim=dataset[0]["states"].shape[-1],
-        act_dim=act_dim,
-        max_length=config.max_length,
-    )
-    if model_name == "DSF-DT":
-        dt_conf['num_training_steps'] = config.dt_epochs * len(train_loader)
-        dt_conf['warmup_ratio'] = 0.1
+# ---------------------------------------------------------------------
+# Smart model builder: inspects __init__ and supplies sensible defaults.
+# If model requires a `config` argument, we populate a comprehensive config
+# with the fields observed in your DSF implementation.
+# ---------------------------------------------------------------------
+def build_model_from_class(cls, state_dim, act_dim, args):
+    if cls is None:
+        raise RuntimeError("Requested model class is None.")
 
-    model = model_class(**dt_conf).to(config.DEVICE)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr)
-    loss_fn = nn.MSELoss() if is_continuous else nn.CrossEntropyLoss()
-    
-    best_val_loss = float('inf')
-    best_model_path = None
-    
-    all_losses = []
-    for epoch in range(config.dt_epochs):
-        # Training loop
-        model.train()
-        total_train_loss = 0.0
-        for batch in train_loader:
-            states = batch["states"].to(config.DEVICE)
-            actions = batch["actions"].to(config.DEVICE)
-            returns = batch["returns_to_go"].to(config.DEVICE)
-            times = batch["timesteps"].to(config.DEVICE)
-            
-            if is_continuous:
-                actions_in = actions.to(torch.float32)
-                targets = actions
-            else:
-                actions_in = nn.functional.one_hot(
-                    actions.squeeze(-1).long(), num_classes=act_dim
-                ).to(torch.float32)
-                targets = actions.view(-1)
+    sig = inspect.signature(cls.__init__)
+    params = sig.parameters
+    param_names = [p for p in params.keys() if p != 'self']
 
-            _, action_preds, _ = model(states, actions_in, None if model_name == "SNN-DT" else returns, returns, times)
-            
-            if is_continuous:
-                loss = loss_fn(action_preds, targets)
-            else:
-                logits = action_preds.view(-1, act_dim)
-                loss = loss_fn(logits, targets)
-            
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            total_train_loss += loss.item()
-        
-        avg_train_loss = total_train_loss / len(train_loader)
-        
-        # Validation loop
-        model.eval()
-        total_val_loss = 0.0
-        with torch.no_grad():
-            for batch in val_loader:
-                states = batch["states"].to(config.DEVICE)
-                actions = batch["actions"].to(config.DEVICE)
-                returns = batch["returns_to_go"].to(config.DEVICE)
-                times = batch["timesteps"].to(config.DEVICE)
-                
-                if is_continuous:
-                    actions_in = actions.to(torch.float32)
-                    targets = actions
-                else:
-                    actions_in = nn.functional.one_hot(
-                        actions.squeeze(-1).long(), num_classes=act_dim
-                    ).to(torch.float32)
-                    targets = actions.view(-1)
+    cand = {}
+    if 'state_dim' in param_names:
+        cand['state_dim'] = state_dim
+    if 'obs_dim' in param_names and 'state_dim' not in cand:
+        cand['obs_dim'] = state_dim
+    if 'act_dim' in param_names:
+        cand['act_dim'] = act_dim
+    if 'action_dim' in param_names and 'act_dim' not in cand:
+        cand['action_dim'] = act_dim
+    if 'hidden_size' in param_names:
+        cand['hidden_size'] = getattr(args, "embed_dim", 128)
+    if 'embed_dim' in param_names:
+        cand['embed_dim'] = getattr(args, "embed_dim", 128)
+    if 'max_length' in param_names:
+        cand['max_length'] = getattr(args, "max_length", 50)
+    if 'max_ep_len' in param_names and 'max_length' not in cand:
+        cand['max_ep_len'] = getattr(args, "max_length", 50)
 
-                _, action_preds, _ = model(states, actions_in, None if model_name == "SNN-DT" else returns, returns, times)
-                
-                if is_continuous:
-                    loss = loss_fn(action_preds, targets)
-                else:
-                    logits = action_preds.view(-1, act_dim)
-                    loss = loss_fn(logits, targets)
-                
-                total_val_loss += loss.item()
-        
-        avg_val_loss = total_val_loss / len(val_loader)
-        all_losses.append({"train_loss": avg_train_loss, "val_loss": avg_val_loss})
-        
-        simple_logger({
-            "epoch": epoch, 
-            f"avg_train_loss_{env_name}_{model_name}": avg_train_loss,
-            f"avg_val_loss_{env_name}_{model_name}": avg_val_loss
-        }, epoch)
-        
-        print(f"Epoch {epoch} ({model_name}, {env_name}): Train Loss = {avg_train_loss:.4f}, Val Loss = {avg_val_loss:.4f}")
+    # If the model expects a single `config` argument, build a comprehensive default config.
+    if 'config' in param_names:
+        # These defaults are chosen to match what decision_spikeformer_pssa.py accesses.
+        cfg_defaults = dict(
+            # model dims and transformer sizes
+            state_dim = int(state_dim),
+            act_dim = int(act_dim),
+            n_embd = int(getattr(args, "embed_dim", 128)),
+            n_head = int(getattr(args, "n_head", 4)),
+            n_layer = int(getattr(args, "n_layer", 2)),
+            ctx_len = int(getattr(args, "max_length", 50)),
+            n_positions = int(getattr(args, "max_length", 50)),
 
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            best_model_path = f"checkpoints/best_{model_name}_{env_name}_seed{config.SEED}.pt"
-            save_checkpoint(model, optimizer, best_model_path)
-            print(f"New best model saved to {best_model_path}")
+            # spike/temporal specifics
+            T = int(getattr(args, "T", 4)),               # SNN time steps
+            attn_type = int(getattr(args, "attn_type", 3)),   # default PSSA style
+            window_size = int(getattr(args, "window_size", 8)),
+            norm_type = int(getattr(args, "norm_type", 1)),
 
-    print(f"{model_name} training complete for {env_name}.")
-    
-    # Load the best model for evaluation
-    if best_model_path:
-        state_dict = torch.load(best_model_path)
-        model.load_state_dict(state_dict['model_state'])
-        
-    return model, all_losses
+            # training / optimization schedule
+            num_training_steps = int(getattr(args, "num_training_steps", 1000)),
+            warmup_ratio = float(getattr(args, "warmup_ratio", 0.1)),
+            lr = float(getattr(args, "learning_rate", 1e-4)),
+            learning_rate = float(getattr(args, "learning_rate", 1e-4)),
+            weight_decay = float(getattr(args, "weight_decay", 1e-2)),
+            batch_size = int(getattr(args, "batch_size", 64)),
+            dropout = float(getattr(args, "dropout", 0.1)),
 
+            # bookkeeping / device
+            device = "cuda" if torch.cuda.is_available() else "cpu",
+        )
+
+        # Debug print so you see what defaults were used (helps when adding more keys)
+        print("Building config for", cls.__name__, "with keys:", sorted(cfg_defaults.keys()))
+        return cls(SimpleNamespace(**cfg_defaults))
+
+    # otherwise try kwargs
+    try:
+        return cls(**cand)
+    except Exception as e_kw:
+        # fallback to positional try
+        pos_args = []
+        if 'state_dim' in param_names or 'obs_dim' in param_names:
+            pos_args.append(state_dim)
+        if 'act_dim' in param_names or 'action_dim' in param_names:
+            pos_args.append(act_dim)
+        if 'hidden_size' in param_names or 'embed_dim' in param_names:
+            pos_args.append(getattr(args, "embed_dim", 128))
+        if 'max_length' in param_names or 'max_ep_len' in param_names:
+            pos_args.append(getattr(args, "max_length", 50))
+        try:
+            return cls(*pos_args)
+        except Exception as e_pos:
+            raise RuntimeError(
+                f"Failed to construct {cls.__name__}.\n"
+                f"Attempted kwargs: {cand}\n"
+                f"kwargs error: {e_kw}\n"
+                f"Attempted positional args: {pos_args}\n"
+                f"positional error: {e_pos}\n"
+                "Please inspect the model __init__ signature and extend the runner's defaults if necessary."
+            )
+
+# ---------------------------------------------------------------------
+# Main experiment flow
+# ---------------------------------------------------------------------
+def run_experiment(args):
+    set_seed(args.seed)
+    log_dir = make_log_dir(args.log_dir, args.env, args.model_type, args.seed)
+    print(f"[INFO] Logging to {log_dir}")
+
+    # collect dataset
+    trajectories, act_dim = collect_shared_dataset(args.env, args.offline_steps, args.max_length)
+    if len(trajectories) == 0:
+        raise RuntimeError("No trajectories collected!")
+
+    state_dim = len(trajectories[0]['observations'][0])
+
+    # build model
+    if args.model_type == "snn-dt":
+        model = build_model_from_class(SNNDecisionTransformer, state_dim, act_dim, args)
+    elif args.model_type == "dsf":
+        model = build_model_from_class(DecisionSpikeFormer, state_dim, act_dim, args)
+    else:
+        raise ValueError(f"Unknown model_type: {args.model_type}")
+
+    # call your training utils (which should accept model, trajectories, args, log_dir)
+    train_model(model, trajectories, args, log_dir)
+
+    # evaluate
+    eval_metrics = evaluate_model(model, args.env, args.max_length)
+    print(f"[RESULT] {args.env} Seed {args.seed} Eval: {eval_metrics}")
+
+    # save checkpoint
+    ckpt_path = os.path.join(log_dir, f"{args.env}_{args.model_type}_seed{args.seed}.pt")
+    try:
+        torch.save(model.state_dict(), ckpt_path)
+        print(f"[INFO] Saved checkpoint to {ckpt_path}")
+    except Exception as e:
+        print(f"[WARN] Failed to save model.state_dict(): {e}")
+
+# ---------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env-name", type=str, required=True, help="Name of the environment (e.g., CartPole-v1).")
-    parser.add_argument("--seeds", nargs='+', type=int, default=[42, 123, 567], help="List of random seeds.")
+
+    parser.add_argument("--env", "--env-name", dest="env", type=str, default="CartPole-v1",
+                        help="Gym environment id")
+    parser.add_argument("--model_type", "--model-type", dest="model_type",
+                        choices=["snn-dt", "dsf"], default="snn-dt")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--num_seeds", "--num-seeds", dest="num_seeds", type=int, default=1)
+    parser.add_argument("--offline_steps", "--offline-steps", dest="offline_steps", type=int, default=10000)
+    parser.add_argument("--max_length", "--max-length", dest="max_length", type=int, default=50)
+
+    parser.add_argument("--batch_size", "--batch-size", dest="batch_size", type=int, default=64)
+    parser.add_argument("--embed_dim", "--embed-dim", dest="embed_dim", type=int, default=128)
+    parser.add_argument("--max_iters", "--max-iters", dest="max_iters", type=int, default=10)
+    parser.add_argument("--learning_rate", "--learning-rate", dest="learning_rate", type=float, default=1e-4)
+    parser.add_argument("--num_steps_per_iter", "--num-steps-per-iter", dest="num_steps_per_iter", type=int, default=500)
+
+    # optional fine tuning of defaults used for cfg construction
+    parser.add_argument("--n_head", type=int, default=4, help="Default # attention heads for cfg (if needed)")
+    parser.add_argument("--n_layer", type=int, default=2, help="Default # transformer layers for cfg (if needed)")
+    parser.add_argument("--num_training_steps", type=int, default=1000,
+                        help="Default total training steps reported to model config")
+
+    parser.add_argument("--log_dir", "--log-dir", dest="log_dir", type=str, default="./logs")
+
     args = parser.parse_args()
-    
-    config = load_config(args.env_name)
-    env_name = config.ENV_NAME
-    
-    all_results = []
-    all_training_losses = []
 
-    # Determine if the environment has a continuous action space
-    env = gym.make(env_name)
-    is_continuous = isinstance(env.action_space, gym.spaces.Box)
-    act_dim = env.action_space.shape[0] if is_continuous else env.action_space.n
-    env.close()
-
-    trajectories, _ = collect_shared_dataset(env_name)
-
-    for seed in args.seeds:
-        print(f"\n=== Running Comparison on {env_name} with Seed {seed} ===")
-        
-        # Train SNN-DT
-        snn_model, snn_losses = train_model(SNNDecisionTransformer, trajectories, act_dim, env_name, is_continuous, "SNN-DT", config)
-        
-        # Train DSF-DT
-        dsf_model, dsf_losses = train_model(DecisionSpikeFormer, trajectories, act_dim, env_name, is_continuous, "DSF-DT", config)
-        
-        all_training_losses.append({
-            "seed": seed,
-            "env": env_name,
-            "snn_loss": snn_losses,
-            "dsf_loss": dsf_losses
-        })
-
-        # Evaluate both models
-        print(f"Evaluating models for {env_name} with seed {seed}...")
-        snn_results = evaluate_model(snn_model, env_name, "snn-dt", seed)
-        dsf_results = evaluate_model(dsf_model, env_name, "dsf-dt", seed)
-        
-        if snn_results and dsf_results:
-            all_results.append(snn_results)
-            all_results.append(dsf_results)
-
-    # Save all results to a single CSV
-    if all_results:
-        results_df = pd.DataFrame(all_results)
-        results_df.to_csv(f"comparison_results_{env_name}_multi_seed.csv", index=False)
-        print(f"\nMulti-seed comparison results saved to comparison_results_{env_name}_multi_seed.csv")
-
-        # Aggregate results
-        agg_results = results_df.groupby('model_name').agg({
-            'avg_return': ['mean', 'std'],
-            'std_return': ['mean', 'std'],
-            'avg_latency_ms': ['mean', 'std'],
-            'avg_spikes_per_episode': ['mean', 'std'],
-            'total_params': 'first'
-        }).reset_index()
-        
-        agg_results.columns = ['_'.join(col).strip() for col in agg_results.columns.values]
-        agg_results.rename(columns={'model_name_': 'model_name', 'total_params_first': 'total_params'}, inplace=True)
-
-        # Generate summary report
-        summary = f"## SNN-DT vs DSF-DT Multi-Seed Comparison Summary ({env_name})\n\n"
-        summary += "| Model | Avg Return (Mean ± Std) | Avg Latency (ms) (Mean ± Std) | Avg Spikes/Episode (Mean ± Std) | Total Params |\n"
-        summary += "|-------|-------------------------|-------------------------------|---------------------------------|--------------|\n"
-        for _, row in agg_results.iterrows():
-            summary += (f"| {row['model_name']} | "
-                        f"{row['avg_return_mean']:.2f} ± {row['avg_return_std']:.2f} | "
-                        f"{row['avg_latency_ms_mean']:.2f} ± {row['avg_latency_ms_std']:.2f} | "
-                        f"{row['avg_spikes_per_episode_mean']:.0f} ± {row['avg_spikes_per_episode_std']:.0f} | "
-                        f"{row['total_params']:,} |\n")
-        
-        with open(f"comparison_summary_{env_name}_multi_seed.md", "w") as f:
-            f.write(summary)
-        print(f"\nMulti-seed comparison summary saved to comparison_summary_{env_name}_multi_seed.md")
-
-
-    # Save all training losses
-    if all_training_losses:
-        with open(f"training_losses_{env_name}_multi_seed.pkl", "wb") as f:
-            pickle.dump(all_training_losses, f)
-        print(f"Training losses saved to training_losses_{env_name}_multi_seed.pkl")
+    # iterate seeds
+    for seed in range(args.seed, args.seed + args.num_seeds):
+        args.seed = seed
+        run_experiment(args)
 
 if __name__ == "__main__":
     main()
