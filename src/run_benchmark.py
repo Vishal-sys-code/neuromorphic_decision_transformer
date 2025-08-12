@@ -11,14 +11,11 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.config import DEVICE, SEED, dt_config, max_length
-from src.train_snn_dt import train_offline_dt as train_snn_dt
-from src.train_dsf_dt import train_offline_dsf as train_dsf
 from src.models.snn_dt_patch import SNNDecisionTransformer as SNNDT
 from src.models.dsf_dt import DecisionSpikeFormer
 from src.utils.helpers import get_latest_checkpoint
 
-def evaluate_model(model, env_name, model_name, seed):
+def evaluate_model(model, env_name, model_name, seed, device):
     """
     Evaluate a trained model.
     """
@@ -40,15 +37,15 @@ def evaluate_model(model, env_name, model_name, seed):
         if hasattr(model, 'reset_total_spike_count'):
             model.reset_total_spike_count()
 
-        actions = torch.zeros((1, 0, model.act_dim), device=DEVICE, dtype=torch.float32)
-        returns_to_go = torch.zeros((1, 0, 1), device=DEVICE, dtype=torch.float32)
-        timesteps = torch.zeros((1, 0), dtype=torch.long, device=DEVICE)
+        actions = torch.zeros((1, 0, model.act_dim), device=device, dtype=torch.float32)
+        returns_to_go = torch.zeros((1, 0, 1), device=device, dtype=torch.float32)
+        timesteps = torch.zeros((1, 0), dtype=torch.long, device=device)
 
 
         while not done:
             start_time = time.time()
             
-            current_state_tensor = torch.from_numpy(state).to(DEVICE).reshape(1, 1, model.state_dim).float()
+            current_state_tensor = torch.from_numpy(state).to(device).reshape(1, 1, model.state_dim).float()
             
             action_tensor = model.get_action(
                 current_state_tensor,
@@ -100,16 +97,43 @@ def evaluate_model(model, env_name, model_name, seed):
 
 
 def main():
+    from src.run_experiment import load_config
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True, choices=["snn-dt", "dsf-dt"], help="Model to train and evaluate.")
     parser.add_argument("--env", type=str, required=True, help="Gym environment name.")
-    parser.add_argument("--seed", type=int, default=SEED, help="Random seed.")
+    parser.add_argument("--seed", type=int, help="Random seed.")
     args = parser.parse_args()
 
-    model_class, train_fn, model_name_str = (SNNDT, train_snn_dt, "snn-dt") if args.model == "snn-dt" else (DecisionSpikeFormer, train_dsf, "dsf-dt")
+    config = load_config(args.env)
     
-    print(f"--- Evaluating {model_name_str} on {args.env} with seed {args.seed} ---")
-    eval_results = evaluate_model(model_class, dt_config.copy(), args.env, model_name_str, args.seed)
+    seed = args.seed if args.seed is not None else config.SEED
+    
+    env = gym.make(args.env)
+    is_continuous = isinstance(env.action_space, gym.spaces.Box)
+    act_dim = env.action_space.shape[0] if is_continuous else env.action_space.n
+    state_dim = env.observation_space.shape[0]
+    env.close()
+
+    model_class, model_name_str = (SNNDT, "snn-dt") if args.model == "snn-dt" else (DecisionSpikeFormer, "dsf-dt")
+    
+    dt_conf = config.dt_config.copy()
+    dt_conf.update({
+        'state_dim': state_dim,
+        'act_dim': act_dim,
+        'max_length': config.max_length
+    })
+
+    model = model_class(**dt_conf).to(config.DEVICE)
+    
+    checkpoint_path = get_latest_checkpoint(f"checkpoints", f"offline_{model_name_str}_{args.env}")
+    if checkpoint_path:
+        print(f"Loading model from {checkpoint_path}")
+        model.load_state_dict(torch.load(checkpoint_path)['model_state'])
+    else:
+        print("No checkpoint found. Evaluating a randomly initialized model.")
+
+    print(f"--- Evaluating {model_name_str} on {args.env} with seed {seed} ---")
+    eval_results = evaluate_model(model, args.env, model_name_str, seed, config.DEVICE)
 
     if eval_results:
         results_df = pd.DataFrame([eval_results])
