@@ -18,68 +18,13 @@ from src.models.snn_dt_patch import SNNDecisionTransformer as SNNDT
 from src.models.dsf_dt import DecisionSpikeFormer
 from src.utils.helpers import get_latest_checkpoint
 
-def evaluate_model(model_class, model_config, env_name, model_name, seed):
+def evaluate_model(model, env_name, model_name, seed):
     """
     Evaluate a trained model.
     """
     print(f"Evaluating model {model_name} on {env_name} with seed {seed}")
 
     env = gym.make(env_name)
-    # For DecisionSpikeFormer, add env-specific dims to config
-    model_config.update({
-        "state_dim": env.observation_space.shape[0],
-        "act_dim": env.action_space.n if isinstance(env.action_space, gym.spaces.Discrete) else env.action_space.shape[0],
-        "max_length": max_length,
-        "n_ctx": max_length,
-    })
-    
-    # Add dummy training steps and warmup_ratio if not present, for model constructors that need them
-    if 'num_training_steps' not in model_config:
-        model_config['num_training_steps'] = 10000 # dummy value for eval
-    if 'warmup_ratio' not in model_config:
-        model_config['warmup_ratio'] = 0.1 # dummy value for eval
-
-    # Filter model_config to only include parameters expected by the model's constructor
-    # import inspect
-    # sig = inspect.signature(model_class.__init__)
-    # allowed_args = set(sig.parameters.keys())
-    
-    # filtered_config = {k: v for k, v in model_config.items() if k in allowed_args}
-
-    # model = model_class(**filtered_config).to(DEVICE)
-    model = model_class(**model_config).to(DEVICE)
-
-    # For models that need state_dim and act_dim as attributes post-initialization
-    if not hasattr(model, 'state_dim'):
-        model.state_dim = env.observation_space.shape[0]
-    if not hasattr(model, 'act_dim'):
-        model.act_dim = env.action_space.n if isinstance(env.action_space, gym.spaces.Discrete) else env.action_space.shape[0]
-    
-    checkpoint_path = get_latest_checkpoint(env_name, model_name)
-    if not checkpoint_path:
-        print(f"No checkpoint found for {model_name} on {env_name}. Skipping evaluation.")
-        # As a fallback for testing, let's train if no checkpoint is found
-        print("Training the model as no checkpoint was found...")
-        if model_name == 'snn-dt':
-            train_snn_dt(env_name)
-        else:
-            train_dsf(env_name)
-        checkpoint_path = get_latest_checkpoint(env_name, model_name)
-        if not checkpoint_path:
-            print("Still no checkpoint after training. Aborting evaluation.")
-            return None
-
-
-    try:
-        state_dict = torch.load(checkpoint_path, map_location=DEVICE)
-        if 'model_state' in state_dict:
-            model.load_state_dict(state_dict['model_state'])
-        else:
-            model.load_state_dict(state_dict)
-    except Exception as e:
-        print(f"Error loading checkpoint for {model_name} on {env_name}: {e}")
-        return None
-
     model.eval()
     
     num_eval_episodes = 10
