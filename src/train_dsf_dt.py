@@ -67,19 +67,21 @@ def collect_trajectories(env_name, offline_steps, max_length):
     buf = TrajectoryBuffer(max_length, env.observation_space.shape[0], act_dim)
     steps = 0
     
-    obs, _ = env.reset()
+    obs, info = env.reset()
     
     while steps < offline_steps:
         action = env.action_space.sample()
-        next_obs, reward, terminated, truncated, _ = env.step(action)
+        next_obs, reward, terminated, truncated, info = env.step(action)
         done = terminated or truncated
         
         buf.add(obs.flatten(), np.array([action]) if not is_continuous else action, reward)
-        obs = next_obs if not done else env.reset()[0]
-        steps += 1
+        obs = next_obs
         
         if done:
             trajectories.append(buf.get_trajectory())
             buf.reset()
+            obs, info = env.reset()
+
+        steps += 1
             
     return trajectories, env.action_space.shape[0] if is_continuous else env.action_space.n
