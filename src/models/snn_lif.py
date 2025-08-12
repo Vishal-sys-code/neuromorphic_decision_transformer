@@ -31,9 +31,6 @@ class LIFNeuronLayer(nn.Module):
             spiked: Binary spike tensor of same shape as the cell output;
             state:  Updated LIFCell state.
         """
-        # Reset spike counter for this forward pass
-        self._spike_count.zero_()
-
         # Project inputs to membrane currents
         z = self.fc(x)
         # Compute spikes and next state
@@ -52,3 +49,9 @@ class LIFNeuronLayer(nn.Module):
             The total number of spikes emitted during the last forward call.
         """
         return int(self._spike_count.item())
+
+    def reset_spike_count(self):
+        """
+        Resets the spike counter to zero.
+        """
+        self._spike_count.zero_()
