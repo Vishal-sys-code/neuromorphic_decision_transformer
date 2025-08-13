@@ -27,51 +27,9 @@ if str(REPO_ROOT) not in sys.path:
 # print("SRC_ROOT exists:", SRC_ROOT.exists(), "models dir:", (SRC_ROOT / "models").exists())
 
 # Try to import models using absolute package imports (no relative imports)
-try:
-    from models.dsf_models.decision_spikeformer_pssa import SpikeDecisionTransformer, PSSADecisionSpikeFormer
-    from models.dsf_models.decision_spikeformer_tssa import TSSADecisionSpikeFormer
-    from models.dsf_models.decision_transformer import DecisionTransformer
-except Exception as e_pkg:
-    # Fallback: dynamic file import from src/models/dsf_models/*.py
-    import importlib.util
-    try:
-        p = SRC_ROOT / "models" / "dsf_models" / "decision_spikeformer_pssa.py"
-        if not p.exists():
-            raise FileNotFoundError(f"{p} not found")
-        spec = importlib.util.spec_from_file_location("dsf_pssa_dynamic", str(p))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        SpikeDecisionTransformer = getattr(mod, "SpikeDecisionTransformer", None)
-        PSSADecisionSpikeFormer = getattr(mod, "PSSADecisionSpikeFormer", None)
-
-        p2 = SRC_ROOT / "models" / "dsf_models" / "decision_spikeformer_tssa.py"
-        if p2.exists():
-            spec2 = importlib.util.spec_from_file_location("dsf_tssa_dynamic", str(p2))
-            mod2 = importlib.util.module_from_spec(spec2)
-            spec2.loader.exec_module(mod2)
-            TSSADecisionSpikeFormer = getattr(mod2, "TSSADecisionSpikeFormer", None)
-        else:
-            TSSADecisionSpikeFormer = None
-
-        p3 = SRC_ROOT / "models" / "dsf_models" / "decision_transformer.py"
-        if p3.exists():
-            spec3 = importlib.util.spec_from_file_location("decision_transformer_dynamic", str(p3))
-            mod3 = importlib.util.module_from_spec(spec3)
-            spec3.loader.exec_module(mod3)
-            DecisionTransformer = getattr(mod3, "DecisionTransformer", None)
-        else:
-            DecisionTransformer = None
-
-        if SpikeDecisionTransformer is None or PSSADecisionSpikeFormer is None:
-            raise ImportError("Dynamic import succeeded but required classes not found in file.")
-
-    except Exception as e_dyn:
-        raise ImportError(
-            "Failed to import DSF/SNN model modules via package import and dynamic fallback.\n"
-            f"Package import error: {e_pkg}\n"
-            f"Dynamic import error: {e_dyn}\n"
-            "Fixes: (1) ensure src/models/dsf_models exists, (2) run from repo root, (3) ensure __init__.py files present."
-        )
+from models.dsf_models.decision_spikeformer_pssa import SpikeDecisionTransformer, PSSADecisionSpikeFormer
+from models.dsf_models.decision_spikeformer_tssa import TSSADecisionSpikeFormer
+from models.dsf_models.decision_transformer import DecisionTransformer
 
 # Provide expected aliases used elsewhere
 SNNDecisionTransformer = SpikeDecisionTransformer
