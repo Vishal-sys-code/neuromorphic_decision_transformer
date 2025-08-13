@@ -1,4 +1,3 @@
-# ---- robust import bootstrapping (paste at top of file) ----
 import os
 import sys
 from pathlib import Path
@@ -6,48 +5,77 @@ import random
 import numpy as np
 import torch
 import inspect
+import argparse
 from datetime import datetime
 from types import SimpleNamespace
-import argparse
 
-# Resolve paths
+# Resolve src and repo roots
 THIS_FILE = Path(__file__).resolve()
-SRC_ROOT = THIS_FILE.parent           # repo/src
-REPO_ROOT = SRC_ROOT.parent          # repo root
+SRC_ROOT = THIS_FILE.parent        # .../neuromorphic_decision_transformer/src
+REPO_ROOT = SRC_ROOT.parent       # repo root
 
-# Ensure src/ is on sys.path so `import models.dsf_models...` resolves.
-# Insert at front so it has highest priority.
-src_root_str = str(SRC_ROOT)
-if src_root_str not in sys.path:
-    sys.path.insert(0, src_root_str)
+# Ensure src/ is on sys.path so `import models...` resolves when running as script
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
-# (Optional) Also ensure repo root is available for other import styles
-repo_root_str = str(REPO_ROOT)
-if repo_root_str not in sys.path:
-    sys.path.insert(0, repo_root_str)
+# Optional: ensure repo root is also available
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-# Debug (uncomment if you want to see search path during runtime)
-# print("[DEBUG] PYTHONPATH (head):", sys.path[:5])
+# Debugging helper (comment out in normal runs)
+# print("[DEBUG] sys.path head:", sys.path[:5])
+# print("SRC_ROOT exists:", SRC_ROOT.exists(), "models dir:", (SRC_ROOT / "models").exists())
 
-# Now import models using absolute package-style imports (no relative imports).
+# Try to import models using absolute package imports (no relative imports)
 try:
-    # primary import style: models package rooted at src/
-    from .models.dsf_models.decision_spikeformer_pssa import SpikeDecisionTransformer, PSSADecisionSpikeFormer
-    from .models.dsf_models.decision_spikeformer_tssa import TSSADecisionSpikeFormer
-    from .models.dsf_models.decision_transformer import DecisionTransformer
-except Exception as e:
-    # Helpful error if import fails
-    raise ImportError(
-        "Failed to import models.dsf_models.*. Make sure 'src/models' exists and contains 'dsf_models' "
-        "and that you are running this script from the repo root or via `python src/run_experiment.py`.\n"
-        f"Original error: {e}"
-    )
+    from models.dsf_models.decision_spikeformer_pssa import SpikeDecisionTransformer, PSSADecisionSpikeFormer
+    from models.dsf_models.decision_spikeformer_tssa import TSSADecisionSpikeFormer
+    from models.dsf_models.decision_transformer import DecisionTransformer
+except Exception as e_pkg:
+    # Fallback: dynamic file import from src/models/dsf_models/*.py
+    import importlib.util
+    try:
+        p = SRC_ROOT / "models" / "dsf_models" / "decision_spikeformer_pssa.py"
+        if not p.exists():
+            raise FileNotFoundError(f"{p} not found")
+        spec = importlib.util.spec_from_file_location("dsf_pssa_dynamic", str(p))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        SpikeDecisionTransformer = getattr(mod, "SpikeDecisionTransformer", None)
+        PSSADecisionSpikeFormer = getattr(mod, "PSSADecisionSpikeFormer", None)
 
-# Provide compatibility/aliases used elsewhere
+        p2 = SRC_ROOT / "models" / "dsf_models" / "decision_spikeformer_tssa.py"
+        if p2.exists():
+            spec2 = importlib.util.spec_from_file_location("dsf_tssa_dynamic", str(p2))
+            mod2 = importlib.util.module_from_spec(spec2)
+            spec2.loader.exec_module(mod2)
+            TSSADecisionSpikeFormer = getattr(mod2, "TSSADecisionSpikeFormer", None)
+        else:
+            TSSADecisionSpikeFormer = None
+
+        p3 = SRC_ROOT / "models" / "dsf_models" / "decision_transformer.py"
+        if p3.exists():
+            spec3 = importlib.util.spec_from_file_location("decision_transformer_dynamic", str(p3))
+            mod3 = importlib.util.module_from_spec(spec3)
+            spec3.loader.exec_module(mod3)
+            DecisionTransformer = getattr(mod3, "DecisionTransformer", None)
+        else:
+            DecisionTransformer = None
+
+        if SpikeDecisionTransformer is None or PSSADecisionSpikeFormer is None:
+            raise ImportError("Dynamic import succeeded but required classes not found in file.")
+
+    except Exception as e_dyn:
+        raise ImportError(
+            "Failed to import DSF/SNN model modules via package import and dynamic fallback.\n"
+            f"Package import error: {e_pkg}\n"
+            f"Dynamic import error: {e_dyn}\n"
+            "Fixes: (1) ensure src/models/dsf_models exists, (2) run from repo root, (3) ensure __init__.py files present."
+        )
+
+# Provide expected aliases used elsewhere
 SNNDecisionTransformer = SpikeDecisionTransformer
 DecisionSpikeFormer = PSSADecisionSpikeFormer
-# ---- end import bootstrapping ----
-
 
 # ---------------------------------------------------------------------
 # Import dataset & training utilities (robust)
