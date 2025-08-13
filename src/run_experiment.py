@@ -8,19 +8,30 @@ import inspect
 import argparse
 from datetime import datetime
 from types import SimpleNamespace
+from pathlib import Path
+import sys
 
-# Resolve src and repo roots
-THIS_FILE = Path(__file__).resolve()
-SRC_ROOT = THIS_FILE.parent        # .../neuromorphic_decision_transformer/src
-REPO_ROOT = SRC_ROOT.parent       # repo root
+THIS_FILE = Path(__file__).resolve()          # .../repo/src/run_experiment.py
+SRC_ROOT = THIS_FILE.parent                   # .../repo/src
+REPO_ROOT = SRC_ROOT.parent                   # .../repo
 
-# Ensure src/ is on sys.path so `import models...` resolves when running as script
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+# Ensure src/ is first so "import models" resolves to src/models/*
+src_str = str(SRC_ROOT)
+if sys.path[0] != src_str:
+    # Remove any existing occurrences to avoid duplicates
+    sys.path = [p for p in sys.path if p != src_str]
+    sys.path.insert(0, src_str)
 
-# Optional: ensure repo root is also available
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+# (Optional) Also add repo root later on PATH, *after* src
+repo_str = str(REPO_ROOT)
+if repo_str not in sys.path:
+    sys.path.append(repo_str)
+
+# --- sanity: no root-level models/ shadowing ---
+# If a root-level `models` package exists, this prevents it from taking precedence.
+# You can delete these 3 lines once you've removed/renamed the top-level models/.
+if (REPO_ROOT / "models").exists() and (REPO_ROOT / "models" / "__init__.py").exists():
+    print("[WARN] Found top-level 'models/' package; it may shadow src/models. Consider renaming it.")
 
 # Debugging helper (comment out in normal runs)
 # print("[DEBUG] sys.path head:", sys.path[:5])
