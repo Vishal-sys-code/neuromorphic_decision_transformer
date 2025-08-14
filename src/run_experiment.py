@@ -197,9 +197,8 @@ def run_experiment(args):
     state_dim = len(trajectories[0]['observations'][0])
 
     # build model
-    if args.model_type == "snn-dt":
-        model = build_model_from_class(SNNDecisionTransformer, state_dim, act_dim, args)
-    elif args.model_type == "dsf":
+    if args.model_type in ["snn-dt", "dsf"]:
+        # snn-dt is effectively an alias for dsf; both use the same underlying model
         model = build_model_from_class(DecisionSpikeFormer, state_dim, act_dim, args)
     else:
         raise ValueError(f"Unknown model_type: {args.model_type}")
