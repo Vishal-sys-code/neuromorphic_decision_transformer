@@ -150,6 +150,7 @@ def train_model(model, trajectories: List[Dict], args, log_dir: str):
     masks_t = torch.tensor(X_masks, dtype=torch.float32, device=device)
     actions_t = torch.tensor(X_actions, dtype=(torch.float32 if is_continuous else torch.long), device=device)
     rtg_t = torch.tensor(returns_to_go, dtype=torch.float32, device=device)
+    timesteps_t = torch.arange(max_length, device=device).view(1, -1).repeat(B, 1)
 
     # Simple optimizer
     optim = torch.optim.AdamW(model.parameters(), lr=float(getattr(args, "learning_rate", 1e-4)))
@@ -175,36 +176,49 @@ def train_model(model, trajectories: List[Dict], args, log_dir: str):
             batch_masks = masks_t[idx]
             batch_actions = actions_t[idx]
             batch_rtg = rtg_t[idx]
+            batch_timesteps = timesteps_t[idx]
 
             optim.zero_grad()
 
-            # Try a sequence of likely model forward signatures:
-            # 1) model(batch_states, batch_rtg)  -> returns predicted actions shape (B0, L, act_dim)
-            # 2) model(batch_states) -> predicted actions
-            # 3) model(batch_states[:,0,:]) -> per-step
+            # Try a sequence of likely model forward signatures.
+            # The first is the most comprehensive, for models like PSSADecisionSpikeFormer.
+            # Fallbacks are provided for simpler models.
             pred = None
             error_msgs = []
             try:
-                pred = model(batch_states, batch_rtg)  # common DT interface
+                # Signature for PSSADecisionSpikeFormer, which returns a tuple (state, action, rtg_preds)
+                _, pred, _ = model(
+                    states=batch_states,
+                    actions=batch_actions,
+                    returns_to_go=batch_rtg,
+                    timesteps=batch_timesteps,
+                    attention_mask=batch_masks,
+                )
             except Exception as e1:
-                error_msgs.append(str(e1))
+                error_msgs.append(f"[Full signature failed] {e1}")
                 try:
-                    pred = model(batch_states)
+                    # Fallback for simpler DT models
+                    pred = model(batch_states, batch_rtg)
                 except Exception as e2:
-                    error_msgs.append(str(e2))
+                    error_msgs.append(f"[Simpler DT failed] {e2}")
                     try:
-                        # try flattening time dimension in case model expects (B*L, state_dim)
-                        B0, L0, Sdim = batch_states.shape
-                        flat = batch_states.reshape(B0 * L0, Sdim)
-                        pred = model(flat)
-                        # reshape back if needed
-                        if pred is not None and pred.dim() == 2:
-                            # assume (B0*L0, act_dim)
-                            pred = pred.reshape(B0, L0, -1)
+                        # Fallback for models that only take state
+                        pred = model(batch_states)
                     except Exception as e3:
-                        error_msgs.append(str(e3))
-                        # No valid forward signature found; raise a clear error with messages
-                        raise RuntimeError("Model.forward failed for all tried signatures. Errors:\n" + "\n".join(error_msgs))
+                        error_msgs.append(f"[State-only failed] {e3}")
+                        try:
+                            # try flattening time dimension in case model expects (B*L, state_dim)
+                            B0, L0, Sdim = batch_states.shape
+                            flat = batch_states.reshape(B0 * L0, Sdim)
+                            pred = model(flat)
+                            # reshape back if needed
+                            if pred is not None and pred.dim() == 2:
+                                # assume (B0*L0, act_dim)
+                                pred = pred.reshape(B0, L0, -1)
+                        except Exception as e4:
+                            error_msgs.append(f"[Flattened failed] {e4}")
+                            # No valid forward signature found; raise a clear error with messages
+                            raise RuntimeError("Model.forward failed for all tried signatures. Errors:\n" + "\n".join(error_msgs))
 
             # Now compute loss depending on action type
             if pred is None:
@@ -344,3 +358,4 @@ def evaluate_model(model, env_name: str, max_length: int = 50, n_episodes: int =
     mean_r = float(np.mean(returns))
     std_r = float(np.std(returns))
     return {"mean_return": mean_r, "std_return": std_r}
+
