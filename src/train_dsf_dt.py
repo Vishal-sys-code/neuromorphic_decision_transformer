@@ -59,29 +59,77 @@ def set_seed(seed, device):
         torch.cuda.manual_seed_all(seed)
 
 def collect_trajectories(env_name, offline_steps, max_length):
+    """
+    Collect offline trajectories from `env_name` until `offline_steps` steps are gathered.
+    Works with both old gym (reset() -> obs) and new gym/gymnasium (reset() -> (obs, info)),
+    and supports env.step(...) returning either 4-tuple (obs, reward, done, info)
+    or 5-tuple (obs, reward, terminated, truncated, info).
+    """
     env = gym.make(env_name)
     is_continuous = isinstance(env.action_space, gym.spaces.Box)
     act_dim = env.action_space.shape[0] if is_continuous else 1
-    
+
     trajectories = []
     buf = TrajectoryBuffer(max_length, env.observation_space.shape[0], act_dim)
     steps = 0
-    
-    obs, info = env.reset()
-    
+
+    # Robust reset: handle both single-return and (obs, info)
+    reset_out = env.reset()
+    if isinstance(reset_out, tuple):
+        # e.g., (obs, info)
+        obs = reset_out[0]
+        info = reset_out[1] if len(reset_out) > 1 else {}
+    else:
+        obs = reset_out
+        info = {}
+
+    # main collection loop
     while steps < offline_steps:
         action = env.action_space.sample()
-        next_obs, reward, terminated, truncated, info = env.step(action)
-        done = terminated or truncated
-        
-        buf.add(obs.flatten(), np.array([action]) if not is_continuous else action, reward)
+
+        step_out = env.step(action)
+        # handle either 4-tuple or 5-tuple
+        if isinstance(step_out, tuple) and len(step_out) == 5:
+            next_obs, reward, terminated, truncated, info = step_out
+            done = bool(terminated or truncated)
+        elif isinstance(step_out, tuple) and len(step_out) == 4:
+            next_obs, reward, done, info = step_out
+            done = bool(done)
+        else:
+            # fallback: try to unpack safely
+            try:
+                next_obs, reward, done, info = step_out
+                done = bool(done)
+            except Exception:
+                raise RuntimeError(f"Unexpected env.step() return shape: {type(step_out)} {step_out}")
+
+        # normalize shapes for buffer
+        if not is_continuous:
+            # ensure action stored as scalar or shape-consistent array
+            act_to_store = np.array([action])
+        else:
+            act_to_store = np.asarray(action)
+
+        buf.add(np.asarray(obs).flatten(), act_to_store, float(reward))
         obs = next_obs
-        
+
         if done:
             trajectories.append(buf.get_trajectory())
             buf.reset()
-            obs, info = env.reset()
+            # reset env robustly again
+            reset_out = env.reset()
+            if isinstance(reset_out, tuple):
+                obs = reset_out[0]
+                info = reset_out[1] if len(reset_out) > 1 else {}
+            else:
+                obs = reset_out
+                info = {}
 
         steps += 1
-            
-    return trajectories, env.action_space.shape[0] if is_continuous else env.action_space.n
+
+    # Return collected trajectories and action dimension (for discrete envs, return n)
+    if is_continuous:
+        return trajectories, env.action_space.shape[0]
+    else:
+        return trajectories, env.action_space.n
+
