@@ -1,0 +1,18 @@
+{
+  "env": "Acrobot-v1",
+  "seeds": [
+    42
+  ],
+  "device": "cpu",
+  "recollect": false,
+  "quick": true,
+  "disable_plasticity": false,
+  "offline_steps": 5000,
+  "epochs": 100,
+  "batch_size": 64,
+  "lr": 0.0001,
+  "max_length": 20,
+  "pj_per_spike": 5.0,
+  "n_eval": 8,
+  "outdir": "comparisons"
+}
