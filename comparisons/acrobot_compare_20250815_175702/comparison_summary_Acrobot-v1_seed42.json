@@ -1,0 +1,75 @@
+{
+  "run_id": "acrobot_compare_20250815_175702",
+  "seed": 42,
+  "env": "Acrobot-v1",
+  "snn": {
+    "model_name": "SNNDecisionTransformer",
+    "avg_return": -500.0,
+    "std_return": 0.0,
+    "avg_latency_ms": 1.6242935750069591,
+    "avg_spikes_per_episode": 374812.5,
+    "total_params": 36867
+  },
+  "dsf": {
+    "model_name": "DecisionSpikeFormer",
+    "avg_return": -500.0,
+    "std_return": 0.0,
+    "avg_latency_ms": 1.0857955249935003,
+    "avg_spikes_per_episode": 0.0,
+    "total_params": 36867
+  },
+  "snn_history": {
+    "train_loss": [
+      1.0987913135498288,
+      1.096554332309299,
+      1.0954395929972331
+    ],
+    "val_loss": [
+      1.0973939299583435,
+      1.096403829753399,
+      1.095214232802391
+    ]
+  },
+  "dsf_history": {
+    "train_loss": [
+      1.1008175781794958,
+      1.0971447986269753,
+      1.0955367655981154
+    ],
+    "val_loss": [
+      1.0992575660347939,
+      1.0976945906877518,
+      1.0969075337052345
+    ]
+  },
+  "avg_episode_len": 500.0,
+  "snn_spikes_per_decision": 749.625,
+  "dsf_spikes_per_decision": 0.0,
+  "snn_energy_J": 3.748125e-09,
+  "dsf_energy_J": 0.0,
+  "pj_per_spike_used": 5.0,
+  "parity_ok": true,
+  "parity_diag": {
+    "passed": true,
+    "mismatches": []
+  },
+  "args": {
+    "env": "Acrobot-v1",
+    "seeds": [
+      42
+    ],
+    "device": "cpu",
+    "recollect": false,
+    "quick": true,
+    "disable_plasticity": false,
+    "offline_steps": 5000,
+    "epochs": 100,
+    "batch_size": 64,
+    "lr": 0.0001,
+    "max_length": 20,
+    "pj_per_spike": 5.0,
+    "n_eval": 8,
+    "outdir": "comparisons"
+  },
+  "timestamp": "20250815_175737"
+}
