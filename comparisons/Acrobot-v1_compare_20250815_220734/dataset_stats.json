@@ -1,0 +1,14 @@
+{
+  "num_trajs": 10,
+  "avg_len": 500.0,
+  "std_len": 0.0,
+  "avg_return": -500.0,
+  "std_return": 0.0,
+  "return_percentiles": [
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0
+  ]
+}
