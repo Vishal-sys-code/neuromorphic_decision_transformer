@@ -1,0 +1,68 @@
+{
+  "env": "Acrobot-v1",
+  "seeds": [
+    42
+  ],
+  "runs": [
+    {
+      "seed": 42,
+      "env": "Acrobot-v1",
+      "dataset_path": "data\\shared_offline_data_Acrobot-v1.pkl",
+      "dataset_stats": {
+        "num_trajs": 10,
+        "avg_len": 500.0,
+        "std_len": 0.0,
+        "avg_return": -500.0,
+        "std_return": 0.0,
+        "return_percentiles": [
+          -500.0,
+          -500.0,
+          -500.0,
+          -500.0,
+          -500.0
+        ]
+      },
+      "evals": {
+        "SNN-DT": {
+          "model_name": "SNNDecisionTransformer",
+          "avg_return": -500.0,
+          "std_return": 0.0,
+          "avg_latency_ms": 0.6587500249643199,
+          "avg_spikes_per_episode": 321418.375,
+          "total_params": 38147
+        },
+        "Dense-DT": {
+          "model_name": "DenseDecisionTransformer",
+          "avg_return": -500.0,
+          "std_return": 0.0,
+          "avg_latency_ms": 0.41827495000234194,
+          "avg_spikes_per_episode": 0.0,
+          "total_params": 38147
+        },
+        "DSF-DT": {
+          "model_name": "DecisionSpikeFormer",
+          "avg_return": -500.0,
+          "std_return": 0.0,
+          "avg_latency_ms": 0.41289535000578326,
+          "avg_spikes_per_episode": 0.0,
+          "total_params": 38147
+        }
+      },
+      "checkpoints": {
+        "SNN-DT": "comparisons\\Acrobot-v1_compare_20250815_235807\\seed42\\best_SNN-DT_seed42.pt",
+        "Dense-DT": "comparisons\\Acrobot-v1_compare_20250815_235807\\seed42\\best_Dense-DT_seed42.pt",
+        "DSF-DT": "comparisons\\Acrobot-v1_compare_20250815_235807\\seed42\\best_DSF-DT_seed42.pt"
+      },
+      "hyperparams": {
+        "epochs": 3,
+        "batch_size": 64,
+        "lr": 0.001,
+        "max_length": 30,
+        "gamma": 0.99,
+        "n_eval": 8,
+        "offline_steps": 5000
+      },
+      "energy_note": "Spike counts here are toy proxies (ReLU>thresh activations at final timestep). Do NOT claim hardware energy savings from these numbers without proper neuromorphic simulation/measurement."
+    }
+  ]
+}
