@@ -100,44 +100,33 @@ def train_model(model, trajectories: List[Dict], args, log_dir: str):
     """
     Train 'model' on the given trajectories.
 
-    Args:
-      model: torch.nn.Module
-      trajectories: list of dicts with keys 'observations','actions','rewards','dones'
-      args: namespace with hyperparams (batch_size, max_iters, learning_rate, max_length, etc.)
-      log_dir: directory to write checkpoints and logs
+    Supports both DecisionTransformer-style and SpikeDecisionTransformer-style models.
     """
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     model.train()
 
     # Infer dims
-    # assume trajectories not empty
     state_dim = int(np.asarray(trajectories[0]["observations"][0]).shape[0])
-    # infer action space from first traj first action
     first_action = trajectories[0]["actions"][0]
     if isinstance(first_action, (list, tuple, np.ndarray)):
-        # continuous
-        act_dim = int(np.asarray(first_action).shape[0])
-        is_continuous = True
+        act_dim = int(np.asarray(first_action).shape[0]); is_continuous = True
     elif isinstance(first_action, float):
-        act_dim = 1
-        is_continuous = True
+        act_dim = 1; is_continuous = True
     else:
-        # discrete scalar
         is_continuous = False
-        # try to infer number of classes from actions present
-        all_actions = set()
-        for traj in trajectories:
-            for a in traj["actions"]:
-                all_actions.add(int(a))
+        all_actions = {int(a) for traj in trajectories for a in traj["actions"]}
         act_dim = int(max(all_actions) + 1) if len(all_actions) > 0 else 2
 
     # Build arrays
     max_length = int(getattr(args, "max_length", 50))
-    X_states, X_actions, X_masks = _build_dataset(trajectories, max_length, state_dim, 
-                                                  gym.spaces.Box(low=-np.inf, high=np.inf, shape=(state_dim,)) if is_continuous else gym.spaces.Discrete(act_dim))  # type: ignore
+    X_states, X_actions, X_masks = _build_dataset(
+        trajectories, max_length, state_dim,
+        gym.spaces.Box(low=-np.inf, high=np.inf, shape=(state_dim,))
+        if is_continuous else gym.spaces.Discrete(act_dim)
+    )
 
-    # try to build rewards matrix for RTG if available
     B, L = X_states.shape[0], X_states.shape[1]
     rewards = np.zeros((B, L), dtype=np.float32)
     for i, traj in enumerate(trajectories):
@@ -145,24 +134,26 @@ def train_model(model, trajectories: List[Dict], args, log_dir: str):
             rewards[i, t] = float(traj["rewards"][t])
     returns_to_go = _compute_return_to_go(rewards, X_masks)
 
-    # Convert to torch tensors
-    states_t = torch.tensor(X_states, dtype=torch.float32, device=device)  # (B, L, state_dim)
+    # Convert to tensors
+    states_t = torch.tensor(X_states, dtype=torch.float32, device=device)
     masks_t = torch.tensor(X_masks, dtype=torch.float32, device=device)
     actions_t = torch.tensor(X_actions, dtype=(torch.float32 if is_continuous else torch.long), device=device)
     rtg_t = torch.tensor(returns_to_go, dtype=torch.float32, device=device)
     timesteps_t = torch.arange(max_length, device=device).view(1, -1).repeat(B, 1)
 
-    # Simple optimizer
+    # Optimizer / loss
     optim = torch.optim.AdamW(model.parameters(), lr=float(getattr(args, "learning_rate", 1e-4)))
-    if is_continuous:
-        criterion = nn.MSELoss(reduction="none")
-    else:
-        criterion = nn.CrossEntropyLoss(reduction="none")
+    criterion = nn.MSELoss(reduction="none") if is_continuous else nn.CrossEntropyLoss(reduction="none")
 
     batch_size = int(getattr(args, "batch_size", 64))
     n_epochs = int(getattr(args, "max_iters", 10))
     n_samples = states_t.shape[0]
     steps_per_epoch = max(1, math.ceil(n_samples / batch_size))
+
+    # Extra projection layers for DSF-style models
+    embed_dim = getattr(args, "embed_dim", 128)
+    state_proj = nn.Linear(state_dim, embed_dim).to(device)
+    action_head = nn.Linear(embed_dim, act_dim).to(device)
 
     losses = []
     for epoch in range(n_epochs):
@@ -170,6 +161,7 @@ def train_model(model, trajectories: List[Dict], args, log_dir: str):
         epoch_loss = 0.0
         model.train()
         t0 = time.time()
+
         for step in range(steps_per_epoch):
             idx = perm[step * batch_size:(step + 1) * batch_size]
             batch_states = states_t[idx]   # (B0, L, state_dim)
@@ -179,14 +171,11 @@ def train_model(model, trajectories: List[Dict], args, log_dir: str):
             batch_timesteps = timesteps_t[idx]
 
             optim.zero_grad()
-
-            # Try a sequence of likely model forward signatures.
-            # The first is the most comprehensive, for models like PSSADecisionSpikeFormer.
-            # Fallbacks are provided for simpler models.
             pred = None
             error_msgs = []
+
             try:
-                # Signature for PSSADecisionSpikeFormer, which returns a tuple (state, action, rtg_preds)
+                # DecisionTransformer-style forward
                 _, pred, _ = model(
                     states=batch_states,
                     actions=batch_actions,
@@ -195,84 +184,58 @@ def train_model(model, trajectories: List[Dict], args, log_dir: str):
                     attention_mask=batch_masks,
                 )
             except Exception as e1:
-                error_msgs.append(f"[Full signature failed] {e1}")
+                error_msgs.append(f"[DT-style failed] {e1}")
                 try:
-                    # Fallback for simpler DT models
-                    pred = model(batch_states, batch_rtg)
-                except Exception as e2:
-                    error_msgs.append(f"[Simpler DT failed] {e2}")
-                    try:
-                        # Fallback for models that only take state
-                        pred = model(batch_states)
-                    except Exception as e3:
-                        error_msgs.append(f"[State-only failed] {e3}")
-                        try:
-                            # try flattening time dimension in case model expects (B*L, state_dim)
-                            B0, L0, Sdim = batch_states.shape
-                            flat = batch_states.reshape(B0 * L0, Sdim)
-                            pred = model(flat)
-                            # reshape back if needed
-                            if pred is not None and pred.dim() == 2:
-                                # assume (B0*L0, act_dim)
-                                pred = pred.reshape(B0, L0, -1)
-                        except Exception as e4:
-                            error_msgs.append(f"[Flattened failed] {e4}")
-                            # No valid forward signature found; raise a clear error with messages
-                            raise RuntimeError("Model.forward failed for all tried signatures. Errors:\n" + "\n".join(error_msgs))
+                    # SpikeDecisionTransformer-style forward (needs state embedding)
+                    srcs = state_proj(batch_states)  # (B,L,state_dim) → (B,L,embed_dim)
+                    pred = model(srcs, attention_mask=batch_masks)
 
-            # Now compute loss depending on action type
+                    # Project embeddings → action predictions
+                    if pred.size(-1) != act_dim:
+                        pred = action_head(pred)
+                except Exception as e2:
+                    error_msgs.append(f"[DSF-style failed] {e2}")
+                    raise RuntimeError(
+                        "Model.forward failed for both DT and DSF styles.\n"
+                        + "\n".join(error_msgs)
+                    )
+
             if pred is None:
                 raise RuntimeError("Model produced no prediction (pred is None)")
 
-            # ensure pred shape (B0, L, act_dim)
+            # Ensure (B0,L,act_dim)
             if pred.dim() == 2:
-                # (B0, act_dim) or (B0*L, act_dim) — try to align
-                B0 = batch_states.shape[0]
-                L0 = batch_states.shape[1]
+                B0, L0 = batch_states.shape[:2]
                 if pred.shape[0] == B0 * L0:
                     pred = pred.reshape(B0, L0, -1)
                 elif pred.shape[0] == B0:
-                    # expand to L dimension
                     pred = pred.unsqueeze(1).expand(-1, L0, -1)
-                else:
-                    # ambiguous
-                    pass
 
-            # Masked loss accumulation
+            # Loss
             if is_continuous:
-                # pred and batch_actions should have same shape
-                # If actions were stored as shape (B, L) for scalar continuous, expand dims
+                target = batch_actions.float()
                 if batch_actions.dim() == 2 and pred.size(-1) == 1:
                     target = batch_actions.unsqueeze(-1).float()
-                else:
-                    target = batch_actions.float()
-                per_elem = criterion(pred, target)  # (B0, L, act_dim)
-                # reduce over action dim
+                per_elem = criterion(pred, target)
                 per_timestep = per_elem.mean(dim=-1) if per_elem.dim() == 3 else per_elem
                 masked = per_timestep * batch_masks
                 loss = masked.sum() / (batch_masks.sum() + 1e-8)
             else:
-                # discrete: pred logits shape (B,L,num_classes), target shape (B,L)
-                # reshape to (B*L, C) and (B*L,)
                 B0, L0, C = pred.shape
                 logits = pred.reshape(B0 * L0, C)
                 targets = batch_actions.reshape(B0 * L0)
-                per = criterion(logits, targets)  # (B*L,)
-                per = per.reshape(B0, L0)
+                per = criterion(logits, targets).reshape(B0, L0)
                 masked = per * batch_masks
                 loss = masked.sum() / (batch_masks.sum() + 1e-8)
 
             loss.backward()
             optim.step()
-
             epoch_loss += float(loss.item())
 
-        epoch_loss = epoch_loss / float(steps_per_epoch)
+        epoch_loss /= float(steps_per_epoch)
         losses.append(epoch_loss)
-        t1 = time.time()
-        print(f"[Train] epoch={epoch} avg_loss={epoch_loss:.6f} time={(t1-t0):.2f}s")
+        print(f"[Train] epoch={epoch} avg_loss={epoch_loss:.6f} time={(time.time()-t0):.2f}s")
 
-        # checkpoint each epoch
         ckpt_file = os.path.join(log_dir, f"checkpoint_epoch{epoch}.pt")
         torch.save({
             "epoch": epoch,
@@ -280,9 +243,9 @@ def train_model(model, trajectories: List[Dict], args, log_dir: str):
             "optimizer_state": optim.state_dict(),
             "loss": epoch_loss,
         }, ckpt_file)
+
     print("[Train] done. Last checkpoint saved to", ckpt_file)
     return losses
-
 
 def evaluate_model(model, env_name: str, max_length: int = 50, n_episodes: int = 10):
     """
