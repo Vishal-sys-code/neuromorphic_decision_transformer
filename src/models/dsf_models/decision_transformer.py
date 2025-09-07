@@ -1,4 +1,4 @@
-import numpy as np
+﻿import numpy as np
 import torch
 import torch.nn as nn
 
@@ -170,7 +170,7 @@ class DecisionTransformer(TrajectoryModel):
         state_preds, action_preds, return_preds = self.forward(
             states, actions, returns_to_go, timesteps, attention_mask=attention_mask, **kwargs)
         
-        return action_preds[0,-1] # get_action方法只会在Inference中使用，此时的batch_size只能为1
+        return action_preds[0,-1] # get_actionæ–¹æ³•åªä¼šåœ¨Inferenceä¸­ä½¿ç”¨ï¼Œæ­¤æ—¶çš„batch_sizeåªèƒ½ä¸º1
 
     def get_actions(self, states, actions, returns_to_go, timesteps,**kwargs):
         # we don't care about the past rewards in this model

@@ -1,0 +1,610 @@
+{
+  "episodes": 100,
+  "returns": [
+    10.0,
+    11.0,
+    9.0,
+    9.0,
+    8.0,
+    9.0,
+    10.0,
+    9.0,
+    10.0,
+    8.0,
+    9.0,
+    8.0,
+    10.0,
+    9.0,
+    10.0,
+    10.0,
+    10.0,
+    10.0,
+    9.0,
+    10.0,
+    10.0,
+    10.0,
+    9.0,
+    9.0,
+    11.0,
+    9.0,
+    9.0,
+    10.0,
+    9.0,
+    8.0,
+    9.0,
+    9.0,
+    10.0,
+    9.0,
+    10.0,
+    9.0,
+    10.0,
+    9.0,
+    10.0,
+    11.0,
+    9.0,
+    9.0,
+    9.0,
+    9.0,
+    9.0,
+    9.0,
+    10.0,
+    10.0,
+    10.0,
+    8.0,
+    9.0,
+    9.0,
+    9.0,
+    10.0,
+    8.0,
+    9.0,
+    8.0,
+    9.0,
+    9.0,
+    10.0,
+    9.0,
+    9.0,
+    9.0,
+    9.0,
+    9.0,
+    10.0,
+    9.0,
+    8.0,
+    10.0,
+    10.0,
+    10.0,
+    8.0,
+    8.0,
+    10.0,
+    10.0,
+    9.0,
+    10.0,
+    9.0,
+    10.0,
+    9.0,
+    10.0,
+    8.0,
+    9.0,
+    9.0,
+    9.0,
+    9.0,
+    9.0,
+    10.0,
+    9.0,
+    8.0,
+    8.0,
+    9.0,
+    8.0,
+    10.0,
+    10.0,
+    9.0,
+    9.0,
+    9.0,
+    10.0,
+    9.0
+  ],
+  "mean_return": 9.26,
+  "std_return": 0.7296574538781879,
+  "per_episode": [
+    {
+      "episode": 0,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 1,
+      "return": 11.0,
+      "steps": 11
+    },
+    {
+      "episode": 2,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 3,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 4,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 5,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 6,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 7,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 8,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 9,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 10,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 11,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 12,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 13,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 14,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 15,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 16,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 17,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 18,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 19,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 20,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 21,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 22,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 23,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 24,
+      "return": 11.0,
+      "steps": 11
+    },
+    {
+      "episode": 25,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 26,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 27,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 28,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 29,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 30,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 31,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 32,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 33,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 34,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 35,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 36,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 37,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 38,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 39,
+      "return": 11.0,
+      "steps": 11
+    },
+    {
+      "episode": 40,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 41,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 42,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 43,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 44,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 45,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 46,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 47,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 48,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 49,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 50,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 51,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 52,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 53,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 54,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 55,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 56,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 57,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 58,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 59,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 60,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 61,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 62,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 63,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 64,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 65,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 66,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 67,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 68,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 69,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 70,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 71,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 72,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 73,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 74,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 75,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 76,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 77,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 78,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 79,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 80,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 81,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 82,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 83,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 84,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 85,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 86,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 87,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 88,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 89,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 90,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 91,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 92,
+      "return": 8.0,
+      "steps": 8
+    },
+    {
+      "episode": 93,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 94,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 95,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 96,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 97,
+      "return": 9.0,
+      "steps": 9
+    },
+    {
+      "episode": 98,
+      "return": 10.0,
+      "steps": 10
+    },
+    {
+      "episode": 99,
+      "return": 9.0,
+      "steps": 9
+    }
+  ],
+  "eval_time_sec": 44.75074553489685
+}

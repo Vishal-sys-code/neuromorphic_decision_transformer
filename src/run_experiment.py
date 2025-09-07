@@ -11,62 +11,67 @@ from types import SimpleNamespace
 from pathlib import Path
 import sys
 
-THIS_FILE = Path(__file__).resolve()          # .../repo/src/run_experiment.py
-SRC_ROOT = THIS_FILE.parent                   # .../repo/src
+if not hasattr(np, "float_"):
+    np.float_ = np.float64
+
+THIS_FILE = Path(__file__).resolve()
+SRC_ROOT  = THIS_FILE.parent                  # .../repo/src
 REPO_ROOT = SRC_ROOT.parent                   # .../repo
 
-# Ensure src/ is first so "import models" resolves to src/models/*
+# 1. Ensure src/ is first (for your own code: utils, training, configs, etc.)
 src_str = str(SRC_ROOT)
 if sys.path[0] != src_str:
-    # Remove any existing occurrences to avoid duplicates
     sys.path = [p for p in sys.path if p != src_str]
     sys.path.insert(0, src_str)
 
-# (Optional) Also add repo root later on PATH, *after* src
-repo_str = str(REPO_ROOT)
-if repo_str not in sys.path:
-    sys.path.append(repo_str)
+# 2. Add external DSF gym/ so `import models.*` resolves there
+ext_dsf = (REPO_ROOT / "external" / "DecisionSpikeFormer" / "gym").resolve()
+ext_str = str(ext_dsf)
+if ext_str not in sys.path:
+    sys.path.insert(0, ext_str)
 
-# --- sanity: no root-level models/ shadowing ---
-# If a root-level `models` package exists, this prevents it from taking precedence.
-# You can delete these 3 lines once you've removed/renamed the top-level models/.
-if (REPO_ROOT / "models").exists() and (REPO_ROOT / "models" / "__init__.py").exists():
-    print("[WARN] Found top-level 'models/' package; it may shadow src/models. Consider renaming it.")
+# 3. Avoid top-level repo_root/models (clashes with external/models)
+if (REPO_ROOT / "models").exists():
+    print("[WARN] Top-level 'models/' exists in repo_root. This may shadow external DSF models. IGNORING it.")
 
-# Debugging helper (comment out in normal runs)
-# print("[DEBUG] sys.path head:", sys.path[:5])
-# print("SRC_ROOT exists:", SRC_ROOT.exists(), "models dir:", (SRC_ROOT / "models").exists())
-
-# Try to import models using absolute package imports (no relative imports)
-from models.dsf_models.decision_spikeformer_pssa import SpikeDecisionTransformer, PSSADecisionSpikeFormer
-from models.dsf_models.decision_spikeformer_tssa import TSSADecisionSpikeFormer
-from models.dsf_models.decision_transformer import DecisionTransformer
-
-# Provide expected aliases used elsewhere
-SNNDecisionTransformer = SpikeDecisionTransformer
-DecisionSpikeFormer = PSSADecisionSpikeFormer
+# --- Debugging info
+print("[INFO] sys.path head:", sys.path[:4])
+print("[INFO] external DSF models dir exists:", (ext_dsf / "models").exists())
 
 # ---------------------------------------------------------------------
-# Import dataset & training utilities (robust)
+# Import DSF models from external repo
 # ---------------------------------------------------------------------
-def try_import_attr(module_name, attr_name):
-    try:
-        mod = __import__(module_name, fromlist=[attr_name])
-        return getattr(mod, attr_name)
-    except Exception:
-        return None
+# ---------------------------------------------------------------------
+# Import DSF models (prefer external, fallback to src/dsf_models)
+# ---------------------------------------------------------------------
+try:
+    # External DSF (if clean UTF-8 files)
+    from models.decision_spikeformer_pssa import SpikeDecisionTransformer as PSSADecisionSpikeFormer
+    from models.decision_spikeformer_tssa import SpikeDecisionTransformer as TSSADecisionSpikeFormer
+    from models.decision_transformer import DecisionTransformer
+    print("[INFO] Using DSF models from external/DecisionSpikeFormer")
+except SyntaxError as e:
+    print("[WARN] External DSF models corrupted (null bytes). Falling back to src/models/dsf_models.")
+    from models.dsf_models.decision_spikeformer_pssa import SpikeDecisionTransformer as PSSADecisionSpikeFormer
+    from models.dsf_models.decision_spikeformer_tssa import SpikeDecisionTransformer as TSSADecisionSpikeFormer
+    from models.dsf_models.decision_transformer import DecisionTransformer
 
-dsf_collect_trajectories = try_import_attr("data_utils", "dsf_collect_trajectories") or \
-                          try_import_attr("src.data_utils", "dsf_collect_trajectories")
-if dsf_collect_trajectories is None:
-    raise ImportError("Could not import `dsf_collect_trajectories` from data_utils or src.data_utils. "
-                      "Make sure a file data_utils.py exists and defines dsf_collect_trajectories(...)")
-
-train_model = try_import_attr("train_utils", "train_model") or try_import_attr("src.train_utils", "train_model")
-evaluate_model = try_import_attr("train_utils", "evaluate_model") or try_import_attr("src.train_utils", "evaluate_model")
-if train_model is None or evaluate_model is None:
-    raise ImportError("Could not import train_model/evaluate_model from train_utils or src.train_utils. "
-                      "Make sure train_utils.py exists and exports train_model, evaluate_model.")
+# Aliases for consistency
+DecisionSpikeFormer     = PSSADecisionSpikeFormer
+SNNDecisionTransformer  = PSSADecisionSpikeFormer
+# ---------------------------------------------------------------------
+# Import YOUR utils/training code from src/
+# ---------------------------------------------------------------------
+from data_utils import dsf_collect_trajectories
+from train_utils import train_model, evaluate_model
+# try:
+#     from utils.data_utils import dsf_collect_trajectories
+#     from utils.train_utils import train_model, evaluate_model
+# except ImportError as e:
+#     raise ImportError(
+#         f"[ERROR] Could not import from src/utils/. "
+#         f"Check that src/utils/data_utils.py and src/utils/train_utils.py exist. Original error: {e}"
+#     )
 
 # ---------------------------------------------------------------------
 # Helpers
@@ -102,6 +107,7 @@ def build_model_from_class(cls, state_dim, act_dim, args):
     param_names = [p for p in params.keys() if p != 'self']
 
     cand = {}
+    # --- common dimensions ---
     if 'state_dim' in param_names:
         cand['state_dim'] = state_dim
     if 'obs_dim' in param_names and 'state_dim' not in cand:
@@ -110,64 +116,75 @@ def build_model_from_class(cls, state_dim, act_dim, args):
         cand['act_dim'] = act_dim
     if 'action_dim' in param_names and 'act_dim' not in cand:
         cand['action_dim'] = act_dim
+
+    # --- embedding size variants ---
     if 'hidden_size' in param_names:
         cand['hidden_size'] = getattr(args, "embed_dim", 128)
     if 'embed_dim' in param_names:
         cand['embed_dim'] = getattr(args, "embed_dim", 128)
+    if 'n_embd' in param_names:   # DSF expects this spelling
+        cand['n_embd'] = getattr(args, "embed_dim", 128)
+
+    # --- transformer depth ---
+    if 'n_layer' in param_names:
+        cand['n_layer'] = getattr(args, "n_layer", 3)
+    if 'n_head' in param_names:
+        cand['n_head'] = getattr(args, "n_head", 1)
+
+    # --- context length / sequence length ---
     if 'max_length' in param_names:
         cand['max_length'] = getattr(args, "max_length", 50)
     if 'max_ep_len' in param_names and 'max_length' not in cand:
         cand['max_ep_len'] = getattr(args, "max_length", 50)
+    if 'ctx_len' in param_names:  # DSF expects this spelling
+        cand['ctx_len'] = getattr(args, "max_length", 50)
 
-    # If the model expects a single `config` argument, build a comprehensive default config.
+    # --- if config style constructor is used ---
     if 'config' in param_names:
-        # These defaults are chosen to match what decision_spikeformer_pssa.py accesses.
         cfg_defaults = dict(
-            # model dims and transformer sizes
-            state_dim = int(state_dim),
-            act_dim = int(act_dim),
-            n_embd = int(getattr(args, "embed_dim", 128)),
-            n_head = int(getattr(args, "n_head", 4)),
-            n_layer = int(getattr(args, "n_layer", 2)),
-            ctx_len = int(getattr(args, "max_length", 50)),
-            n_positions = int(getattr(args, "max_length", 50)),
+            state_dim=int(state_dim),
+            act_dim=int(act_dim),
+            n_embd=int(getattr(args, "embed_dim", 128)),
+            n_head=int(getattr(args, "n_head", 1)),
+            n_layer=int(getattr(args, "n_layer", 3)),
+            ctx_len=int(getattr(args, "max_length", 50)),
+            n_positions=int(getattr(args, "max_length", 50)),
 
-            # spike/temporal specifics
-            T = int(getattr(args, "T", 4)),               # SNN time steps
-            attn_type = int(getattr(args, "attn_type", 3)),   # default PSSA style
-            window_size = int(getattr(args, "window_size", 8)),
-            norm_type = int(getattr(args, "norm_type", 1)),
+            T=int(getattr(args, "T", 4)),
+            attn_type=int(getattr(args, "attn_type", 3)),
+            window_size=int(getattr(args, "window_size", 8)),
+            norm_type=int(getattr(args, "norm_type", 1)),
 
-            # training / optimization schedule
-            num_training_steps = int(getattr(args, "num_training_steps", 1000)),
-            warmup_ratio = float(getattr(args, "warmup_ratio", 0.1)),
-            lr = float(getattr(args, "learning_rate", 1e-4)),
-            learning_rate = float(getattr(args, "learning_rate", 1e-4)),
-            weight_decay = float(getattr(args, "weight_decay", 1e-2)),
-            batch_size = int(getattr(args, "batch_size", 64)),
-            dropout = float(getattr(args, "dropout", 0.1)),
+            num_training_steps=int(getattr(args, "num_training_steps", 1000)),
+            warmup_ratio=float(getattr(args, "warmup_ratio", 0.1)),
+            lr=float(getattr(args, "learning_rate", 1e-4)),
+            learning_rate=float(getattr(args, "learning_rate", 1e-4)),
+            weight_decay=float(getattr(args, "weight_decay", 1e-2)),
+            batch_size=int(getattr(args, "batch_size", 64)),
+            dropout=float(getattr(args, "dropout", 0.1)),
 
-            # bookkeeping / device
-            device = "cuda" if torch.cuda.is_available() else "cpu",
+            device="cuda" if torch.cuda.is_available() else "cpu",
         )
-
-        # Debug print so you see what defaults were used (helps when adding more keys)
         print("Building config for", cls.__name__, "with keys:", sorted(cfg_defaults.keys()))
         return cls(SimpleNamespace(**cfg_defaults))
 
-    # otherwise try kwargs
+    # --- try kwargs directly ---
     try:
         return cls(**cand)
     except Exception as e_kw:
-        # fallback to positional try
+        # fallback: try positional args
         pos_args = []
         if 'state_dim' in param_names or 'obs_dim' in param_names:
             pos_args.append(state_dim)
         if 'act_dim' in param_names or 'action_dim' in param_names:
             pos_args.append(act_dim)
-        if 'hidden_size' in param_names or 'embed_dim' in param_names:
+        if 'n_embd' in param_names or 'hidden_size' in param_names or 'embed_dim' in param_names:
             pos_args.append(getattr(args, "embed_dim", 128))
-        if 'max_length' in param_names or 'max_ep_len' in param_names:
+        if 'n_layer' in param_names:
+            pos_args.append(getattr(args, "n_layer", 3))
+        if 'n_head' in param_names:
+            pos_args.append(getattr(args, "n_head", 1))
+        if 'ctx_len' in param_names or 'max_length' in param_names or 'max_ep_len' in param_names:
             pos_args.append(getattr(args, "max_length", 50))
         try:
             return cls(*pos_args)

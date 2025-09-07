@@ -1,4 +1,4 @@
-import numpy as np
+﻿import numpy as np
 import torch
 import torch.nn as nn
 import math
@@ -282,7 +282,7 @@ class positional_spiking_attention(nn.Module):
         self.k_ln = Norm(
             dim, T, step=int(num_training_steps * warmup_ratio), norm_type=self.norm_type
         )
-        self.k_lif = LIFNode(act=False)  # 使用第一种形式
+        self.k_lif = LIFNode(act=False)  # ä½¿ç”¨ç¬¬ä¸€ç§å½¢å¼
 
         self.v_m = nn.Linear(dim, dim)
         self.v_ln = Norm(
@@ -533,7 +533,7 @@ class temporal_spiking_attention(nn.Module):
         T, B, L, D = x.shape
 
         q_m_out = self.q_m(x)  # T B L D
-        # 转为 T D B L
+        # è½¬ä¸º T D B L
         q_m_out = self.q_ln(q_m_out)
         q_m_out = self.q_lif(q_m_out)
         q = (
@@ -706,7 +706,7 @@ class block(nn.Module):
 
     def forward(self, x, attention_mask=None):
         # B T L D
-        x = x + self.attn(x, attention_mask=attention_mask)  # 残差连接
+        x = x + self.attn(x, attention_mask=attention_mask)  # æ®‹å·®è¿žæŽ¥
         x = x + self.mlp(x)
         return x
 
@@ -929,7 +929,7 @@ class TSSADecisionSpikeFormer(TrajectoryModel):
 
         return None, action_preds, None
 
-    # get_action并不需要attention_mask, 因为其没有填充
+    # get_actionå¹¶ä¸éœ€è¦attention_mask, å› ä¸ºå…¶æ²¡æœ‰å¡«å……
     def get_action(self, states, actions, returns_to_go, timesteps,**kwargs):
         # we don't care about the past rewards in this model
 

@@ -6,6 +6,7 @@ Email: pandeyvishal.mlprof@gmail.com
 import torch.nn as nn
 from external.decision_transformer.gym.decision_transformer.models.decision_transformer import DecisionTransformer
 from src.models.spiking_gpt2_attention import SpikingGPT2Attention
+from src.models.snn_lif import LIFNeuronLayer
 
 class SNNDecisionTransformer(DecisionTransformer):
     def __init__(self, *args, time_window: int = 10, **kwargs):
@@ -24,3 +25,21 @@ class SNNDecisionTransformer(DecisionTransformer):
             orig_attn = block.attn
             # swap in your spiking version
             block.attn = SpikingGPT2Attention(orig_attn, time_window)
+
+    def get_spike_count(self):
+        """
+        Returns the total number of spikes emitted during the last forward call.
+        """
+        total_spikes = 0
+        for module in self.modules():
+            if isinstance(module, LIFNeuronLayer):
+                total_spikes += module.spike_count
+        return total_spikes
+
+    def reset_spike_count(self):
+        """
+        Resets the spike counters in all LIFNeuronLayer modules to zero.
+        """
+        for module in self.modules():
+            if isinstance(module, LIFNeuronLayer):
+                module.reset_spike_count()

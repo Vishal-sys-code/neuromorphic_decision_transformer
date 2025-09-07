@@ -1,0 +1,610 @@
+{
+  "episodes": 100,
+  "returns": [
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0,
+    -500.0
+  ],
+  "mean_return": -500.0,
+  "std_return": 0.0,
+  "per_episode": [
+    {
+      "episode": 0,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 1,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 2,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 3,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 4,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 5,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 6,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 7,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 8,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 9,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 10,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 11,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 12,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 13,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 14,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 15,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 16,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 17,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 18,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 19,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 20,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 21,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 22,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 23,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 24,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 25,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 26,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 27,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 28,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 29,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 30,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 31,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 32,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 33,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 34,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 35,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 36,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 37,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 38,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 39,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 40,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 41,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 42,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 43,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 44,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 45,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 46,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 47,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 48,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 49,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 50,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 51,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 52,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 53,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 54,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 55,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 56,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 57,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 58,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 59,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 60,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 61,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 62,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 63,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 64,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 65,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 66,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 67,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 68,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 69,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 70,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 71,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 72,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 73,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 74,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 75,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 76,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 77,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 78,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 79,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 80,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 81,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 82,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 83,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 84,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 85,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 86,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 87,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 88,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 89,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 90,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 91,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 92,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 93,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 94,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 95,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 96,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 97,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 98,
+      "return": -500.0,
+      "steps": 500
+    },
+    {
+      "episode": 99,
+      "return": -500.0,
+      "steps": 500
+    }
+  ],
+  "eval_time_sec": 2850.0085167884827
+}
