@@ -1,6 +1,4 @@
-# Spiking Decision Transformer: Efficient Reinforcement Learning with Event-Based Sequence Modeling
-
-**[Link to Paper (Coming Soon)]] | [Contact: pandeyvishal.mlprof@gmail.com]**
+# Spiking Decision Transformer
 
 ## Overview
 
