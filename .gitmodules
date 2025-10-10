@@ -1,6 +1,0 @@
-[submodule "external/DecisionSpikeFormer"]
-	path = external/DecisionSpikeFormer
-	url = https://github.com/Wei-Nijuan/DecisionSpikeFormer
-[submodule "external/decision_transformer"]
-	path = external/decision_transformer
-	url = https://github.com/kzl/decision-transformer.git

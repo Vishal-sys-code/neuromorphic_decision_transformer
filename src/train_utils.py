@@ -21,6 +21,8 @@ import torch
 import torch.nn as nn
 import numpy as np
 import gym
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
 
 
 def _infer_action_type(trajectories: List[Dict]) -> bool:
@@ -80,172 +82,78 @@ def _build_dataset(trajectories: List[Dict], max_length: int, state_dim: int, ac
     return X_states, X_actions, X_masks
 
 
-def _compute_return_to_go(rewards_array: np.ndarray, mask: np.ndarray):
-    # rewards_array shape (B, L)
-    B, L = rewards_array.shape
-    rtg = np.zeros_like(rewards_array, dtype=np.float32)
-    for b in range(B):
-        cum = 0.0
-        for t in reversed(range(L)):
-            if mask[b, t] > 0:
-                cum = cum + rewards_array[b, t]
-                rtg[b, t] = cum
-            else:
-                rtg[b, t] = 0.0
-        # optional normalization could be added here
+def compute_returns_to_go(rewards, gamma=1.0):
+    """
+    Compute returns-to-go (sum of future rewards) for each timestep.
+    No discounting if gamma=1.0.
+    """
+    rtg = torch.zeros_like(rewards, dtype=torch.float32)
+    for t in reversed(range(len(rewards))):
+        rtg[t] = rewards[t] + (gamma * rtg[t + 1] if t + 1 < len(rewards) else 0.0)
     return rtg
 
 
-def train_model(model, trajectories: List[Dict], args, log_dir: str):
-    """
-    Train 'model' on the given trajectories.
-
-    Supports both DecisionTransformer-style and SpikeDecisionTransformer-style models.
-    """
+def train_model(model, trajectories, args, log_dir):
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    model.train()
 
-    # Infer dims
-    state_dim = int(np.asarray(trajectories[0]["observations"][0]).shape[0])
-    first_action = trajectories[0]["actions"][0]
-    if isinstance(first_action, (list, tuple, np.ndarray)):
-        act_dim = int(np.asarray(first_action).shape[0]); is_continuous = True
-    elif isinstance(first_action, float):
-        act_dim = 1; is_continuous = True
-    else:
-        is_continuous = False
-        all_actions = {int(a) for traj in trajectories for a in traj["actions"]}
-        act_dim = int(max(all_actions) + 1) if len(all_actions) > 0 else 2
+    optimizer = optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=1e-4)
+    criterion = nn.MSELoss()
 
-    # Build arrays
-    max_length = int(getattr(args, "max_length", 50))
-    X_states, X_actions, X_masks = _build_dataset(
-        trajectories, max_length, state_dim,
-        gym.spaces.Box(low=-np.inf, high=np.inf, shape=(state_dim,))
-        if is_continuous else gym.spaces.Discrete(act_dim)
-    )
+    # Convert trajectories -> tensors
+    states, actions, returns, timesteps = [], [], [], []
+    for traj in trajectories:
+        states.append(torch.tensor(traj["observations"], dtype=torch.float32))
+        actions.append(torch.tensor(traj["actions"], dtype=torch.long))
+        returns.append(torch.tensor(traj["returns_to_go"], dtype=torch.float32))
+        timesteps.append(torch.arange(len(traj["observations"])))
 
-    B, L = X_states.shape[0], X_states.shape[1]
-    rewards = np.zeros((B, L), dtype=np.float32)
-    for i, traj in enumerate(trajectories):
-        for t in range(min(len(traj["rewards"]), L)):
-            rewards[i, t] = float(traj["rewards"][t])
-    returns_to_go = _compute_return_to_go(rewards, X_masks)
+    states = torch.cat(states).to(device)
+    actions = torch.cat(actions).to(device)
+    returns = torch.cat(returns).to(device)
+    timesteps = torch.cat(timesteps).to(device)
 
-    # Convert to tensors
-    states_t = torch.tensor(X_states, dtype=torch.float32, device=device)
-    masks_t = torch.tensor(X_masks, dtype=torch.float32, device=device)
-    actions_t = torch.tensor(X_actions, dtype=(torch.float32 if is_continuous else torch.long), device=device)
-    rtg_t = torch.tensor(returns_to_go, dtype=torch.float32, device=device)
-    timesteps_t = torch.arange(max_length, device=device).view(1, -1).repeat(B, 1)
+    dataset = torch.utils.data.TensorDataset(states, actions, returns, timesteps)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
-    # Optimizer / loss
-    optim = torch.optim.AdamW(model.parameters(), lr=float(getattr(args, "learning_rate", 1e-4)))
-    criterion = nn.MSELoss(reduction="none") if is_continuous else nn.CrossEntropyLoss(reduction="none")
-
-    batch_size = int(getattr(args, "batch_size", 64))
-    n_epochs = int(getattr(args, "max_iters", 10))
-    n_samples = states_t.shape[0]
-    steps_per_epoch = max(1, math.ceil(n_samples / batch_size))
-
-    # Extra projection layers for DSF-style models
-    embed_dim = getattr(args, "embed_dim", 128)
-    state_proj = nn.Linear(state_dim, embed_dim).to(device)
-    action_head = nn.Linear(embed_dim, act_dim).to(device)
-
-    losses = []
-    for epoch in range(n_epochs):
-        perm = np.random.permutation(n_samples)
-        epoch_loss = 0.0
+    # Training loop
+    for epoch in range(args.epochs):
         model.train()
-        t0 = time.time()
+        total_loss = 0.0
+        for batch_states, batch_actions, batch_returns, batch_timesteps in dataloader:
+            batch_states = batch_states.unsqueeze(0).to(device)   # [B, T, state_dim]
+            batch_actions = batch_actions.unsqueeze(0).to(device) # [B, T]
+            batch_returns = batch_returns.unsqueeze(0).to(device) # [B, T]
+            batch_timesteps = batch_timesteps.unsqueeze(0).to(device)
 
-        for step in range(steps_per_epoch):
-            idx = perm[step * batch_size:(step + 1) * batch_size]
-            batch_states = states_t[idx]   # (B0, L, state_dim)
-            batch_masks = masks_t[idx]
-            batch_actions = actions_t[idx]
-            batch_rtg = rtg_t[idx]
-            batch_timesteps = timesteps_t[idx]
+            optimizer.zero_grad()
 
-            optim.zero_grad()
-            pred = None
-            error_msgs = []
+            # Forward pass
+            _, action_preds, _ = model(
+                states=batch_states,
+                actions=batch_actions,
+                returns_to_go=batch_returns,
+                timesteps=batch_timesteps,
+                attention_mask=None
+            )
 
-            try:
-                # DecisionTransformer-style forward
-                _, pred, _ = model(
-                    states=batch_states,
-                    actions=batch_actions,
-                    returns_to_go=batch_rtg,
-                    timesteps=batch_timesteps,
-                    attention_mask=batch_masks,
-                )
-            except Exception as e1:
-                error_msgs.append(f"[DT-style failed] {e1}")
-                try:
-                    # SpikeDecisionTransformer-style forward (needs state embedding)
-                    srcs = state_proj(batch_states)  # (B,L,state_dim) → (B,L,embed_dim)
-                    pred = model(srcs, attention_mask=batch_masks)
+            # Compute loss (predict next action)
+            action_preds = action_preds.reshape(-1, action_preds.size(-1))
+            batch_actions = batch_actions.reshape(-1)
 
-                    # Project embeddings → action predictions
-                    if pred.size(-1) != act_dim:
-                        pred = action_head(pred)
-                except Exception as e2:
-                    error_msgs.append(f"[DSF-style failed] {e2}")
-                    raise RuntimeError(
-                        "Model.forward failed for both DT and DSF styles.\n"
-                        + "\n".join(error_msgs)
-                    )
-
-            if pred is None:
-                raise RuntimeError("Model produced no prediction (pred is None)")
-
-            # Ensure (B0,L,act_dim)
-            if pred.dim() == 2:
-                B0, L0 = batch_states.shape[:2]
-                if pred.shape[0] == B0 * L0:
-                    pred = pred.reshape(B0, L0, -1)
-                elif pred.shape[0] == B0:
-                    pred = pred.unsqueeze(1).expand(-1, L0, -1)
-
-            # Loss
-            if is_continuous:
-                target = batch_actions.float()
-                if batch_actions.dim() == 2 and pred.size(-1) == 1:
-                    target = batch_actions.unsqueeze(-1).float()
-                per_elem = criterion(pred, target)
-                per_timestep = per_elem.mean(dim=-1) if per_elem.dim() == 3 else per_elem
-                masked = per_timestep * batch_masks
-                loss = masked.sum() / (batch_masks.sum() + 1e-8)
-            else:
-                B0, L0, C = pred.shape
-                logits = pred.reshape(B0 * L0, C)
-                targets = batch_actions.reshape(B0 * L0)
-                per = criterion(logits, targets).reshape(B0, L0)
-                masked = per * batch_masks
-                loss = masked.sum() / (batch_masks.sum() + 1e-8)
-
+            loss = criterion(action_preds.float(), nn.functional.one_hot(batch_actions, num_classes=action_preds.size(-1)).float())
             loss.backward()
-            optim.step()
-            epoch_loss += float(loss.item())
+            optimizer.step()
 
-        epoch_loss /= float(steps_per_epoch)
-        losses.append(epoch_loss)
-        print(f"[Train] epoch={epoch} avg_loss={epoch_loss:.6f} time={(time.time()-t0):.2f}s")
+            total_loss += loss.item()
 
-        ckpt_file = os.path.join(log_dir, f"checkpoint_epoch{epoch}.pt")
-        torch.save({
-            "epoch": epoch,
-            "model_state": model.state_dict(),
-            "optimizer_state": optim.state_dict(),
-            "loss": epoch_loss,
-        }, ckpt_file)
+        avg_loss = total_loss / len(dataloader)
+        print(f"[Train] Epoch {epoch:03d} | Loss = {avg_loss:.6f}")
 
-    print("[Train] done. Last checkpoint saved to", ckpt_file)
-    return losses
 
 def evaluate_model(model, env_name: str, max_length: int = 50, n_episodes: int = 10):
     """

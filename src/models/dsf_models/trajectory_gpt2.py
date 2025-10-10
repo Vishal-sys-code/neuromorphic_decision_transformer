@@ -37,7 +37,6 @@ from transformers.modeling_outputs import (
 from transformers.modeling_utils import (
     Conv1D,
     PreTrainedModel,
-    SequenceSummary,
     find_pruneable_heads_and_indices,
     prune_conv1d_layer,
 )
