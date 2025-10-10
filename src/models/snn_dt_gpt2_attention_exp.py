@@ -22,6 +22,7 @@ spikes = model.get_spike_count()
 energy = model.estimate_energy(per_spike_energy=4.6e-12)
 """
 
+import torch
 import torch.nn as nn
 
 # ---------------------------------------------------------------------
@@ -50,17 +51,26 @@ class SNNDecisionTransformer(DecisionTransformer):
     neuromorphic efficiency evaluation.
     """
 
-    def __init__(self, *args, time_window: int = 10, **kwargs):
-        # Patch config to add n_ctx if missing (ensures GPT2 compatibility)
-        if "config" in kwargs:
-            config = kwargs["config"]
-            if not hasattr(config, "n_ctx"):
-                if hasattr(config, "n_positions"):
-                    config.n_ctx = config.n_positions
-                else:
-                    config.n_ctx = kwargs.get("max_length", 1024)
-
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        state_dim,
+        act_dim,
+        hidden_size,
+        max_length=None,
+        max_ep_len=4096,
+        action_tanh=True,
+        time_window: int = 10,
+        **kwargs
+    ):
+        super().__init__(
+            state_dim=state_dim,
+            act_dim=act_dim,
+            hidden_size=hidden_size,
+            max_length=max_length,
+            max_ep_len=max_ep_len,
+            action_tanh=action_tanh,
+            **kwargs
+        )
 
         # Swap GPT2 attention for spiking attention
         for block in self.transformer.h:  # h = list of GPT2Block
@@ -105,8 +115,34 @@ class SNNDecisionTransformer(DecisionTransformer):
     # -----------------------------------------------------------------
     # Override forward to auto-reset spike counters
     # -----------------------------------------------------------------
-    def forward(self, *args, **kwargs):
-        # ensure clean spike counting for every forward call
-        self.reset_spike_count()
-        return super().forward(*args, **kwargs)
+        # -----------------------------------------------------------------
+    # Override forward to auto-reset spike counters + dtype safety
+    # -----------------------------------------------------------------
+    def forward(self, states, actions, returns_to_go, timesteps, attention_mask=None, **kwargs):
+        """
+        Forward pass with spike reset and automatic dtype fix for actions.
 
+        Args:
+            states: [batch, seq, state_dim]
+            actions: [batch, seq, act_dim] (float one-hot) or [batch, seq] (long indices)
+            returns_to_go: [batch, seq, 1]
+            timesteps: [batch, seq]
+            attention_mask: optional mask
+        """
+        # reset spike counts each forward call
+        self.reset_spike_count()
+
+        # auto-convert discrete (Long) actions to one-hot float
+        if actions is not None and actions.dtype == actions.long().dtype:
+            actions = torch.nn.functional.one_hot(
+                actions, num_classes=self.act_dim
+            ).float()
+
+        return super().forward(
+            states,
+            actions,
+            returns_to_go,
+            timesteps,
+            attention_mask=attention_mask,
+            **kwargs,
+        )
