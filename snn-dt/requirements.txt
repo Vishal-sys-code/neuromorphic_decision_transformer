@@ -1,0 +1,11 @@
+torch>=2.0
+numpy
+gym
+gymnasium
+pyyaml
+pandas
+matplotlib
+pytest
+wandb
+norse
+scikit-learn
