@@ -4,8 +4,10 @@ import sys
 import time
 from pathlib import Path
 
-# Add project root to sys.path
-project_root = Path(__file__).resolve().parent.parent
+# Add project root and snn-dt directory to sys.path
+snn_dt_root = Path(__file__).resolve().parent.parent
+project_root = snn_dt_root.parent
+sys.path.append(str(snn_dt_root))
 sys.path.append(str(project_root))
 
 import gymnasium as gym
@@ -15,10 +17,10 @@ import torch
 import yaml
 from torch.utils.data import DataLoader, Dataset
 
-from src.models.cql import CQL
-from src.models.dt import DecisionTransformer
-from src.models.dsformer import DsFormer
-from src.models.iql import IQL
+# from src.models.cql import CQL
+# from src.models.dt import DecisionTransformer
+# from src.models.dsformer import DsFormer
+# from src.models.iql import IQL
 from src.models.snn_dt import SnnDt
 from src.utils.config import AttrDict
 from src.utils.models import get_model
@@ -30,7 +32,7 @@ class OfflineDataset(Dataset):
     def __init__(self, dataset_path):
         data = np.load(dataset_path)
         self.states = torch.from_numpy(data["states"]).float()
-        self.actions = torch.from_numpy(data["actions"]).float()
+        self.actions = torch.from_numpy(data["actions"]).long()
         self.returns_to_go = torch.from_numpy(data["returns_to_go"]).float()
         self.timesteps = torch.from_numpy(data["timesteps"]).long()
         self.mask = torch.from_numpy(data["mask"]).float()
@@ -99,10 +101,7 @@ def train(cfg):
     save_dir.mkdir(parents=True, exist_ok=True)
 
     # Load data and metadata
-    if cfg.model.name in ["iql", "cql"]:
-        dataset = OfflineTransitionDataset(cfg.dataset.path)
-    else:
-        dataset = OfflineDataset(cfg.dataset.path)
+    dataset = OfflineDataset(cfg.dataset.path)
 
     with np.load(cfg.dataset.path, allow_pickle=True) as data:
         metadata = data["metadata"].item()
@@ -128,7 +127,7 @@ def train(cfg):
         lr=float(cfg.training.lr),
         weight_decay=float(cfg.training.weight_decay),
     )
-    loss_fn = torch.nn.MSELoss()
+    loss_fn = torch.nn.CrossEntropyLoss()
 
     # Training loop
     metrics = []
@@ -142,15 +141,13 @@ def train(cfg):
             for k, v in batch.items():
                 batch[k] = v.to(cfg.training.device)
             
-            if isinstance(model, (IQL, CQL)):
-                losses = model.learn(batch)
-                loss = losses["policy_loss"] # Use policy loss for logging
-            else:
-                optimizer.zero_grad()
-                action_preds = model(batch)
-                loss = loss_fn(action_preds[batch["mask"] > 0], batch["actions"][batch["mask"] > 0])
-                loss.backward()
-                optimizer.step()
+            optimizer.zero_grad()
+            action_preds = model(batch)
+            action_preds = action_preds.reshape(-1, cfg.dataset.act_dim)
+            action_targets = batch["actions"].reshape(-1)
+            loss = loss_fn(action_preds, action_targets)
+            loss.backward()
+            optimizer.step()
 
         # Evaluation and Logging
         if (epoch + 1) % cfg.training.eval_every == 0:
@@ -159,17 +156,13 @@ def train(cfg):
             log_str = f"Epoch {epoch+1}/{cfg.training.epochs} | Time: {epoch_time:.2f}s"
             
             # Spike counting
-            if isinstance(model, (SnnDt, DsFormer)):
+            if isinstance(model, SnnDt):
                 spikes = model.count_spikes()
                 log_str += f" | Spikes: {spikes}"
                 eval_results["spikes"] = spikes
 
-            if isinstance(model, (IQL, CQL)):
-                log_str += f" | Actor Loss: {losses['policy_loss']:.4f} | Critic1 Loss: {losses['critic1_loss']:.4f}"
-                metrics.append({"epoch": epoch, **losses, **eval_results, "time_s": epoch_time})
-            else:
-                log_str += f" | Loss: {loss.item():.4f}"
-                metrics.append({"epoch": epoch, "loss": loss.item(), **eval_results, "time_s": epoch_time})
+            log_str += f" | Loss: {loss.item():.4f}"
+            metrics.append({"epoch": epoch, "loss": loss.item(), **eval_results, "time_s": epoch_time})
             log_str += f" | Eval Return: {eval_results['return_mean']:.2f}"
             print(log_str)
             
@@ -198,28 +191,95 @@ def train(cfg):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, default="configs/sdt_cartpole.yaml", help="Path to config file.")
+    parser.add_argument("--config", type=str, default=None, help="Path to config file.")
     parser.add_argument("--model", type=str, required=True, help="Name of the model to train (dt, snn_dt, dsformer, iql, cql).")
     parser.add_argument("--env", type=str, required=True, help="Environment name (e.g., CartPole-v1).")
     parser.add_argument("--save-dir", type=str, default="results/run", help="Directory to save results.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     args = parser.parse_args()
 
+    # Determine config file path
+    if args.config is None:
+        config_name = ""
+        if args.model == "snn_dt":
+            if args.env == "CartPole-v1":
+                config_name = "sdt_cartpole.yaml"
+            elif args.env == "Acrobot-v1":
+                config_name = "sdt_acrobot.yaml"
+            elif args.env == "MountainCar-v0":
+                config_name = "sdt_mountaincar.yaml"
+            elif args.env == "Pendulum-v1":
+                config_name = "sdt_pendulum.yaml"
+        elif args.model == "dsf_dt":
+            if args.env == "CartPole-v1":
+                config_name = "dsf_cartpole.yaml"
+            elif args.env == "Acrobot-v1":
+                config_name = "dsf_acrobot.yaml"
+            elif args.env == "MountainCar-v0":
+                config_name = "dsf_mountaincar.yaml"
+            elif args.env == "Pendulum-v1":
+                config_name = "dsf_pendulum.yaml"
+        
+        if config_name:
+            args.config = str(project_root / "configs" / config_name)
+        else:
+            raise ValueError(f"Could not automatically determine config for model '{args.model}' and env '{args.env}'. Please specify with --config.")
+
     # Load config
     with open(args.config, "r") as f:
-        cfg = yaml.safe_load(f)
+        cfg_raw = yaml.safe_load(f)
+    
+    # Create structured config with defaults
+    cfg = {
+        "model": {
+            "name": args.model,
+            "d_model": cfg_raw.get("hidden_dim", 128),
+            "n_heads": cfg_raw.get("n_heads", 4),
+            "n_layers": cfg_raw.get("n_layers", 4),
+        },
+        "training": {
+            "batch_size": cfg_raw.get("batch_size", 64),
+            "lr": cfg_raw.get("learning_rate", 1e-4),
+            "weight_decay": cfg_raw.get("weight_decay", 0.0),
+            "epochs": cfg_raw.get("max_steps", 50000),
+            "eval_every": cfg_raw.get("eval_interval", 1000),
+            "checkpoint_every": cfg_raw.get("checkpoint_interval", 5000),
+            "device": "cuda" if torch.cuda.is_available() else "cpu"
+        },
+        "dataset": {
+            "path": cfg_raw.get("dataset", None),
+            "state_dim": None,  # Will be set from metadata
+            "act_dim": None,    # Will be set from metadata
+            "max_timesteps": None  # Will be set from metadata
+        },
+        "env": args.env,
+        "seed": args.seed,
+        "save_dir": args.save_dir,
+        "snn": {
+            "lif_tau": cfg_raw.get("lif_tau", 20.0),
+            "surrogate_k": cfg_raw.get("surrogate_k", 25.0),
+            "use_plasticity": cfg_raw.get("use_plasticity", False)
+        }
+    }
     
     # Convert to AttrDict for easy access
     cfg = AttrDict(cfg)
-
-    # Override with CLI args
-    cfg.model.name = args.model
-    cfg.env = args.env
-    cfg.seed = args.seed
-    cfg.save_dir = args.save_dir
     
-    # Construct dataset path from env name
-    cfg.dataset.path = f"data/{args.env}/dataset.npz"
+    # Construct dataset path from env name, relative to project root
+    cfg.dataset.path = str(project_root / f"data/{args.env}/dataset.npz")
+    
+    # Create data directory if it doesn't exist
+    data_dir = project_root / "data" / args.env
+    data_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate dataset if it doesn't exist
+    if not os.path.exists(cfg.dataset.path):
+        print(f"Dataset not found at {cfg.dataset.path}. Generating new dataset...")
+        from scripts.generate_dataset import generate_random_trajectories, process_trajectories
+        trajectories = generate_random_trajectories(args.env, num_trajectories=1000)
+        dataset = process_trajectories(trajectories)
+        np.savez_compressed(cfg.dataset.path, **dataset)
+        print(f"Dataset generated and saved to {cfg.dataset.path}")
 
     train(cfg)
 
