@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
+from norse.torch.functional.lif import lif_step
 from norse.torch.module.leaky_integrator import LICell
-from norse.torch.module.lif import LIFCell
+from norse.torch.module.lif import LIFCell, LIFParameters
+from norse.torch.functional.superspike import super_fn
 
 from src.models.base import BasePolicy
 
@@ -19,8 +21,15 @@ class SpikingTransformerBlock(nn.Module):
         self.v_proj = nn.Linear(d_model, d_model)
 
         # Spiking neurons
-        self.q_lif = LIFCell()
-        self.k_lif = LIFCell()
+        p = LIFParameters(
+            tau_mem_inv=torch.tensor(1.0 / lif_tau),
+            v_th=torch.tensor(0.8),
+            method="super",
+            alpha=surrogate_k,
+        )
+
+        self.q_lif = LIFCell(p=p)
+        self.k_lif = LIFCell(p=p)
         self.v_li = LICell()
         
         self.use_plasticity = False # Will be set by SnnDt
@@ -62,7 +71,7 @@ class SpikingTransformerBlock(nn.Module):
 
         attn_scores = torch.einsum("bnhd,bmhd->bhnm", q_reshaped, k_reshaped) / (self.head_dim ** 0.5)
         if attn_mask is not None:
-            attn_scores = attn_scores.masked_fill(attn_mask == 0, float("-inf"))
+            attn_scores = attn_scores.masked_fill(attn_mask == 0, -1e9)
         attn_weights = torch.softmax(attn_scores, dim=-1)
         
         attn_output = torch.einsum("bhnm,bmhd->bnhd", attn_weights, v_reshaped).reshape(batch_size, seq_len, self.d_model)

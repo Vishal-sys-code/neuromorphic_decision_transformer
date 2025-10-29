@@ -9,3 +9,4 @@ pytest
 wandb
 norse
 scikit-learn
+nvidia-ml-py

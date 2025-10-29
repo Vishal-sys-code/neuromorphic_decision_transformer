@@ -119,7 +119,7 @@ def train(cfg):
         dataset,
         batch_size=cfg.training.batch_size,
         shuffle=True,
-        num_workers=4,
+        num_workers=0,
     )
 
     # Initialize model and optimizer
@@ -137,12 +137,16 @@ def train(cfg):
     env = gym.make(cfg.env)
 
     for epoch in range(cfg.training.epochs):
-        for batch in train_loader:
+        print(f"Epoch {epoch+1}/{cfg.training.epochs}")
+        for i, batch in enumerate(train_loader):
+            print(f"  Batch {i+1}/{len(train_loader)}")
             model.train()
 
+            print("    Moving batch to device...")
             for k, v in batch.items():
                 batch[k] = v.to(cfg.training.device)
             
+            print("    Forward pass...")
             optimizer.zero_grad()
             action_preds = model(batch)
             action_targets = batch["actions"]
@@ -281,12 +285,43 @@ def main():
     data_dir = project_root / "data" / args.env
     data_dir.mkdir(parents=True, exist_ok=True)
     
-    # Generate dataset if it doesn't exist
+    # Check for dataset and metadata, regenerate if necessary
+    regenerate_dataset = False
     if not os.path.exists(cfg.dataset.path):
+        regenerate_dataset = True
         print(f"Dataset not found at {cfg.dataset.path}. Generating new dataset...")
-        from scripts.generate_dataset import generate_random_trajectories, process_trajectories
-        trajectories = generate_random_trajectories(args.env, num_trajectories=1000)
-        dataset = process_trajectories(trajectories)
+    else:
+        with np.load(cfg.dataset.path, allow_pickle=True) as data:
+            if 'metadata' not in data:
+                regenerate_dataset = True
+                print(f"Dataset at {cfg.dataset.path} is missing metadata. Regenerating...")
+
+    if regenerate_dataset:
+        from scripts.make_dataset import generate_trajectories, process_trajectories
+        
+        env = gym.make(args.env)
+        random_policy = lambda obs: env.action_space.sample()
+        
+        # Using num_steps from make_dataset.py's default, as num_trajectories is not directly supported
+        num_steps = 10000 
+        trajectories = generate_trajectories(env, random_policy, num_steps)
+        
+        clip_len = 20 # A reasonable default, similar to make_dataset.py
+        dataset = process_trajectories(trajectories, clip_len, args.env)
+        
+        import json
+        env = gym.make(args.env)
+        metadata = {
+            "env": args.env,
+            "seed": args.seed,
+            "num_steps": num_steps,
+            "clip_len": clip_len,
+            "state_dim": int(env.observation_space.shape[0]),
+            "act_dim": int(env.action_space.n) if isinstance(env.action_space, gym.spaces.Discrete) else int(env.action_space.shape[0]),
+            "max_timesteps": int(env._max_episode_steps) if hasattr(env, '_max_episode_steps') else 500,
+        }
+        dataset['metadata'] = json.dumps(metadata)
+        
         np.savez_compressed(cfg.dataset.path, **dataset)
         print(f"Dataset generated and saved to {cfg.dataset.path}")
 

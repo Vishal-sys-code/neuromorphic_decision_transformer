@@ -116,6 +116,60 @@ def main(args):
     process_and_save_dataset(trajectories, args)
 
 
+def process_trajectories(trajectories, clip_len, env_name):
+    # This function is similar to process_and_save_dataset, but returns the dataset
+    # instead of saving it.
+    
+    states, actions, returns_to_go, timesteps, masks = [], [], [], [], []
+    
+    env = gym.make(env_name)
+    state_dim = env.observation_space.shape[0]
+    is_discrete = isinstance(env.action_space, gym.spaces.Discrete)
+    action_dim = 1 if is_discrete else env.action_space.shape[0]
+
+    for traj in trajectories:
+        # returns to go
+        rewards = traj["rewards"]
+        traj_returns = np.zeros(len(rewards))
+        running_return = 0
+        for t in reversed(range(len(rewards))):
+            running_return += rewards[t]
+            traj_returns[t] = running_return
+        
+        # padding
+        num_clips = (len(traj["states"]) + clip_len - 1) // clip_len
+        for i in range(num_clips):
+            start = i * clip_len
+            end = (i + 1) * clip_len
+            
+            clip_states = np.zeros((clip_len, state_dim))
+            clip_actions = np.zeros((clip_len, action_dim))
+            clip_rtg = np.zeros((clip_len, 1))
+            clip_timesteps = np.zeros(clip_len, dtype=int)
+            clip_mask = np.zeros(clip_len)
+
+            actual_len = min(clip_len, len(traj["states"]) - start)
+            
+            clip_states[:actual_len] = traj["states"][start:end]
+            clip_actions[:actual_len] = np.array(traj["actions"][start:end]).reshape(-1, action_dim)
+            clip_rtg[:actual_len] = traj_returns[start:end].reshape(-1, 1)
+            clip_timesteps[:actual_len] = np.arange(start, start + actual_len)
+            clip_mask[:actual_len] = 1
+
+            states.append(clip_states)
+            actions.append(clip_actions)
+            returns_to_go.append(clip_rtg)
+            timesteps.append(clip_timesteps)
+            masks.append(clip_mask)
+            
+    return {
+        "states": np.array(states),
+        "actions": np.array(actions),
+        "returns_to_go": np.array(returns_to_go),
+        "timesteps": np.array(timesteps),
+        "mask": np.array(masks),
+    }
+
 def process_and_save_dataset(trajectories, args):
     # Processing logic will go here
     print(f"Processing {len(trajectories)} trajectories...")
