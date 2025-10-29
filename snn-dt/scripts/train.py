@@ -16,6 +16,8 @@ import pandas as pd
 import torch
 import yaml
 from torch.utils.data import DataLoader, Dataset
+import warnings
+warnings.filterwarnings('ignore')
 
 # from src.models.cql import CQL
 # from src.models.dt import DecisionTransformer
@@ -143,8 +145,15 @@ def train(cfg):
             
             optimizer.zero_grad()
             action_preds = model(batch)
-            action_preds = action_preds.reshape(-1, cfg.dataset.act_dim)
-            action_targets = batch["actions"].reshape(-1)
+            action_targets = batch["actions"]
+
+            # Align sequence lengths and filter padded tokens
+            action_preds = action_preds[:, :action_targets.shape[1]]
+            mask = batch["mask"][:, :action_targets.shape[1]].reshape(-1).bool()
+            
+            action_preds = action_preds.reshape(-1, cfg.dataset.act_dim)[mask]
+            action_targets = action_targets.reshape(-1)[mask]
+
             loss = loss_fn(action_preds, action_targets)
             loss.backward()
             optimizer.step()
