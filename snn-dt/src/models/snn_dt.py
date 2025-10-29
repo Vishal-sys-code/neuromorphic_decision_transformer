@@ -119,7 +119,7 @@ class SnnDt(BasePolicy, nn.Module):
         self.phase_encoder = PhaseEncoder(self.hidden_size, cfg.dataset.max_timesteps)
         self.embed_return = nn.Linear(1, self.hidden_size)
         self.embed_state = nn.Linear(cfg.dataset.state_dim, self.hidden_size)
-        self.embed_action = nn.Linear(cfg.dataset.act_dim, self.hidden_size)
+        self.embed_action = nn.Embedding(cfg.dataset.act_dim, self.hidden_size)
         self.embed_ln = nn.LayerNorm(self.hidden_size)
 
         self.blocks = nn.ModuleList([
@@ -132,10 +132,7 @@ class SnnDt(BasePolicy, nn.Module):
             for _ in range(cfg.model.n_layers)
         ])
 
-        self.action_predictor = nn.Sequential(
-            nn.Linear(self.hidden_size, cfg.dataset.act_dim),
-            nn.Tanh() if cfg.model.action_tanh else nn.Identity(),
-        )
+        self.action_predictor = nn.Linear(self.hidden_size, cfg.dataset.act_dim)
 
         self.use_plasticity = getattr(cfg.snn, "use_plasticity", False)
         if self.use_plasticity:
@@ -146,10 +143,23 @@ class SnnDt(BasePolicy, nn.Module):
     def forward(self, batch):
         batch_size, seq_len = batch["states"].shape[:2]
         
-        state_embeddings = self.embed_state(batch["states"])
-        action_embeddings = self.embed_action(batch["actions"])
-        return_embeddings = self.embed_return(batch["returns_to_go"])
-        time_embeddings = self.phase_encoder(batch["timesteps"])
+        state_embeddings = self.embed_state(batch["states"])  # (B, seq_len, hidden)
+
+        # Actions in dataset are stored with shape (B, seq_len-1, 1).
+        # Pad actions so they match the state/return/timestep sequence length.
+        actions = batch["actions"].squeeze(-1)
+        # ensure integer indices for embedding
+        actions = actions.long()
+
+        # If actions sequence is shorter than states (common when states include final state), pad with zeros
+        if actions.shape[1] < state_embeddings.shape[1]:
+            pad_len = state_embeddings.shape[1] - actions.shape[1]
+            pad = torch.zeros(actions.shape[0], pad_len, dtype=actions.dtype, device=actions.device)
+            actions = torch.cat([actions, pad], dim=1)
+
+        action_embeddings = self.embed_action(actions)
+        return_embeddings = self.embed_return(batch["returns_to_go"])  # (B, seq_len, hidden)
+        time_embeddings = self.phase_encoder(batch["timesteps"])  # (B, seq_len, hidden)
 
         state_embeddings += time_embeddings
         action_embeddings += time_embeddings

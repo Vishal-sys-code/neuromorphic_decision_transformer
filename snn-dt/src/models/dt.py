@@ -46,7 +46,16 @@ class DecisionTransformer(BasePolicy, nn.Module):
         )
 
         state_embeddings = self.embed_state(states)
-        action_embeddings = self.embed_action(actions)
+
+        # Handle discrete actions by one-hot encoding
+        if self.act_dim > 1 and actions.shape[-1] == 1:
+            action_input = torch.nn.functional.one_hot(
+                actions.squeeze(-1).to(torch.int64), num_classes=self.act_dim
+            ).float()
+        else:
+            action_input = actions
+        action_embeddings = self.embed_action(action_input)
+
         return_embeddings = self.embed_return(returns_to_go)
         time_embeddings = self.embed_timestep(timesteps)
 
