@@ -1,16 +1,15 @@
 import torch
 import torch.nn as nn
-from norse.torch.functional.lif import lif_step
 from norse.torch.module.leaky_integrator import LICell
 from norse.torch.module.lif import LIFCell, LIFParameters
-from norse.torch.functional.superspike import super_fn
 
 from src.models.base import BasePolicy
 
 
 class SpikingTransformerBlock(nn.Module):
-    def __init__(self, d_model, n_heads, lif_tau, surrogate_k):
+    def __init__(self, cfg, d_model, n_heads, lif_tau, surrogate_k):
         super().__init__()
+        self.cfg = cfg
         self.d_model = d_model
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
@@ -133,6 +132,7 @@ class SnnDt(BasePolicy, nn.Module):
 
         self.blocks = nn.ModuleList([
             SpikingTransformerBlock(
+                cfg=self.cfg,
                 d_model=self.hidden_size,
                 n_heads=cfg.model.n_heads,
                 lif_tau=cfg.snn.lif_tau,

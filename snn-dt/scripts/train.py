@@ -119,7 +119,7 @@ def train(cfg):
         dataset,
         batch_size=cfg.training.batch_size,
         shuffle=True,
-        num_workers=4,
+        num_workers=0,
     )
 
     # Initialize model and optimizer
@@ -137,12 +137,12 @@ def train(cfg):
     env = gym.make(cfg.env)
 
     for epoch in range(cfg.training.epochs):
-        for i, batch in enumerate(train_loader):
+        for batch in train_loader:
             model.train()
 
             for k, v in batch.items():
                 batch[k] = v.to(cfg.training.device)
-
+            
             optimizer.zero_grad()
             action_preds = model(batch)
             action_targets = batch["actions"]
