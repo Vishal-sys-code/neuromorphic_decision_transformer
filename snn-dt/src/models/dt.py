@@ -45,6 +45,18 @@ class DecisionTransformer(BasePolicy, nn.Module):
             batch["mask"],
         )
 
+        # Pad actions if they are shorter than states
+        if actions.shape[1] < states.shape[1]:
+            padding_needed = states.shape[1] - actions.shape[1]
+            if actions.dim() == 3:
+                actions = torch.nn.functional.pad(
+                    actions, (0, 0, 0, padding_needed), "constant", 0
+                )
+            else:
+                actions = torch.nn.functional.pad(
+                    actions, (0, padding_needed), "constant", 0
+                )
+
         state_embeddings = self.embed_state(states)
 
         # Handle discrete actions by one-hot encoding
