@@ -1,5 +1,6 @@
 torch
 gym
+gymnasium
 transformers
 norse
 bindsnet
