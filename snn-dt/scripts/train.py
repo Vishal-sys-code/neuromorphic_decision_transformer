@@ -97,14 +97,12 @@ class OfflineTransitionDataset(Dataset):
 
 
 def train(cfg, logger):
-    logger.info("Setting seed...")
     seed_everything(cfg.seed)
     
     # Create save directory
     save_dir = Path(cfg.save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Loading dataset...")
     # Load data and metadata
     dataset = OfflineDataset(cfg.dataset.path)
 
@@ -118,16 +116,14 @@ def train(cfg, logger):
     cfg.dataset.act_dim = metadata["act_dim"]
     cfg.dataset.max_timesteps = metadata["max_timesteps"]
 
-    logger.info("Creating DataLoader...")
     train_loader = DataLoader(
         dataset,
         batch_size=cfg.training.batch_size,
         shuffle=True,
         num_workers=0,
     )
-    logger.info(f"DataLoader created with num_workers={train_loader.num_workers}.")
+    logger.info(f"Using {train_loader.num_workers} workers for data loading.")
 
-    logger.info("Initializing model...")
     # Initialize model and optimizer
     model = get_model(cfg).to(cfg.training.device)
     optimizer = torch.optim.AdamW(
@@ -140,17 +136,14 @@ def train(cfg, logger):
     # Training loop
     metrics = []
     best_eval_return = -np.inf
-    start_time = time.time()
     
     # Lazily initialize the environment
     env = None
 
-    logger.info("Starting training loop...")
     for epoch in range(cfg.training.epochs):
+        start_time = time.time()
         epoch_losses = []
-        logger.info(f"Epoch {epoch+1}/{cfg.training.epochs}")
-        for i, batch in enumerate(train_loader):
-            logger.debug(f"Batch {i+1}")
+        for batch in train_loader:
             model.train()
 
             for k, v in batch.items():
@@ -169,10 +162,11 @@ def train(cfg, logger):
 
             loss = loss_fn(action_preds, action_targets)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             epoch_losses.append(loss.item())
 
-        # Evaluation and Logging
+        # Evaluation, Checkpointing, and Logging
         if (epoch + 1) % cfg.training.eval_every == 0:
             if env is None:
                 env = gym.make(cfg.env)
@@ -182,7 +176,7 @@ def train(cfg, logger):
             
             log_str = f"Epoch {epoch+1}/{cfg.training.epochs} | Time: {epoch_time:.2f}s | Loss: {avg_loss:.4f}"
             
-            # Spike counting
+            # Spike counting for SNN models
             if isinstance(model, SnnDt):
                 spikes = model.count_spikes()
                 log_str += f" | Spikes: {spikes}"
@@ -192,16 +186,18 @@ def train(cfg, logger):
             log_str += f" | Eval Return: {eval_results['return_mean']:.2f}"
             logger.info(log_str)
             
-            # Save checkpoint
-            torch.save(model.state_dict(), save_dir / "latest.pt")
             if eval_results['return_mean'] > best_eval_return:
                 best_eval_return = eval_results['return_mean']
                 torch.save(model.state_dict(), save_dir / "best.pt")
                 logger.info(f"New best eval return: {best_eval_return:.2f}. Saved best model.")
-
-            # Apply plasticity
+            
+            # Apply plasticity for SNN models
             if isinstance(model, SnnDt) and model.use_plasticity:
                 model.apply_plasticity(eval_results["return_mean"])
+
+        # Periodic checkpointing
+        if (epoch + 1) % cfg.training.checkpoint_every == 0:
+            torch.save(model.state_dict(), save_dir / f"ckpt_epoch_{epoch+1}.pt")
 
     # Save metrics
     df = pd.DataFrame(metrics)
@@ -268,9 +264,9 @@ def main():
             "batch_size": cfg_raw.get("batch_size", 64),
             "lr": cfg_raw.get("learning_rate", 1e-4),
             "weight_decay": cfg_raw.get("weight_decay", 0.0),
-            "epochs": cfg_raw.get("max_steps", 50000),
-            "eval_every": cfg_raw.get("eval_interval", 1000),
-            "checkpoint_every": cfg_raw.get("checkpoint_interval", 5000),
+            "epochs": cfg_raw.get("epochs", 1000),
+            "eval_every": cfg_raw.get("eval_every", 10),
+            "checkpoint_every": cfg_raw.get("checkpoint_every", 50),
             "device": "cuda" if torch.cuda.is_available() else "cpu"
         },
         "dataset": {

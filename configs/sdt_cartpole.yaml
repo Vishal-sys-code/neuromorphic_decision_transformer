@@ -5,6 +5,10 @@ batch_size: 64
 hidden_dim: 128
 n_layers: 4
 learning_rate: 1e-4
-max_steps: 50000
-eval_interval: 1000
+epochs: 1000
+eval_every: 10
+checkpoint_every: 50
 seed: 42
+lif_tau: 20.0
+surrogate_k: 25.0
+use_plasticity: true
