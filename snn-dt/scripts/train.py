@@ -97,12 +97,14 @@ class OfflineTransitionDataset(Dataset):
 
 
 def train(cfg, logger):
+    logger.info("Setting seed...")
     seed_everything(cfg.seed)
     
     # Create save directory
     save_dir = Path(cfg.save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
 
+    logger.info("Loading dataset...")
     # Load data and metadata
     dataset = OfflineDataset(cfg.dataset.path)
 
@@ -116,13 +118,16 @@ def train(cfg, logger):
     cfg.dataset.act_dim = metadata["act_dim"]
     cfg.dataset.max_timesteps = metadata["max_timesteps"]
 
+    logger.info("Creating DataLoader...")
     train_loader = DataLoader(
         dataset,
         batch_size=cfg.training.batch_size,
         shuffle=True,
         num_workers=0,
     )
+    logger.info(f"DataLoader created with num_workers={train_loader.num_workers}.")
 
+    logger.info("Initializing model...")
     # Initialize model and optimizer
     model = get_model(cfg).to(cfg.training.device)
     optimizer = torch.optim.AdamW(
@@ -140,9 +145,12 @@ def train(cfg, logger):
     # Lazily initialize the environment
     env = None
 
+    logger.info("Starting training loop...")
     for epoch in range(cfg.training.epochs):
         epoch_losses = []
-        for batch in train_loader:
+        logger.info(f"Epoch {epoch+1}/{cfg.training.epochs}")
+        for i, batch in enumerate(train_loader):
+            logger.debug(f"Batch {i+1}")
             model.train()
 
             for k, v in batch.items():
