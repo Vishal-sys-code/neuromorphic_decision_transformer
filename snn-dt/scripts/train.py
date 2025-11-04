@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import sys
 import time
@@ -95,7 +96,7 @@ class OfflineTransitionDataset(Dataset):
         }
 
 
-def train(cfg):
+def train(cfg, logger):
     seed_everything(cfg.seed)
     
     # Create save directory
@@ -133,10 +134,14 @@ def train(cfg):
 
     # Training loop
     metrics = []
+    best_eval_return = -np.inf
     start_time = time.time()
-    env = gym.make(cfg.env)
+    
+    # Lazily initialize the environment
+    env = None
 
     for epoch in range(cfg.training.epochs):
+        epoch_losses = []
         for batch in train_loader:
             model.train()
 
@@ -157,12 +162,17 @@ def train(cfg):
             loss = loss_fn(action_preds, action_targets)
             loss.backward()
             optimizer.step()
+            epoch_losses.append(loss.item())
 
         # Evaluation and Logging
         if (epoch + 1) % cfg.training.eval_every == 0:
+            if env is None:
+                env = gym.make(cfg.env)
             eval_results = evaluate_policy(model, env, cfg, episodes=10)
             epoch_time = time.time() - start_time
-            log_str = f"Epoch {epoch+1}/{cfg.training.epochs} | Time: {epoch_time:.2f}s"
+            avg_loss = np.mean(epoch_losses)
+            
+            log_str = f"Epoch {epoch+1}/{cfg.training.epochs} | Time: {epoch_time:.2f}s | Loss: {avg_loss:.4f}"
             
             # Spike counting
             if isinstance(model, SnnDt):
@@ -170,18 +180,20 @@ def train(cfg):
                 log_str += f" | Spikes: {spikes}"
                 eval_results["spikes"] = spikes
 
-            log_str += f" | Loss: {loss.item():.4f}"
-            metrics.append({"epoch": epoch, "loss": loss.item(), **eval_results, "time_s": epoch_time})
+            metrics.append({"epoch": epoch + 1, "loss": avg_loss, **eval_results, "time_s": epoch_time})
             log_str += f" | Eval Return: {eval_results['return_mean']:.2f}"
-            print(log_str)
+            logger.info(log_str)
             
+            # Save checkpoint
+            torch.save(model.state_dict(), save_dir / "latest.pt")
+            if eval_results['return_mean'] > best_eval_return:
+                best_eval_return = eval_results['return_mean']
+                torch.save(model.state_dict(), save_dir / "best.pt")
+                logger.info(f"New best eval return: {best_eval_return:.2f}. Saved best model.")
+
             # Apply plasticity
             if isinstance(model, SnnDt) and model.use_plasticity:
                 model.apply_plasticity(eval_results["return_mean"])
-        
-        # Save checkpoint
-        if (epoch + 1) % cfg.training.checkpoint_every == 0:
-            torch.save(model.state_dict(), save_dir / f"ckpt_epoch_{epoch+1}.pt")
 
     # Save metrics
     df = pd.DataFrame(metrics)
@@ -195,7 +207,7 @@ def train(cfg):
     else:
         summary_df.to_csv(summary_path, index=False)
 
-    print("Training complete.")
+    logger.info("Training complete.")
         
 
 def main():
@@ -206,30 +218,27 @@ def main():
     parser.add_argument("--save-dir", type=str, default="results/run", help="Directory to save results.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     args = parser.parse_args()
+    
+    # Configure logging
+    save_dir = Path(args.save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(save_dir / "training.log"),
+            logging.StreamHandler(),
+        ],
+    )
+    logger = logging.getLogger()
 
     # Determine config file path
     if args.config is None:
-        config_name = ""
-        if args.model == "snn_dt":
-            if args.env == "CartPole-v1":
-                config_name = "sdt_cartpole.yaml"
-            elif args.env == "Acrobot-v1":
-                config_name = "sdt_acrobot.yaml"
-            elif args.env == "MountainCar-v0":
-                config_name = "sdt_mountaincar.yaml"
-            elif args.env == "Pendulum-v1":
-                config_name = "sdt_pendulum.yaml"
-        elif args.model == "dsf_dt":
-            if args.env == "CartPole-v1":
-                config_name = "dsf_cartpole.yaml"
-            elif args.env == "Acrobot-v1":
-                config_name = "dsf_acrobot.yaml"
-            elif args.env == "MountainCar-v0":
-                config_name = "dsf_mountaincar.yaml"
-            elif args.env == "Pendulum-v1":
-                config_name = "dsf_pendulum.yaml"
+        model_abbr = {"dt": "dt", "snn_dt": "sdt", "dsformer": "dsf", "iql": "iql", "cql": "cql"}
+        env_abbr = {"CartPole-v1": "cartpole", "Acrobot-v1": "acrobot", "MountainCar-v0": "mountaincar", "Pendulum-v1": "pendulum"}
         
-        if config_name:
+        if args.model in model_abbr and args.env in env_abbr:
+            config_name = f"{model_abbr[args.model]}_{env_abbr[args.env]}.yaml"
             args.config = str(project_root / "configs" / config_name)
         else:
             raise ValueError(f"Could not automatically determine config for model '{args.model}' and env '{args.env}'. Please specify with --config.")
@@ -245,6 +254,7 @@ def main():
             "d_model": cfg_raw.get("hidden_dim", 128),
             "n_heads": cfg_raw.get("n_heads", 4),
             "n_layers": cfg_raw.get("n_layers", 4),
+            "action_tanh": False,
         },
         "training": {
             "batch_size": cfg_raw.get("batch_size", 64),
@@ -282,15 +292,19 @@ def main():
     data_dir.mkdir(parents=True, exist_ok=True)
     
     # Generate dataset if it doesn't exist
+    logger.info("Checking for dataset...")
     if not os.path.exists(cfg.dataset.path):
         from scripts.generate_dataset import generate_random_trajectories, process_trajectories
-        print(f"Dataset not found at {cfg.dataset.path}. Generating new dataset...")
+        logger.info(f"Dataset not found at {cfg.dataset.path}. Generating new dataset...")
         trajectories = generate_random_trajectories(args.env, num_trajectories=1000)
         dataset = process_trajectories(trajectories)
         np.savez_compressed(cfg.dataset.path, **dataset)
-        print(f"Dataset generated and saved to {cfg.dataset.path}")
+        logger.info(f"Dataset generated and saved to {cfg.dataset.path}")
+    else:
+        logger.info(f"Dataset found at {cfg.dataset.path}.")
 
-    train(cfg)
+    logger.info("Starting training...")
+    train(cfg, logger)
 
 
 if __name__ == "__main__":
