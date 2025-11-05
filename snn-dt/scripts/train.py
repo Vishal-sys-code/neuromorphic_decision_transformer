@@ -104,7 +104,10 @@ def train(cfg, logger):
 
     # Load data and metadata
     dataset = OfflineDataset(cfg.dataset.path)
-    assert len(dataset) > 0, f"Dataset at {cfg.dataset.path} is empty."
+    if len(dataset) == 0:
+        logger.error(f"Dataset at {cfg.dataset.path} is empty! Aborting training.")
+        sys.exit(1)
+    logger.info(f"Dataset size: {len(dataset)} clips")
 
     with np.load(cfg.dataset.path, allow_pickle=True) as data:
         metadata = data["metadata"].item()
@@ -124,8 +127,9 @@ def train(cfg, logger):
         batch_size=cfg.training.batch_size,
         shuffle=True,
         num_workers=num_workers,
+        pin_memory=False,
     )
-    logger.info(f"DataLoader created with num_workers={num_workers}.")
+    logger.info(f"DataLoader created with num_workers={num_workers} and pin_memory=False.")
 
     # Initialize model and optimizer
     model = get_model(cfg).to(cfg.training.device)
@@ -143,6 +147,7 @@ def train(cfg, logger):
     # Lazily initialize the environment
     env = None
 
+    logger.info("Starting training loop...")
     for epoch in range(cfg.training.epochs):
         start_time = time.time()
         epoch_losses = []
