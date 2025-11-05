@@ -120,7 +120,7 @@ def train(cfg, logger):
     cfg.dataset.max_timesteps = metadata["max_timesteps"]
 
     # OS-aware num_workers
-    num_workers = cfg.training.get("num_workers", 1 if os.name == "nt" else 4)
+    num_workers = 0
     from torch.utils.data import DataLoader
     train_loader = DataLoader(
         dataset,
@@ -152,6 +152,7 @@ def train(cfg, logger):
         start_time = time.time()
         epoch_losses = []
         for i, batch in enumerate(train_loader):
+            logger.info(f"Epoch {epoch+1}, Batch {i+1}")
             if i >= cfg.training.batches_per_epoch:
                 break
 
@@ -267,6 +268,7 @@ def main():
     cfg = {
         "model": {
             "name": args.model,
+            "seq_len": cfg_raw.get("seq_len"),
             "d_model": cfg_raw.get("hidden_dim", 128),
             "n_heads": cfg_raw.get("n_heads", 4),
             "n_layers": cfg_raw.get("n_layers", 4),
