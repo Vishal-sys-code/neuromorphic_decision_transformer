@@ -61,12 +61,20 @@ def process_trajectories(trajectories, max_timesteps=1000):
     num_trajectories = len(trajectories)
     state_dim = trajectories[0]['states'][0].shape[0]
     
-    # Determine action dimension from data
-    all_actions = np.concatenate([t['actions'] for t in trajectories if t['length'] > 0])
-    act_dim = int(all_actions.max()) + 1 if all_actions.size > 0 else 1
+    # Determine action dimension and type from data
+    first_traj_actions = trajectories[0]['actions']
+    is_discrete = first_traj_actions.ndim == 1
+
+    if is_discrete:
+        all_actions = np.concatenate([t['actions'] for t in trajectories if t['length'] > 0])
+        act_dim = int(all_actions.max()) + 1 if all_actions.size > 0 else 1
+        action_shape = 1
+    else:
+        act_dim = first_traj_actions.shape[1]
+        action_shape = act_dim
 
     states = np.zeros((num_trajectories, max_len + 1, state_dim))
-    actions = np.zeros((num_trajectories, max_len, 1)) # Store actions as scalars
+    actions = np.zeros((num_trajectories, max_len, action_shape))
     returns_to_go = np.zeros((num_trajectories, max_len + 1, 1))
     timesteps = np.zeros((num_trajectories, max_len + 1))
     mask = np.zeros((num_trajectories, max_len + 1))
@@ -79,7 +87,11 @@ def process_trajectories(trajectories, max_timesteps=1000):
         
         # States include the final state
         states[i, :length + 1] = traj['states'][:length + 1]
-        actions[i, :length] = traj['actions'][:length, None]  # Add dimension for scalar actions
+        
+        if is_discrete:
+            actions[i, :length] = traj['actions'][:length, None]
+        else:
+            actions[i, :length] = traj['actions'][:length]
         
         # Calculate returns to go
         returns = np.cumsum(traj['rewards'][:length][::-1])[::-1]
@@ -93,7 +105,8 @@ def process_trajectories(trajectories, max_timesteps=1000):
     metadata = {
         'state_dim': state_dim,
         'act_dim': act_dim,
-        'max_timesteps': max_timesteps
+        'max_timesteps': max_timesteps,
+        'is_discrete': is_discrete
     }
     
     return {

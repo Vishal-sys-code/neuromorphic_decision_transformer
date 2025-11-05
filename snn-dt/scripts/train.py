@@ -35,7 +35,7 @@ class OfflineDataset(Dataset):
     def __init__(self, dataset_path):
         data = np.load(dataset_path)
         self.states = torch.from_numpy(data["states"]).float()
-        self.actions = torch.from_numpy(data["actions"]).long()
+        self.actions = torch.from_numpy(data["actions"]).float()
         self.returns_to_go = torch.from_numpy(data["returns_to_go"]).float()
         self.timesteps = torch.from_numpy(data["timesteps"]).long()
         self.mask = torch.from_numpy(data["mask"]).float()
@@ -119,6 +119,7 @@ def train(cfg, logger):
     cfg.dataset.state_dim = metadata["state_dim"]
     cfg.dataset.act_dim = metadata["act_dim"]
     cfg.dataset.max_timesteps = metadata["max_timesteps"]
+    cfg.dataset.is_discrete = metadata.get("is_discrete", True)
 
     # OS-aware num_workers
     num_workers = 0
@@ -139,7 +140,11 @@ def train(cfg, logger):
         lr=float(cfg.training.lr),
         weight_decay=float(cfg.training.weight_decay),
     )
-    loss_fn = torch.nn.CrossEntropyLoss()
+    
+    if cfg.dataset.is_discrete:
+        loss_fn = torch.nn.CrossEntropyLoss()
+    else:
+        loss_fn = torch.nn.MSELoss()
 
     # Training loop
     metrics = []
@@ -174,7 +179,11 @@ def train(cfg, logger):
             mask = batch["mask"][:, :action_targets.shape[1]].reshape(-1).bool()
             
             action_preds = action_preds.reshape(-1, cfg.dataset.act_dim)[mask]
-            action_targets = action_targets.reshape(-1)[mask]
+            
+            if cfg.dataset.is_discrete:
+                action_targets = action_targets.reshape(-1)[mask].long()
+            else:
+                action_targets = action_targets.reshape(-1, cfg.dataset.act_dim)[mask]
 
             loss = loss_fn(action_preds, action_targets)
             loss.backward()
