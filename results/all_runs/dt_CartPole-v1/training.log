@@ -91,3 +91,9 @@
 2025-11-05 14:33:37,577 [INFO] Dataset size: 1000 clips
 2025-11-05 14:33:37,582 [INFO] DataLoader created with num_workers=0 and pin_memory=False.
 2025-11-05 14:33:48,431 [INFO] Starting training loop...
+2025-11-05 15:15:08,400 [INFO] Epoch 10/1000 | Time: 241.47s | Loss: 0.6863 | Eval Return: 9.50
+2025-11-05 15:15:09,288 [INFO] New best eval return: 9.50. Saved best model.
+2025-11-05 15:49:05,018 [INFO] Epoch 20/1000 | Time: 200.64s | Loss: 0.6754 | Eval Return: 9.60
+2025-11-05 15:49:05,635 [INFO] New best eval return: 9.60. Saved best model.
+2025-11-05 16:21:15,718 [INFO] Epoch 30/1000 | Time: 191.88s | Loss: 0.6314 | Eval Return: 9.30
+2025-11-05 16:53:07,656 [INFO] Epoch 40/1000 | Time: 192.28s | Loss: 0.6089 | Eval Return: 9.30

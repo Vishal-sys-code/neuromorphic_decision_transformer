@@ -47,15 +47,26 @@ def generate_random_trajectories(env_name, num_trajectories=1000, max_steps=1000
 
 def process_trajectories(trajectories, max_timesteps=1000):
     # Find the maximum trajectory length
-    max_len = min(max([t['length'] for t in trajectories]), max_timesteps)
+    max_len = min(max([t['length'] for t in trajectories if t['length'] > 0], default=0), max_timesteps)
     
+    if not trajectories or max_len == 0:
+        # Handle case with no trajectories or all empty trajectories
+        return {
+            'states': np.array([]), 'actions': np.array([]), 'returns_to_go': np.array([]),
+            'timesteps': np.array([]), 'mask': np.array([]),
+            'metadata': {'state_dim': 0, 'act_dim': 0, 'max_timesteps': max_timesteps}
+        }
+
     # Initialize arrays
     num_trajectories = len(trajectories)
     state_dim = trajectories[0]['states'][0].shape[0]
-    act_dim = 1  # For discrete actions
     
+    # Determine action dimension from data
+    all_actions = np.concatenate([t['actions'] for t in trajectories if t['length'] > 0])
+    act_dim = int(all_actions.max()) + 1 if all_actions.size > 0 else 1
+
     states = np.zeros((num_trajectories, max_len + 1, state_dim))
-    actions = np.zeros((num_trajectories, max_len, act_dim))
+    actions = np.zeros((num_trajectories, max_len, 1)) # Store actions as scalars
     returns_to_go = np.zeros((num_trajectories, max_len + 1, 1))
     timesteps = np.zeros((num_trajectories, max_len + 1))
     mask = np.zeros((num_trajectories, max_len + 1))
@@ -63,6 +74,8 @@ def process_trajectories(trajectories, max_timesteps=1000):
     # Fill arrays
     for i, traj in enumerate(trajectories):
         length = min(traj['length'], max_len)
+        if length == 0:
+            continue
         
         # States include the final state
         states[i, :length + 1] = traj['states'][:length + 1]
@@ -79,7 +92,7 @@ def process_trajectories(trajectories, max_timesteps=1000):
     # Create metadata
     metadata = {
         'state_dim': state_dim,
-        'act_dim': 2,  # CartPole has 2 actions
+        'act_dim': act_dim,
         'max_timesteps': max_timesteps
     }
     
