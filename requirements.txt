@@ -1,8 +1,8 @@
-torch
-gym
 gymnasium
-transformers
+pandas
+torch
 norse
+pyyaml
+transformers
 bindsnet
 pytest
-stable-baselines3[extra]

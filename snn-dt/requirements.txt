@@ -10,3 +10,5 @@ wandb
 norse
 scikit-learn
 nvidia-ml-py
+gymnasium
+gym

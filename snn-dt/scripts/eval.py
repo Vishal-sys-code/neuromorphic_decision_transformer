@@ -2,10 +2,10 @@ import argparse
 import json
 import time
 
-import gymnasium as gym
 import numpy as np
 import torch
 import yaml
+import gymnasium as gym
 
 from src.utils.config import AttrDict
 from src.utils.models import get_model

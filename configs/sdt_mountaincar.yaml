@@ -11,4 +11,5 @@ checkpoint_every: 50
 seed: 42
 lif_tau: 20.0
 surrogate_k: 25.0
-use_plasticity: true
+
+num_workers: 1

@@ -2,7 +2,6 @@ import argparse
 import os
 from pathlib import Path
 import sys
-import gymnasium as gym
 import numpy as np
 import yaml
 
@@ -11,6 +10,7 @@ project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(project_root))
 
 def generate_random_trajectories(env_name, num_trajectories=1000, max_steps=1000):
+    import gymnasium as gym
     env = gym.make(env_name)
     trajectories = []
     

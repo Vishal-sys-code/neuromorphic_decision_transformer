@@ -11,12 +11,11 @@ project_root = snn_dt_root.parent
 sys.path.append(str(snn_dt_root))
 sys.path.append(str(project_root))
 
-import gymnasium as gym
 import numpy as np
 import pandas as pd
 import torch
 import yaml
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -105,6 +104,7 @@ def train(cfg, logger):
 
     # Load data and metadata
     dataset = OfflineDataset(cfg.dataset.path)
+    assert len(dataset) > 0, f"Dataset at {cfg.dataset.path} is empty."
 
     with np.load(cfg.dataset.path, allow_pickle=True) as data:
         metadata = data["metadata"].item()
@@ -116,13 +116,16 @@ def train(cfg, logger):
     cfg.dataset.act_dim = metadata["act_dim"]
     cfg.dataset.max_timesteps = metadata["max_timesteps"]
 
+    # OS-aware num_workers
+    num_workers = cfg.training.get("num_workers", 1 if os.name == "nt" else 4)
+    from torch.utils.data import DataLoader
     train_loader = DataLoader(
         dataset,
         batch_size=cfg.training.batch_size,
         shuffle=True,
-        num_workers=0,
+        num_workers=num_workers,
     )
-    logger.info(f"Using {train_loader.num_workers} workers for data loading.")
+    logger.info(f"DataLoader created with num_workers={num_workers}.")
 
     # Initialize model and optimizer
     model = get_model(cfg).to(cfg.training.device)
@@ -143,7 +146,10 @@ def train(cfg, logger):
     for epoch in range(cfg.training.epochs):
         start_time = time.time()
         epoch_losses = []
-        for batch in train_loader:
+        for i, batch in enumerate(train_loader):
+            if i >= cfg.training.batches_per_epoch:
+                break
+
             model.train()
 
             for k, v in batch.items():
@@ -169,6 +175,7 @@ def train(cfg, logger):
         # Evaluation, Checkpointing, and Logging
         if (epoch + 1) % cfg.training.eval_every == 0:
             if env is None:
+                import gymnasium as gym
                 env = gym.make(cfg.env)
             eval_results = evaluate_policy(model, env, cfg, episodes=10)
             epoch_time = time.time() - start_time
@@ -267,7 +274,8 @@ def main():
             "epochs": cfg_raw.get("epochs", 1000),
             "eval_every": cfg_raw.get("eval_every", 10),
             "checkpoint_every": cfg_raw.get("checkpoint_every", 50),
-            "device": "cuda" if torch.cuda.is_available() else "cpu"
+            "device": "cuda" if torch.cuda.is_available() else "cpu",
+            "batches_per_epoch": cfg_raw.get("batches_per_epoch", 1000),
         },
         "dataset": {
             "path": cfg_raw.get("dataset", None),
