@@ -16,6 +16,7 @@ import pandas as pd
 import torch
 import yaml
 from torch.utils.data import Dataset
+from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -151,11 +152,14 @@ def train(cfg, logger):
     for epoch in range(cfg.training.epochs):
         start_time = time.time()
         epoch_losses = []
-        for i, batch in enumerate(train_loader):
-            logger.info(f"Epoch {epoch+1}, Batch {i+1}")
-            if i >= cfg.training.batches_per_epoch:
-                break
+        
+        batch_iter = tqdm(
+            enumerate(train_loader), 
+            total=len(train_loader),
+            desc=f"Epoch {epoch+1}/{cfg.training.epochs}"
+        )
 
+        for i, batch in batch_iter:
             model.train()
 
             for k, v in batch.items():
@@ -177,6 +181,7 @@ def train(cfg, logger):
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
             epoch_losses.append(loss.item())
+            batch_iter.set_postfix(loss=f"{np.mean(epoch_losses):.4f}")
 
         # Evaluation, Checkpointing, and Logging
         if (epoch + 1) % cfg.training.eval_every == 0:
