@@ -80,7 +80,8 @@ class OfflineTransitionDataset(Dataset):
 
         # Pre-allocate memory-mapped arrays
         self.states = np.memmap(self.states_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, state_dim))
-        self.actions = np.memmap(self.actions_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, action_dim))
+        # Use int64 for discrete actions
+        self.actions = np.memmap(self.actions_mmap_path, dtype=np.int64, mode='w+', shape=(total_transitions, action_dim))
         self.rewards = np.memmap(self.rewards_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, 1))
         self.next_states = np.memmap(self.next_states_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, state_dim))
         self.dones = np.memmap(self.dones_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, 1))
@@ -98,9 +99,9 @@ class OfflineTransitionDataset(Dataset):
             traj_rtg = data['returns_to_go'][i, :clip_len]
 
             # Actions
-            traj_actions = np.zeros((clip_len, action_dim), dtype=np.float32)
+            traj_actions = np.zeros((clip_len, action_dim), dtype=np.int64)
             if clip_len > 1:
-                traj_actions[:clip_len-1] = data['actions'][i, :clip_len-1]
+                traj_actions[:clip_len-1] = data['actions'][i, :clip_len-1].astype(np.int64)
 
             # Rewards and next_states
             rewards = np.zeros((clip_len, 1), dtype=np.float32)
@@ -216,12 +217,15 @@ def train(cfg, logger):
         epoch_losses = []
         
         batch_iter = tqdm(
-            enumerate(train_loader), 
-            total=len(train_loader),
+            enumerate(train_loader),
+            total=cfg.training.batches_per_epoch,
             desc=f"Epoch {epoch+1}/{cfg.training.epochs}"
         )
 
         for i, batch in batch_iter:
+            if i >= cfg.training.batches_per_epoch:
+                break
+            
             model.train()
 
             for k, v in batch.items():
