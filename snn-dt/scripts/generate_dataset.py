@@ -45,7 +45,7 @@ def generate_random_trajectories(env_name, num_trajectories=1000, max_steps=1000
     env.close()
     return trajectories
 
-def process_trajectories(trajectories, max_timesteps=1000):
+def process_trajectories(trajectories, max_timesteps=1000, env_name=None):
     # Find the maximum trajectory length
     max_len = min(max([t['length'] for t in trajectories if t['length'] > 0], default=0), max_timesteps)
     
@@ -57,13 +57,20 @@ def process_trajectories(trajectories, max_timesteps=1000):
             'metadata': {'state_dim': 0, 'act_dim': 0, 'max_timesteps': max_timesteps}
         }
 
+    import gymnasium as gym
+
     # Initialize arrays
     num_trajectories = len(trajectories)
     state_dim = trajectories[0]['states'][0].shape[0]
     
     # Determine action dimension and type from data
-    first_traj_actions = trajectories[0]['actions']
-    is_discrete = first_traj_actions.ndim == 1
+    if env_name:
+        env = gym.make(env_name)
+        is_discrete = isinstance(env.action_space, gym.spaces.Discrete)
+        env.close()
+    else:
+        first_traj_actions = trajectories[0]['actions']
+        is_discrete = first_traj_actions.ndim == 1
 
     if is_discrete:
         all_actions = np.concatenate([t['actions'] for t in trajectories if t['length'] > 0])
@@ -132,7 +139,7 @@ def main():
     print(f"Generating {args.num_trajectories} trajectories for {args.env}...")
     trajectories = generate_random_trajectories(args.env, args.num_trajectories, args.max_steps)
     print("Processing trajectories...")
-    dataset = process_trajectories(trajectories)
+    dataset = process_trajectories(trajectories, env_name=args.env)
     
     # Save dataset
     output_path = data_dir / 'dataset.npz'

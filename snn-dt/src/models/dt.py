@@ -25,7 +25,7 @@ class DecisionTransformer(BasePolicy, nn.Module):
             num_layers=cfg.model.n_layers,
         )
 
-        self.embed_timestep = nn.Embedding(cfg.dataset.max_timesteps, self.hidden_size)
+        self.embed_timestep = nn.Embedding(cfg.dataset.max_timesteps + 1, self.hidden_size)
         self.embed_return = nn.Linear(1, self.hidden_size)
         self.embed_state = nn.Linear(self.state_dim, self.hidden_size)
         self.embed_action = nn.Linear(self.act_dim, self.hidden_size)

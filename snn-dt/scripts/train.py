@@ -119,7 +119,11 @@ def train(cfg, logger):
     cfg.dataset.state_dim = metadata["state_dim"]
     cfg.dataset.act_dim = metadata["act_dim"]
     cfg.dataset.max_timesteps = metadata["max_timesteps"]
-    cfg.dataset.is_discrete = metadata.get("is_discrete", True)
+    
+    import gymnasium as gym
+    temp_env = gym.make(cfg.env)
+    cfg.dataset.is_discrete = isinstance(temp_env.action_space, gym.spaces.Discrete)
+    temp_env.close()
 
     # OS-aware num_workers
     num_workers = 0
@@ -330,7 +334,7 @@ def main():
         from scripts.generate_dataset import generate_random_trajectories, process_trajectories
         logger.info(f"Dataset not found at {cfg.dataset.path}. Generating new dataset...")
         trajectories = generate_random_trajectories(args.env, num_trajectories=1000)
-        dataset = process_trajectories(trajectories)
+        dataset = process_trajectories(trajectories, env_name=args.env)
         np.savez_compressed(cfg.dataset.path, **dataset)
         logger.info(f"Dataset generated and saved to {cfg.dataset.path}")
     else:

@@ -127,7 +127,7 @@ class SnnDt(BasePolicy, nn.Module):
         self.phase_encoder = PhaseEncoder(self.hidden_size, cfg.dataset.max_timesteps)
         self.embed_return = nn.Linear(1, self.hidden_size)
         self.embed_state = nn.Linear(cfg.dataset.state_dim, self.hidden_size)
-        self.embed_action = nn.Embedding(cfg.dataset.act_dim, self.hidden_size)
+        self.embed_action = nn.Linear(cfg.dataset.act_dim, self.hidden_size)
         self.embed_ln = nn.LayerNorm(self.hidden_size)
 
         self.blocks = nn.ModuleList([
@@ -154,19 +154,29 @@ class SnnDt(BasePolicy, nn.Module):
         
         state_embeddings = self.embed_state(batch["states"])  # (B, seq_len, hidden)
 
-        # Actions in dataset are stored with shape (B, seq_len-1, 1).
-        # Pad actions so they match the state/return/timestep sequence length.
-        actions = batch["actions"].squeeze(-1)
-        # ensure integer indices for embedding
-        actions = actions.long()
+        actions = batch["actions"]
 
-        # If actions sequence is shorter than states (common when states include final state), pad with zeros
+        # Pad actions if they are shorter than states
         if actions.shape[1] < state_embeddings.shape[1]:
-            pad_len = state_embeddings.shape[1] - actions.shape[1]
-            pad = torch.zeros(actions.shape[0], pad_len, dtype=actions.dtype, device=actions.device)
-            actions = torch.cat([actions, pad], dim=1)
-
-        action_embeddings = self.embed_action(actions)
+            padding_needed = state_embeddings.shape[1] - actions.shape[1]
+            if actions.dim() == 3:
+                actions = torch.nn.functional.pad(
+                    actions, (0, 0, 0, padding_needed), "constant", 0
+                )
+            else:
+                actions = torch.nn.functional.pad(
+                    actions, (0, padding_needed), "constant", 0
+                )
+        
+        # Handle discrete actions by one-hot encoding
+        if self.cfg.dataset.is_discrete:
+            action_input = torch.nn.functional.one_hot(
+                actions.squeeze(-1).to(torch.int64), num_classes=self.cfg.dataset.act_dim
+            ).float()
+        else:
+            action_input = actions
+        
+        action_embeddings = self.embed_action(action_input)
         return_embeddings = self.embed_return(batch["returns_to_go"])  # (B, seq_len, hidden)
         time_embeddings = self.phase_encoder(batch["timesteps"])  # (B, seq_len, hidden)
 

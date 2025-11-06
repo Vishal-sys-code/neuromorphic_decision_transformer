@@ -59,7 +59,7 @@ class DsFormer(BasePolicy, nn.Module):
         self.cfg = cfg
         self.hidden_size = cfg.model.d_model
 
-        self.embed_timestep = nn.Embedding(cfg.dataset.max_timesteps, self.hidden_size)
+        self.embed_timestep = nn.Embedding(cfg.dataset.max_timesteps + 1, self.hidden_size)
         self.embed_return = nn.Linear(1, self.hidden_size)
         self.embed_state = nn.Linear(cfg.dataset.state_dim, self.hidden_size)
         self.embed_action = nn.Linear(cfg.dataset.act_dim, self.hidden_size)
@@ -84,7 +84,17 @@ class DsFormer(BasePolicy, nn.Module):
         batch_size, seq_len = batch["states"].shape[:2]
 
         state_embeddings = self.embed_state(batch["states"])
-        action_embeddings = self.embed_action(batch["actions"])
+        
+        # Handle continuous vs discrete actions
+        actions = batch["actions"]
+        if self.cfg.dataset.is_discrete:
+             action_input = torch.nn.functional.one_hot(
+                actions.squeeze(-1).to(torch.int64), num_classes=self.cfg.dataset.act_dim
+            ).float()
+        else:
+            action_input = actions
+
+        action_embeddings = self.embed_action(action_input)
         return_embeddings = self.embed_return(batch["returns_to_go"])
         time_embeddings = self.embed_timestep(batch["timesteps"])
 
