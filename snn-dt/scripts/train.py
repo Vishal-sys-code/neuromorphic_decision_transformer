@@ -57,31 +57,62 @@ class OfflineTransitionDataset(Dataset):
     def __init__(self, dataset_path):
         data = np.load(dataset_path)
         
-        states, actions, rewards, next_states, dones = [], [], [], [], []
-        
+        # First, calculate the total number of transitions
+        total_transitions = 0
         for i in range(data["states"].shape[0]):
             mask = data["mask"][i]
             clip_len = int(mask.sum())
-            
-            for t in range(clip_len - 1):
-                states.append(data["states"][i, t])
-                actions.append(data["actions"][i, t])
-                rewards.append(data["returns_to_go"][i, t] - data["returns_to_go"][i, t+1])
-                next_states.append(data["states"][i, t+1])
-                dones.append(0.0)
-            
-            # Add final transition
-            states.append(data["states"][i, clip_len-1])
-            actions.append(data["actions"][i, clip_len-1])
-            rewards.append(data["returns_to_go"][i, clip_len-1])
-            next_states.append(np.zeros_like(data["states"][i, clip_len-1])) # Placeholder
-            dones.append(1.0)
+            clip_len = min(clip_len, data["states"].shape[1]) # Cap clip_len
+            total_transitions += clip_len
 
-        self.states = torch.from_numpy(np.array(states)).float()
-        self.actions = torch.from_numpy(np.array(actions)).float()
-        self.rewards = torch.from_numpy(np.array(rewards)).float().unsqueeze(-1)
-        self.next_states = torch.from_numpy(np.array(next_states)).float()
-        self.dones = torch.from_numpy(np.array(dones)).float().unsqueeze(-1)
+        # Pre-allocate numpy arrays
+        state_dim = data["states"].shape[2]
+        action_dim = data["actions"].shape[2]
+        
+        self.states = np.zeros((total_transitions, state_dim), dtype=np.float32)
+        self.actions = np.zeros((total_transitions, action_dim), dtype=np.float32)
+        self.rewards = np.zeros((total_transitions, 1), dtype=np.float32)
+        self.next_states = np.zeros((total_transitions, state_dim), dtype=np.float32)
+        self.dones = np.zeros((total_transitions, 1), dtype=np.float32)
+        
+        current_idx = 0
+        for i in range(data["states"].shape[0]):
+            mask = data["mask"][i]
+            clip_len = int(mask.sum())
+            clip_len = min(clip_len, data["states"].shape[1]) # Cap clip_len
+
+            if clip_len == 0:
+                continue
+
+            # Get the trajectory data
+            traj_states = data["states"][i, :clip_len]
+            traj_actions = data["actions"][i, :clip_len]
+            traj_rtg = data["returns_to_go"][i, :clip_len]
+
+            # Populate states and actions
+            self.states[current_idx : current_idx + clip_len] = traj_states
+            self.actions[current_idx : current_idx + clip_len] = traj_actions
+
+            # Populate rewards, next_states, and dones
+            if clip_len > 1:
+                self.rewards[current_idx : current_idx + clip_len - 1] = (traj_rtg[:-1] - traj_rtg[1:]).reshape(-1, 1)
+                self.next_states[current_idx : current_idx + clip_len - 1] = traj_states[1:]
+                self.dones[current_idx : current_idx + clip_len - 1] = 0.0
+
+            # Final transition
+            if clip_len > 0:
+                self.rewards[current_idx + clip_len - 1] = traj_rtg[-1]
+                self.next_states[current_idx + clip_len - 1] = np.zeros_like(traj_states[-1])
+                self.dones[current_idx + clip_len - 1] = 1.0
+            
+            current_idx += clip_len
+
+        # Convert to torch tensors
+        self.states = torch.from_numpy(self.states).float()
+        self.actions = torch.from_numpy(self.actions).float()
+        self.rewards = torch.from_numpy(self.rewards).float()
+        self.next_states = torch.from_numpy(self.next_states).float()
+        self.dones = torch.from_numpy(self.dones).float()
 
     def __len__(self):
         return len(self.states)
@@ -104,7 +135,10 @@ def train(cfg, logger):
     save_dir.mkdir(parents=True, exist_ok=True)
 
     # Load data and metadata
-    dataset = OfflineDataset(cfg.dataset.path)
+    if cfg.model.name in ['iql', 'cql']:
+        dataset = OfflineTransitionDataset(cfg.dataset.path)
+    else:
+        dataset = OfflineDataset(cfg.dataset.path)
     if len(dataset) == 0:
         logger.error(f"Dataset at {cfg.dataset.path} is empty! Aborting training.")
         sys.exit(1)
@@ -174,27 +208,32 @@ def train(cfg, logger):
             for k, v in batch.items():
                 batch[k] = v.to(cfg.training.device)
             
-            optimizer.zero_grad()
-            action_preds = model(batch)
-            action_targets = batch["actions"]
-
-            # Align sequence lengths and filter padded tokens
-            action_preds = action_preds[:, :action_targets.shape[1]]
-            mask = batch["mask"][:, :action_targets.shape[1]].reshape(-1).bool()
-            
-            action_preds = action_preds.reshape(-1, cfg.dataset.act_dim)[mask]
-            
-            if cfg.dataset.is_discrete:
-                action_targets = action_targets.reshape(-1)[mask].long()
+            if cfg.model.name in ['iql', 'cql']:
+                losses = model.learn(batch)
+                epoch_losses.append(losses['value_loss'])
+                batch_iter.set_postfix(loss=f"{np.mean(epoch_losses):.4f}")
             else:
-                action_targets = action_targets.reshape(-1, cfg.dataset.act_dim)[mask]
+                optimizer.zero_grad()
+                action_preds = model(batch)
+                action_targets = batch["actions"]
 
-            loss = loss_fn(action_preds, action_targets)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
-            epoch_losses.append(loss.item())
-            batch_iter.set_postfix(loss=f"{np.mean(epoch_losses):.4f}")
+                # Align sequence lengths and filter padded tokens
+                action_preds = action_preds[:, :action_targets.shape[1]]
+                mask = batch["mask"][:, :action_targets.shape[1]].reshape(-1).bool()
+                
+                action_preds = action_preds.reshape(-1, cfg.dataset.act_dim)[mask]
+                
+                if cfg.dataset.is_discrete:
+                    action_targets = action_targets.reshape(-1)[mask].long()
+                else:
+                    action_targets = action_targets.reshape(-1, cfg.dataset.act_dim)[mask]
+
+                loss = loss_fn(action_preds, action_targets)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                optimizer.step()
+                epoch_losses.append(loss.item())
+                batch_iter.set_postfix(loss=f"{np.mean(epoch_losses):.4f}")
 
         # Evaluation, Checkpointing, and Logging
         if (epoch + 1) % cfg.training.eval_every == 0:
@@ -315,6 +354,12 @@ def main():
             "lif_tau": cfg_raw.get("lif_tau", 20.0),
             "surrogate_k": cfg_raw.get("surrogate_k", 25.0),
             "use_plasticity": cfg_raw.get("use_plasticity", False)
+        },
+        "iql": {
+            "tau": cfg_raw.get("tau", 0.005),
+            "temperature": cfg_raw.get("temperature", 3.0),
+            "expectile": cfg_raw.get("expectile", 0.7),
+            "hidden_size": cfg_raw.get("hidden_size", 256)
         }
     }
     

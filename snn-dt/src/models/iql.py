@@ -2,49 +2,64 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.distributions import Normal
+from torch.distributions import Normal, Categorical
 
 from src.models.base import BasePolicy
 
 
 class Actor(nn.Module):
-    def __init__(self, state_size, action_size, hidden_size=256):
+    def __init__(self, state_size, action_size, hidden_size=256, is_discrete=False):
         super(Actor, self).__init__()
+        self.is_discrete = is_discrete
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.mu = nn.Linear(hidden_size, action_size)
-        self.log_std_linear = nn.Linear(hidden_size, action_size)
-        self.log_std_min = -10
-        self.log_std_max = 2
+        if is_discrete:
+            self.logits = nn.Linear(hidden_size, action_size)
+        else:
+            self.mu = nn.Linear(hidden_size, action_size)
+            self.log_std_linear = nn.Linear(hidden_size, action_size)
+            self.log_std_min = -10
+            self.log_std_max = 2
 
     def forward(self, state):
         x = F.relu(self.fc1(state))
         x = F.relu(self.fc2(x))
-        mu = torch.tanh(self.mu(x))
-        log_std = torch.clamp(self.log_std_linear(x), self.log_std_min, self.log_std_max)
-        return mu, log_std
+        if self.is_discrete:
+            return self.logits(x)
+        else:
+            mu = torch.tanh(self.mu(x))
+            log_std = torch.clamp(self.log_std_linear(x), self.log_std_min, self.log_std_max)
+            return mu, log_std
 
     def evaluate(self, state):
-        mu, log_std = self.forward(state)
-        std = log_std.exp()
-        dist = Normal(mu, std)
-        return dist.rsample(), dist
-
-    def evaluate(self, state):
-        mu, log_std = self.forward(state)
-        std = log_std.exp()
-        dist = Normal(mu, std)
-        return dist.rsample(), dist
+        if self.is_discrete:
+            logits = self.forward(state)
+            dist = Categorical(logits=logits)
+            return dist.sample(), dist
+        else:
+            mu, log_std = self.forward(state)
+            std = log_std.exp()
+            dist = Normal(mu, std)
+            return dist.rsample(), dist
 
     def get_action(self, state):
-        mu, log_std = self.forward(state)
-        std = log_std.exp()
-        dist = Normal(mu, std)
-        return dist.rsample()
+        if self.is_discrete:
+            logits = self.forward(state)
+            dist = Categorical(logits=logits)
+            return dist.sample()
+        else:
+            mu, log_std = self.forward(state)
+            std = log_std.exp()
+            dist = Normal(mu, std)
+            return dist.rsample()
 
     def get_det_action(self, state):
-        mu, _ = self.forward(state)
-        return mu
+        if self.is_discrete:
+            logits = self.forward(state)
+            return torch.argmax(logits, dim=-1)
+        else:
+            mu, _ = self.forward(state)
+            return mu
 
 
 class Critic(nn.Module):
