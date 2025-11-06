@@ -3,6 +3,9 @@ import logging
 import os
 import sys
 import time
+import tempfile
+import atexit
+import shutil
 from pathlib import Path
 
 # Add project root and snn-dt directory to sys.path
@@ -33,7 +36,7 @@ from scripts.eval import evaluate_policy
 
 class OfflineDataset(Dataset):
     def __init__(self, dataset_path):
-        data = np.load(dataset_path)
+        data = np.load(dataset_path, mmap_mode='r')
         self.states = torch.from_numpy(data["states"]).float()
         self.actions = torch.from_numpy(data["actions"]).float()
         self.returns_to_go = torch.from_numpy(data["returns_to_go"]).float()
@@ -55,39 +58,49 @@ class OfflineDataset(Dataset):
 
 class OfflineTransitionDataset(Dataset):
     def __init__(self, dataset_path):
-        data = np.load(dataset_path)
+        data = np.load(dataset_path, mmap_mode='r')
         
-        states_list, actions_list, rewards_list, next_states_list, dones_list = [], [], [], [], []
-        
-        # Check if actions exist and get action_dim, otherwise handle gracefully
-        if "actions" not in data or data["actions"].shape[0] == 0:
-            action_dim = 0 # Placeholder, this dataset will be empty
-        else:
-            action_dim = data["actions"].shape[2]
+        # Pre-calculate total number of transitions to pre-allocate memmapped arrays
+        total_transitions = 0
+        for i in range(data['mask'].shape[0]):
+            total_transitions += int(data['mask'][i].sum())
 
-        for i in range(data["states"].shape[0]):
-            mask = data["mask"][i]
+        state_dim = data['states'].shape[2]
+        action_dim = data['actions'].shape[2] if 'actions' in data.keys() and data['actions'].shape[0] > 0 else 0
+
+        # Create a temporary directory for memory-mapped files
+        self.temp_dir = tempfile.mkdtemp()
+        atexit.register(self._cleanup)
+
+        self.states_mmap_path = os.path.join(self.temp_dir, 'states.mmap')
+        self.actions_mmap_path = os.path.join(self.temp_dir, 'actions.mmap')
+        self.rewards_mmap_path = os.path.join(self.temp_dir, 'rewards.mmap')
+        self.next_states_mmap_path = os.path.join(self.temp_dir, 'next_states.mmap')
+        self.dones_mmap_path = os.path.join(self.temp_dir, 'dones.mmap')
+
+        # Pre-allocate memory-mapped arrays
+        self.states = np.memmap(self.states_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, state_dim))
+        self.actions = np.memmap(self.actions_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, action_dim))
+        self.rewards = np.memmap(self.rewards_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, 1))
+        self.next_states = np.memmap(self.next_states_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, state_dim))
+        self.dones = np.memmap(self.dones_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, 1))
+        
+        current_idx = 0
+        for i in range(data['states'].shape[0]):
+            mask = data['mask'][i]
             clip_len = int(mask.sum())
             
             if clip_len == 0:
                 continue
 
             # Trajectory data
-            traj_states = data["states"][i, :clip_len]
-            traj_rtg = data["returns_to_go"][i, :clip_len]
+            traj_states = data['states'][i, :clip_len]
+            traj_rtg = data['returns_to_go'][i, :clip_len]
 
-            # Add all states for this trajectory to the list
-            states_list.append(traj_states)
-
-            # Actions: N-1 real actions, plus one dummy action for the terminal state
-            traj_actions_list = []
+            # Actions
+            traj_actions = np.zeros((clip_len, action_dim), dtype=np.float32)
             if clip_len > 1:
-                traj_actions_list.append(data["actions"][i, :clip_len - 1])
-            
-            # Add a dummy action for the terminal state
-            dummy_action = np.zeros((1, action_dim), dtype=np.float32)
-            traj_actions_list.append(dummy_action)
-            actions_list.append(np.concatenate(traj_actions_list, axis=0))
+                traj_actions[:clip_len-1] = data['actions'][i, :clip_len-1]
 
             # Rewards and next_states
             rewards = np.zeros((clip_len, 1), dtype=np.float32)
@@ -95,35 +108,30 @@ class OfflineTransitionDataset(Dataset):
             dones = np.zeros((clip_len, 1), dtype=np.float32)
 
             if clip_len > 1:
-                # Rewards for non-terminal states
                 rewards[:-1] = (traj_rtg[:-1] - traj_rtg[1:]).reshape(-1, 1)
-                # Next_states for non-terminal states
                 next_states[:-1] = traj_states[1:]
             
-            # Handle terminal transition
-            rewards[-1] = traj_rtg[-1]  # This is RTG, not a true reward, but matches original logic
-            # next_states[-1] is already zeros
+            rewards[-1] = traj_rtg[-1]
             dones[-1] = 1.0
             
-            rewards_list.append(rewards)
-            next_states_list.append(next_states)
-            dones_list.append(dones)
+            # Write to memmapped arrays
+            self.states[current_idx:current_idx+clip_len] = traj_states
+            self.actions[current_idx:current_idx+clip_len] = traj_actions
+            self.rewards[current_idx:current_idx+clip_len] = rewards
+            self.next_states[current_idx:current_idx+clip_len] = next_states
+            self.dones[current_idx:current_idx+clip_len] = dones
+            
+            current_idx += clip_len
+        
+        # Convert numpy memmaps to torch tensors
+        self.states = torch.from_numpy(self.states).float()
+        self.actions = torch.from_numpy(self.actions).float()
+        self.rewards = torch.from_numpy(self.rewards).float()
+        self.next_states = torch.from_numpy(self.next_states).float()
+        self.dones = torch.from_numpy(self.dones).float()
 
-        # Handle case where no valid trajectories were found
-        if not states_list:
-            self.states = torch.empty(0, data["states"].shape[2], dtype=torch.float32)
-            self.actions = torch.empty(0, action_dim, dtype=torch.float32)
-            self.rewards = torch.empty(0, 1, dtype=torch.float32)
-            self.next_states = torch.empty(0, data["states"].shape[2], dtype=torch.float32)
-            self.dones = torch.empty(0, 1, dtype=torch.float32)
-            return
-
-        # Concatenate and convert to torch tensors
-        self.states = torch.from_numpy(np.concatenate(states_list, axis=0)).float()
-        self.actions = torch.from_numpy(np.concatenate(actions_list, axis=0)).float()
-        self.rewards = torch.from_numpy(np.concatenate(rewards_list, axis=0)).float()
-        self.next_states = torch.from_numpy(np.concatenate(next_states_list, axis=0)).float()
-        self.dones = torch.from_numpy(np.concatenate(dones_list, axis=0)).float()
+    def _cleanup(self):
+        shutil.rmtree(self.temp_dir)
 
     def __len__(self):
         return len(self.states)
