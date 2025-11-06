@@ -103,8 +103,9 @@ class IQL(BasePolicy, nn.Module):
         self.tau = cfg.iql.tau
         self.temperature = cfg.iql.temperature
         self.expectile = cfg.iql.expectile
+        self.is_discrete = cfg.dataset.is_discrete
 
-        self.actor = Actor(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.iql.hidden_size).to(self.device)
+        self.actor = Actor(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.iql.hidden_size, is_discrete=self.is_discrete).to(self.device)
         self.critic1 = Critic(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.iql.hidden_size).to(self.device)
         self.critic2 = Critic(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.iql.hidden_size).to(self.device)
         self.value_net = Value(cfg.dataset.state_dim, cfg.iql.hidden_size).to(self.device)
@@ -114,10 +115,10 @@ class IQL(BasePolicy, nn.Module):
         self.critic1_target.load_state_dict(self.critic1.state_dict())
         self.critic2_target.load_state_dict(self.critic2.state_dict())
 
-        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=cfg.training.lr)
-        self.critic1_optimizer = optim.Adam(self.critic1.parameters(), lr=cfg.training.lr)
-        self.critic2_optimizer = optim.Adam(self.critic2.parameters(), lr=cfg.training.lr)
-        self.value_optimizer = optim.Adam(self.value_net.parameters(), lr=cfg.training.lr)
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=float(cfg.training.lr))
+        self.critic1_optimizer = optim.Adam(self.critic1.parameters(), lr=float(cfg.training.lr))
+        self.critic2_optimizer = optim.Adam(self.critic2.parameters(), lr=float(cfg.training.lr))
+        self.value_optimizer = optim.Adam(self.value_net.parameters(), lr=float(cfg.training.lr))
 
     def forward(self, batch):
         # IQL has a custom learn method, so forward is a no-op for now
@@ -134,8 +135,13 @@ class IQL(BasePolicy, nn.Module):
 
         # Value loss
         with torch.no_grad():
-            q1 = self.critic1_target(states, actions)
-            q2 = self.critic2_target(states, actions)
+            if self.is_discrete:
+                actions_one_hot = F.one_hot(actions.squeeze().long(), num_classes=self.actor.logits.out_features).float()
+                q1 = self.critic1_target(states, actions_one_hot)
+                q2 = self.critic2_target(states, actions_one_hot)
+            else:
+                q1 = self.critic1_target(states, actions)
+                q2 = self.critic2_target(states, actions)
             min_q = torch.min(q1, q2)
         value = self.value_net(states)
         value_loss = loss_fn(min_q - value, self.expectile).mean()
@@ -159,8 +165,15 @@ class IQL(BasePolicy, nn.Module):
         with torch.no_grad():
             next_v = self.value_net(next_states)
             q_target = rewards + self.gamma * (1 - dones) * next_v
-        q1 = self.critic1(states, actions)
-        q2 = self.critic2(states, actions)
+
+        if self.is_discrete:
+            actions_one_hot = F.one_hot(actions.squeeze().long(), num_classes=self.actor.logits.out_features).float()
+            q1 = self.critic1(states, actions_one_hot)
+            q2 = self.critic2(states, actions_one_hot)
+        else:
+            q1 = self.critic1(states, actions)
+            q2 = self.critic2(states, actions)
+        
         critic1_loss = F.mse_loss(q1, q_target)
         critic2_loss = F.mse_loss(q2, q_target)
         

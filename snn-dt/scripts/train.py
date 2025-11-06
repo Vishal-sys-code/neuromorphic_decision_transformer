@@ -57,62 +57,73 @@ class OfflineTransitionDataset(Dataset):
     def __init__(self, dataset_path):
         data = np.load(dataset_path)
         
-        # First, calculate the total number of transitions
-        total_transitions = 0
+        states_list, actions_list, rewards_list, next_states_list, dones_list = [], [], [], [], []
+        
+        # Check if actions exist and get action_dim, otherwise handle gracefully
+        if "actions" not in data or data["actions"].shape[0] == 0:
+            action_dim = 0 # Placeholder, this dataset will be empty
+        else:
+            action_dim = data["actions"].shape[2]
+
         for i in range(data["states"].shape[0]):
             mask = data["mask"][i]
             clip_len = int(mask.sum())
-            clip_len = min(clip_len, data["states"].shape[1]) # Cap clip_len
-            total_transitions += clip_len
-
-        # Pre-allocate numpy arrays
-        state_dim = data["states"].shape[2]
-        action_dim = data["actions"].shape[2]
-        
-        self.states = np.zeros((total_transitions, state_dim), dtype=np.float32)
-        self.actions = np.zeros((total_transitions, action_dim), dtype=np.float32)
-        self.rewards = np.zeros((total_transitions, 1), dtype=np.float32)
-        self.next_states = np.zeros((total_transitions, state_dim), dtype=np.float32)
-        self.dones = np.zeros((total_transitions, 1), dtype=np.float32)
-        
-        current_idx = 0
-        for i in range(data["states"].shape[0]):
-            mask = data["mask"][i]
-            clip_len = int(mask.sum())
-            clip_len = min(clip_len, data["states"].shape[1]) # Cap clip_len
-
+            
             if clip_len == 0:
                 continue
 
-            # Get the trajectory data
+            # Trajectory data
             traj_states = data["states"][i, :clip_len]
-            traj_actions = data["actions"][i, :clip_len]
             traj_rtg = data["returns_to_go"][i, :clip_len]
 
-            # Populate states and actions
-            self.states[current_idx : current_idx + clip_len] = traj_states
-            self.actions[current_idx : current_idx + clip_len] = traj_actions
+            # Add all states for this trajectory to the list
+            states_list.append(traj_states)
 
-            # Populate rewards, next_states, and dones
+            # Actions: N-1 real actions, plus one dummy action for the terminal state
+            traj_actions_list = []
             if clip_len > 1:
-                self.rewards[current_idx : current_idx + clip_len - 1] = (traj_rtg[:-1] - traj_rtg[1:]).reshape(-1, 1)
-                self.next_states[current_idx : current_idx + clip_len - 1] = traj_states[1:]
-                self.dones[current_idx : current_idx + clip_len - 1] = 0.0
-
-            # Final transition
-            if clip_len > 0:
-                self.rewards[current_idx + clip_len - 1] = traj_rtg[-1]
-                self.next_states[current_idx + clip_len - 1] = np.zeros_like(traj_states[-1])
-                self.dones[current_idx + clip_len - 1] = 1.0
+                traj_actions_list.append(data["actions"][i, :clip_len - 1])
             
-            current_idx += clip_len
+            # Add a dummy action for the terminal state
+            dummy_action = np.zeros((1, action_dim), dtype=np.float32)
+            traj_actions_list.append(dummy_action)
+            actions_list.append(np.concatenate(traj_actions_list, axis=0))
 
-        # Convert to torch tensors
-        self.states = torch.from_numpy(self.states).float()
-        self.actions = torch.from_numpy(self.actions).float()
-        self.rewards = torch.from_numpy(self.rewards).float()
-        self.next_states = torch.from_numpy(self.next_states).float()
-        self.dones = torch.from_numpy(self.dones).float()
+            # Rewards and next_states
+            rewards = np.zeros((clip_len, 1), dtype=np.float32)
+            next_states = np.zeros_like(traj_states)
+            dones = np.zeros((clip_len, 1), dtype=np.float32)
+
+            if clip_len > 1:
+                # Rewards for non-terminal states
+                rewards[:-1] = (traj_rtg[:-1] - traj_rtg[1:]).reshape(-1, 1)
+                # Next_states for non-terminal states
+                next_states[:-1] = traj_states[1:]
+            
+            # Handle terminal transition
+            rewards[-1] = traj_rtg[-1]  # This is RTG, not a true reward, but matches original logic
+            # next_states[-1] is already zeros
+            dones[-1] = 1.0
+            
+            rewards_list.append(rewards)
+            next_states_list.append(next_states)
+            dones_list.append(dones)
+
+        # Handle case where no valid trajectories were found
+        if not states_list:
+            self.states = torch.empty(0, data["states"].shape[2], dtype=torch.float32)
+            self.actions = torch.empty(0, action_dim, dtype=torch.float32)
+            self.rewards = torch.empty(0, 1, dtype=torch.float32)
+            self.next_states = torch.empty(0, data["states"].shape[2], dtype=torch.float32)
+            self.dones = torch.empty(0, 1, dtype=torch.float32)
+            return
+
+        # Concatenate and convert to torch tensors
+        self.states = torch.from_numpy(np.concatenate(states_list, axis=0)).float()
+        self.actions = torch.from_numpy(np.concatenate(actions_list, axis=0)).float()
+        self.rewards = torch.from_numpy(np.concatenate(rewards_list, axis=0)).float()
+        self.next_states = torch.from_numpy(np.concatenate(next_states_list, axis=0)).float()
+        self.dones = torch.from_numpy(np.concatenate(dones_list, axis=0)).float()
 
     def __len__(self):
         return len(self.states)
