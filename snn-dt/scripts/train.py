@@ -60,7 +60,6 @@ class OfflineTransitionDataset(Dataset):
     def __init__(self, dataset_path):
         data = np.load(dataset_path, mmap_mode='r')
         
-        # Pre-calculate total number of transitions to pre-allocate memmapped arrays
         total_transitions = 0
         for i in range(data['mask'].shape[0]):
             total_transitions += int(data['mask'][i].sum())
@@ -68,23 +67,12 @@ class OfflineTransitionDataset(Dataset):
         state_dim = data['states'].shape[2]
         action_dim = data['actions'].shape[2] if 'actions' in data.keys() and data['actions'].shape[0] > 0 else 0
 
-        # Create a temporary directory for memory-mapped files
-        self.temp_dir = tempfile.mkdtemp()
-        atexit.register(self._cleanup)
-
-        self.states_mmap_path = os.path.join(self.temp_dir, 'states.mmap')
-        self.actions_mmap_path = os.path.join(self.temp_dir, 'actions.mmap')
-        self.rewards_mmap_path = os.path.join(self.temp_dir, 'rewards.mmap')
-        self.next_states_mmap_path = os.path.join(self.temp_dir, 'next_states.mmap')
-        self.dones_mmap_path = os.path.join(self.temp_dir, 'dones.mmap')
-
-        # Pre-allocate memory-mapped arrays
-        self.states = np.memmap(self.states_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, state_dim))
-        # Use int64 for discrete actions
-        self.actions = np.memmap(self.actions_mmap_path, dtype=np.int64, mode='w+', shape=(total_transitions, action_dim))
-        self.rewards = np.memmap(self.rewards_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, 1))
-        self.next_states = np.memmap(self.next_states_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, state_dim))
-        self.dones = np.memmap(self.dones_mmap_path, dtype=np.float32, mode='w+', shape=(total_transitions, 1))
+        # Pre-allocate arrays in memory
+        self.states = np.empty((total_transitions, state_dim), dtype=np.float32)
+        self.actions = np.empty((total_transitions, action_dim), dtype=np.int64)
+        self.rewards = np.empty((total_transitions, 1), dtype=np.float32)
+        self.next_states = np.empty((total_transitions, state_dim), dtype=np.float32)
+        self.dones = np.empty((total_transitions, 1), dtype=np.float32)
         
         current_idx = 0
         for i in range(data['states'].shape[0]):
@@ -94,16 +82,13 @@ class OfflineTransitionDataset(Dataset):
             if clip_len == 0:
                 continue
 
-            # Trajectory data
             traj_states = data['states'][i, :clip_len]
             traj_rtg = data['returns_to_go'][i, :clip_len]
 
-            # Actions
             traj_actions = np.zeros((clip_len, action_dim), dtype=np.int64)
             if clip_len > 1:
                 traj_actions[:clip_len-1] = data['actions'][i, :clip_len-1].astype(np.int64)
 
-            # Rewards and next_states
             rewards = np.zeros((clip_len, 1), dtype=np.float32)
             next_states = np.zeros_like(traj_states)
             dones = np.zeros((clip_len, 1), dtype=np.float32)
@@ -115,7 +100,6 @@ class OfflineTransitionDataset(Dataset):
             rewards[-1] = traj_rtg[-1]
             dones[-1] = 1.0
             
-            # Write to memmapped arrays
             self.states[current_idx:current_idx+clip_len] = traj_states
             self.actions[current_idx:current_idx+clip_len] = traj_actions
             self.rewards[current_idx:current_idx+clip_len] = rewards
@@ -124,15 +108,11 @@ class OfflineTransitionDataset(Dataset):
             
             current_idx += clip_len
         
-        # Convert numpy memmaps to torch tensors
         self.states = torch.from_numpy(self.states).float()
         self.actions = torch.from_numpy(self.actions).float()
         self.rewards = torch.from_numpy(self.rewards).float()
         self.next_states = torch.from_numpy(self.next_states).float()
         self.dones = torch.from_numpy(self.dones).float()
-
-    def _cleanup(self):
-        shutil.rmtree(self.temp_dir)
 
     def __len__(self):
         return len(self.states)
@@ -383,6 +363,14 @@ def main():
             "temperature": cfg_raw.get("temperature", 3.0),
             "expectile": cfg_raw.get("expectile", 0.7),
             "hidden_size": cfg_raw.get("hidden_size", 256)
+        },
+        "cql": {
+            "tau": cfg_raw.get("tau", 0.005),
+            "temperature": cfg_raw.get("temperature", 1.0),
+            "hidden_size": cfg_raw.get("hidden_size", 256),
+            "with_lagrange": cfg_raw.get("with_lagrange", False),
+            "cql_weight": cfg_raw.get("cql_weight", 1.0),
+            "target_action_gap": cfg_raw.get("target_action_gap", 10.0)
         }
     }
     

@@ -5,58 +5,94 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.distributions import Normal
+from torch.distributions import Normal, Categorical
 
 from src.models.base import BasePolicy
 
 
 class Actor(nn.Module):
-    def __init__(self, state_size, action_size, hidden_size=256):
+    def __init__(self, state_size, action_size, hidden_size=256, is_discrete=False):
         super(Actor, self).__init__()
+        self.is_discrete = is_discrete
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.mu = nn.Linear(hidden_size, action_size)
-        self.log_std_linear = nn.Linear(hidden_size, action_size)
-        self.log_std_min = -20
-        self.log_std_max = 2
+        if is_discrete:
+            self.logits = nn.Linear(hidden_size, action_size)
+        else:
+            self.mu = nn.Linear(hidden_size, action_size)
+            self.log_std_linear = nn.Linear(hidden_size, action_size)
+            self.log_std_min = -20
+            self.log_std_max = 2
 
     def forward(self, state):
         x = F.relu(self.fc1(state))
         x = F.relu(self.fc2(x))
-        mu = self.mu(x)
-        log_std = torch.clamp(self.log_std_linear(x), self.log_std_min, self.log_std_max)
-        return mu, log_std
+        if self.is_discrete:
+            return self.logits(x)
+        else:
+            mu = self.mu(x)
+            log_std = torch.clamp(self.log_std_linear(x), self.log_std_min, self.log_std_max)
+            return mu, log_std
 
     def evaluate(self, state, epsilon=1e-6):
-        mu, log_std = self.forward(state)
-        std = log_std.exp()
-        dist = Normal(mu, std)
-        e = dist.rsample()
-        action = torch.tanh(e)
-        log_prob = (dist.log_prob(e) - torch.log(1 - action.pow(2) + epsilon)).sum(1, keepdim=True)
-        return action, log_prob
+        if self.is_discrete:
+            logits = self.forward(state)
+            dist = Categorical(logits=logits)
+            action = dist.sample()
+            log_prob = dist.log_prob(action).unsqueeze(-1)
+            return action, log_prob
+        else:
+            mu, log_std = self.forward(state)
+            std = log_std.exp()
+            dist = Normal(mu, std)
+            e = dist.rsample()
+            action = torch.tanh(e)
+            log_prob = (dist.log_prob(e) - torch.log(1 - action.pow(2) + epsilon)).sum(1, keepdim=True)
+            return action, log_prob
 
     def get_action(self, state):
-        mu, log_std = self.forward(state)
-        std = log_std.exp()
-        dist = Normal(mu, std)
-        e = dist.rsample()
-        return torch.tanh(e)
+        if self.is_discrete:
+            logits = self.forward(state)
+            dist = Categorical(logits=logits)
+            return dist.sample()
+        else:
+            mu, log_std = self.forward(state)
+            std = log_std.exp()
+            dist = Normal(mu, std)
+            e = dist.rsample()
+            return torch.tanh(e)
 
     def get_det_action(self, state):
-        mu, _ = self.forward(state)
-        return torch.tanh(mu)
+        if self.is_discrete:
+            logits = self.forward(state)
+            return torch.argmax(logits, dim=-1)
+        else:
+            mu, _ = self.forward(state)
+            return torch.tanh(mu)
 
 
 class Critic(nn.Module):
-    def __init__(self, state_size, action_size, hidden_size=256):
+    def __init__(self, state_size, action_size, hidden_size=256, is_discrete=False):
         super(Critic, self).__init__()
-        self.fc1 = nn.Linear(state_size + action_size, hidden_size)
+        self.is_discrete = is_discrete
+        if self.is_discrete:
+            # For discrete actions, we use an embedding layer.
+            # The input to fc1 will be state_size + embedding_dim.
+            # Let's use hidden_size as the embedding dimension.
+            self.action_embedding = nn.Embedding(action_size, hidden_size)
+            self.fc1 = nn.Linear(state_size + hidden_size, hidden_size)
+        else:
+            self.fc1 = nn.Linear(state_size + action_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, 1)
 
     def forward(self, state, action):
-        x = torch.cat((state, action), dim=-1)
+        if self.is_discrete:
+            # action is an index
+            action_emb = self.action_embedding(action.long().squeeze(-1))
+            x = torch.cat((state, action_emb), dim=-1)
+        else:
+            x = torch.cat((state, action), dim=-1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
@@ -74,18 +110,21 @@ class CQL(BasePolicy, nn.Module):
         self.log_alpha = torch.tensor([0.0], requires_grad=True, device=self.device)
         self.alpha = self.log_alpha.exp().detach()
 
-        self.actor = Actor(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.cql.hidden_size).to(self.device)
-        self.critic1 = Critic(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.cql.hidden_size).to(self.device)
-        self.critic2 = Critic(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.cql.hidden_size).to(self.device)
-        self.critic1_target = Critic(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.cql.hidden_size).to(self.device)
-        self.critic2_target = Critic(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.cql.hidden_size).to(self.device)
+        self.is_discrete = 'CartPole' in cfg.env or 'Acrobot' in cfg.env or 'MountainCar' in cfg.env
+
+        self.actor = Actor(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.cql.hidden_size, is_discrete=self.is_discrete).to(self.device)
+        self.critic1 = Critic(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.cql.hidden_size, is_discrete=self.is_discrete).to(self.device)
+        self.critic2 = Critic(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.cql.hidden_size, is_discrete=self.is_discrete).to(self.device)
+        self.critic1_target = Critic(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.cql.hidden_size, is_discrete=self.is_discrete).to(self.device)
+        self.critic2_target = Critic(cfg.dataset.state_dim, cfg.dataset.act_dim, cfg.cql.hidden_size, is_discrete=self.is_discrete).to(self.device)
         self.critic1_target.load_state_dict(self.critic1.state_dict())
         self.critic2_target.load_state_dict(self.critic2.state_dict())
         
-        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=cfg.training.lr)
-        self.critic1_optimizer = optim.Adam(self.critic1.parameters(), lr=cfg.training.lr)
-        self.critic2_optimizer = optim.Adam(self.critic2.parameters(), lr=cfg.training.lr)
-        self.alpha_optimizer = optim.Adam([self.log_alpha], lr=cfg.training.lr)
+        lr = float(cfg.training.lr)
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
+        self.critic1_optimizer = optim.Adam(self.critic1.parameters(), lr=lr)
+        self.critic2_optimizer = optim.Adam(self.critic2.parameters(), lr=lr)
+        self.alpha_optimizer = optim.Adam([self.log_alpha], lr=lr)
 
         # CQL specific
         self.with_lagrange = cfg.cql.with_lagrange
@@ -93,7 +132,7 @@ class CQL(BasePolicy, nn.Module):
         self.cql_weight = cfg.cql.cql_weight
         self.target_action_gap = cfg.cql.target_action_gap
         self.cql_log_alpha = torch.zeros(1, requires_grad=True, device=self.device)
-        self.cql_alpha_optimizer = optim.Adam([self.cql_log_alpha], lr=cfg.training.lr)
+        self.cql_alpha_optimizer = optim.Adam([self.cql_log_alpha], lr=lr)
 
     def forward(self, batch):
         pass
@@ -161,7 +200,10 @@ class CQL(BasePolicy, nn.Module):
         self.soft_update(self.critic1, self.critic1_target)
         self.soft_update(self.critic2, self.critic2_target)
 
+        value_loss = (total_critic1_loss + total_critic2_loss) / 2.0
+
         return {
+            "value_loss": value_loss.item(),
             "policy_loss": actor_loss.item(),
             "critic1_loss": critic1_loss.item(),
             "critic2_loss": critic2_loss.item(),
@@ -182,25 +224,40 @@ class CQL(BasePolicy, nn.Module):
         return actor_loss, log_pis
 
     def calc_cql_loss(self, states, actions, q1, q2):
-        random_actions = torch.FloatTensor(q1.shape[0] * 10, actions.shape[-1]).uniform_(-1, 1).to(self.device)
-        num_repeat = int(random_actions.shape[0] / states.shape[0])
-        temp_states = states.unsqueeze(1).repeat(1, num_repeat, 1).view(states.shape[0] * num_repeat, states.shape[1])
-        
-        # Get values for random actions
-        random_values1 = self.critic1(temp_states, random_actions).reshape(states.shape[0], num_repeat, 1)
-        random_values2 = self.critic2(temp_states, random_actions).reshape(states.shape[0], num_repeat, 1)
+        if self.is_discrete:
+            action_size = self.actor.logits.out_features
+            
+            all_actions = torch.arange(action_size, device=self.device).unsqueeze(0).repeat(states.shape[0], 1)
+            states_repeated = states.unsqueeze(1).repeat(1, action_size, 1)
+            
+            all_actions_flat = all_actions.view(-1, 1)
+            states_flat = states_repeated.view(-1, states.shape[1])
 
-        # Get values for policy actions
-        with torch.no_grad():
-            policy_actions, log_pis = self.actor.evaluate(temp_states)
-        policy_values1 = self.critic1(temp_states, policy_actions).reshape(states.shape[0], num_repeat, 1)
-        policy_values2 = self.critic2(temp_states, policy_actions).reshape(states.shape[0], num_repeat, 1)
+            q1_all = self.critic1(states_flat, all_actions_flat).view(states.shape[0], -1)
+            q2_all = self.critic2(states_flat, all_actions_flat).view(states.shape[0], -1)
 
-        cat_q1 = torch.cat([random_values1, policy_values1 - log_pis.detach().reshape(states.shape[0], num_repeat, 1)], 1)
-        cat_q2 = torch.cat([random_values2, policy_values2 - log_pis.detach().reshape(states.shape[0], num_repeat, 1)], 1)
+            cql1_loss = (torch.logsumexp(q1_all / self.temp, dim=1).mean() * self.cql_weight * self.temp) - q1.mean()
+            cql2_loss = (torch.logsumexp(q2_all / self.temp, dim=1).mean() * self.cql_weight * self.temp) - q2.mean()
+        else:
+            random_actions = torch.FloatTensor(q1.shape[0] * 10, actions.shape[-1]).uniform_(-1, 1).to(self.device)
+            num_repeat = int(random_actions.shape[0] / states.shape[0])
+            temp_states = states.unsqueeze(1).repeat(1, num_repeat, 1).view(states.shape[0] * num_repeat, states.shape[1])
+            
+            # Get values for random actions
+            random_values1 = self.critic1(temp_states, random_actions).reshape(states.shape[0], num_repeat, 1)
+            random_values2 = self.critic2(temp_states, random_actions).reshape(states.shape[0], num_repeat, 1)
 
-        cql1_loss = (torch.logsumexp(cat_q1 / self.temp, dim=1).mean() * self.cql_weight * self.temp) - q1.mean()
-        cql2_loss = (torch.logsumexp(cat_q2 / self.temp, dim=1).mean() * self.cql_weight * self.temp) - q2.mean()
+            # Get values for policy actions
+            with torch.no_grad():
+                policy_actions, log_pis = self.actor.evaluate(temp_states)
+            policy_values1 = self.critic1(temp_states, policy_actions).reshape(states.shape[0], num_repeat, 1)
+            policy_values2 = self.critic2(temp_states, policy_actions).reshape(states.shape[0], num_repeat, 1)
+
+            cat_q1 = torch.cat([random_values1, policy_values1 - log_pis.detach().reshape(states.shape[0], num_repeat, 1)], 1)
+            cat_q2 = torch.cat([random_values2, policy_values2 - log_pis.detach().reshape(states.shape[0], num_repeat, 1)], 1)
+
+            cql1_loss = (torch.logsumexp(cat_q1 / self.temp, dim=1).mean() * self.cql_weight * self.temp) - q1.mean()
+            cql2_loss = (torch.logsumexp(cat_q2 / self.temp, dim=1).mean() * self.cql_weight * self.temp) - q2.mean()
         return cql1_loss, cql2_loss
 
     def soft_update(self, local, target):

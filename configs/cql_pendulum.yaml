@@ -8,5 +8,12 @@ learning_rate: 1e-4
 epochs: 1000
 eval_every: 10
 checkpoint_every: 50
-
 num_workers: 1
+
+cql:
+  tau: 0.005
+  hidden_size: 256
+  with_lagrange: true
+  temperature: 1.0
+  cql_weight: 5.0
+  target_action_gap: 10.0
