@@ -196,15 +196,15 @@ def train(cfg, logger):
         start_time = time.time()
         epoch_losses = []
         
-        batch_iter = tqdm(
-            enumerate(train_loader),
-            total=cfg.training.batches_per_epoch,
-            desc=f"Epoch {epoch+1}/{cfg.training.epochs}"
-        )
+        train_iter = iter(train_loader)
+        pbar = tqdm(range(cfg.training.batches_per_epoch), desc=f"Epoch {epoch+1}/{cfg.training.epochs}")
 
-        for i, batch in batch_iter:
-            if i >= cfg.training.batches_per_epoch:
-                break
+        for i in pbar:
+            try:
+                batch = next(train_iter)
+            except StopIteration:
+                train_iter = iter(train_loader)
+                batch = next(train_iter)
             
             model.train()
 
@@ -214,7 +214,7 @@ def train(cfg, logger):
             if cfg.model.name in ['iql', 'cql']:
                 losses = model.learn(batch)
                 epoch_losses.append(losses['value_loss'])
-                batch_iter.set_postfix(loss=f"{np.mean(epoch_losses):.4f}")
+                pbar.set_postfix(loss=f"{np.mean(epoch_losses):.4f}")
             else:
                 optimizer.zero_grad()
                 action_preds = model(batch)
@@ -236,7 +236,7 @@ def train(cfg, logger):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
                 epoch_losses.append(loss.item())
-                batch_iter.set_postfix(loss=f"{np.mean(epoch_losses):.4f}")
+                pbar.set_postfix(loss=f"{np.mean(epoch_losses):.4f}")
 
         # Evaluation, Checkpointing, and Logging
         if (epoch + 1) % cfg.training.eval_every == 0:
