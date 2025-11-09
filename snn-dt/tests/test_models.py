@@ -11,6 +11,7 @@ class MockConfig:
     def __init__(self):
         self.model = self.Model()
         self.dataset = self.Dataset()
+        self.env = "dummy_env"
 
     class Model:
         action_tanh = False
@@ -22,6 +23,7 @@ class MockConfig:
         state_dim = 4
         act_dim = 1
         max_timesteps = 100
+        is_discrete = False
         
     class Snn:
         lif_tau = 20
@@ -60,6 +62,58 @@ def test_dt_forward_pass():
 
     action_preds = model(batch)
     assert action_preds.shape == (16, 20, 1)
+
+
+def test_snn_dt_spike_counting():
+    cfg = MockConfig()
+    cfg.snn = cfg.Snn()
+    model = SnnDt(cfg)
+
+    batch = {
+        "states": torch.randn(16, 20, 4) * 100,
+        "actions": torch.randn(16, 20, 1) * 100,
+        "returns_to_go": torch.randn(16, 20, 1) * 100,
+        "timesteps": torch.randint(0, 100, (16, 20)),
+        "mask": torch.ones(16, 20),
+    }
+
+    model(batch)
+    
+    spike_count_1 = model.count_spikes()
+    assert spike_count_1 > 0
+
+    model(batch)
+    spike_count_2 = model.count_spikes()
+    assert spike_count_2 > spike_count_1
+
+    model.reset_spike_counts()
+    assert model.count_spikes() == 0
+
+
+def test_dsformer_spike_counting():
+    cfg = MockConfig()
+    cfg.snn = cfg.Snn()
+    model = DsFormer(cfg)
+
+    batch = {
+        "states": torch.randn(16, 20, 4) * 10,
+        "actions": torch.randn(16, 20, 1) * 10,
+        "returns_to_go": torch.randn(16, 20, 1) * 10,
+        "timesteps": torch.randint(0, 100, (16, 20)),
+        "mask": torch.ones(16, 20),
+    }
+
+    model(batch)
+    
+    spike_count_1 = model.count_spikes()
+    assert spike_count_1 > 0
+
+    model(batch)
+    spike_count_2 = model.count_spikes()
+    assert spike_count_2 > spike_count_1
+
+    model.reset_spike_counts()
+    assert model.count_spikes() == 0
 
 
 def test_cql_learn_pass():
@@ -106,9 +160,9 @@ def test_dsformer_forward_pass():
     model = DsFormer(cfg)
 
     batch = {
-        "states": torch.randn(16, 20, 4),
-        "actions": torch.randn(16, 20, 1),
-        "returns_to_go": torch.randn(16, 20, 1),
+        "states": torch.randn(16, 20, 4) * 10,
+        "actions": torch.randn(16, 20, 1) * 10,
+        "returns_to_go": torch.randn(16, 20, 1) * 10,
         "timesteps": torch.randint(0, 100, (16, 20)),
         "mask": torch.ones(16, 20),
     }
@@ -123,9 +177,9 @@ def test_snn_dt_forward_pass():
     model = SnnDt(cfg)
 
     batch = {
-        "states": torch.randn(16, 20, 4),
-        "actions": torch.randn(16, 20, 1),
-        "returns_to_go": torch.randn(16, 20, 1),
+        "states": torch.randn(16, 20, 4) * 10,
+        "actions": torch.randn(16, 20, 1) * 10,
+        "returns_to_go": torch.randn(16, 20, 1) * 10,
         "timesteps": torch.randint(0, 100, (16, 20)),
         "mask": torch.ones(16, 20),
     }

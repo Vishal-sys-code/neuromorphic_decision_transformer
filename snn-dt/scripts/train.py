@@ -23,10 +23,10 @@ from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 
-# from src.models.cql import CQL
-# from src.models.dt import DecisionTransformer
-# from src.models.dsformer import DsFormer
-# from src.models.iql import IQL
+from src.models.cql import CQL
+from src.models.dt import DecisionTransformer
+from src.models.dsformer import DsFormer
+from src.models.iql import IQL
 from src.models.snn_dt import SnnDt
 from src.utils.config import AttrDict
 from src.utils.models import get_model
@@ -195,6 +195,9 @@ def train(cfg, logger):
     for epoch in range(cfg.training.epochs):
         start_time = time.time()
         epoch_losses = []
+
+        if hasattr(model, "reset_spike_counts"):
+            model.reset_spike_counts()
         
         train_iter = iter(train_loader)
         pbar = tqdm(range(cfg.training.batches_per_epoch), desc=f"Epoch {epoch+1}/{cfg.training.epochs}")
@@ -250,10 +253,12 @@ def train(cfg, logger):
             log_str = f"Epoch {epoch+1}/{cfg.training.epochs} | Time: {epoch_time:.2f}s | Loss: {avg_loss:.4f}"
             
             # Spike counting for SNN models
-            if isinstance(model, SnnDt):
+            if hasattr(model, "count_spikes"):
                 spikes = model.count_spikes()
-                log_str += f" | Spikes: {spikes}"
+                log_str += f" | Spikes: {spikes:.2f}"
                 eval_results["spikes"] = spikes
+            else:
+                eval_results["spikes"] = 0.0
 
             metrics.append({"epoch": epoch + 1, "loss": avg_loss, **eval_results, "time_s": epoch_time})
             log_str += f" | Eval Return: {eval_results['return_mean']:.2f}"
@@ -376,6 +381,11 @@ def main():
     
     # Convert to AttrDict for easy access
     cfg = AttrDict(cfg)
+
+    # Adaptive training controls for SNNs
+    if "snn" in cfg.model.name or "dsformer" in cfg.model.name:
+        cfg.training.batches_per_epoch = min(cfg.training.batches_per_epoch, cfg_raw.get("snn_batches_per_epoch", 100))
+        cfg.training.eval_every = max(cfg.training.eval_every, cfg_raw.get("snn_eval_every", 50))
     
     # Construct dataset path from env name, relative to project root
     cfg.dataset.path = str(project_root / f"data/{args.env}/dataset.npz")

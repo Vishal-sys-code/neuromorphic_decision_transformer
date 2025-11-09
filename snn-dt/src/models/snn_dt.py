@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from norse.torch.module.leaky_integrator import LICell
-from norse.torch.module.lif import LIFCell, LIFParameters
+from norse.torch.module.lif import LIF, LIFCell, LIFParameters
 
 from src.models.base import BasePolicy
 
@@ -27,8 +27,8 @@ class SpikingTransformerBlock(nn.Module):
             alpha=surrogate_k,
         )
 
-        self.q_lif = LIFCell(p=p)
-        self.k_lif = LIFCell(p=p)
+        self.q_lif = LIF(p=p)
+        self.k_lif = LIF(p=p)
         self.v_li = LICell()
         
         self.use_plasticity = False # Will be set by SnnDt
@@ -52,16 +52,8 @@ class SpikingTransformerBlock(nn.Module):
         k = self.k_proj(x)
         v = self.v_proj(x)
 
-        # Spiking Q and K
-        spikes_q_seq = []
-        spikes_k_seq = []
-        for t in range(seq_len):
-            spikes_q, state_q = self.q_lif(q[:, t], state_q)
-            spikes_k, state_k = self.k_lif(k[:, t], state_k)
-            spikes_q_seq.append(spikes_q)
-            spikes_k_seq.append(spikes_k)
-        spikes_q = torch.stack(spikes_q_seq, dim=1)
-        spikes_k = torch.stack(spikes_k_seq, dim=1)
+        spikes_q, _ = self.q_lif(q)
+        spikes_k, _ = self.k_lif(k)
 
         # Attention
         q_reshaped = spikes_q.view(batch_size, seq_len, self.n_heads, self.head_dim)
@@ -79,13 +71,15 @@ class SpikingTransformerBlock(nn.Module):
         routing_gate = self.routing_mlp(attn_output)
         out = attn_output * routing_gate
 
-        self.spike_count = spikes_q.sum() + spikes_k.sum()
+        if not hasattr(self, "spike_count"):
+            self.spike_count = 0.0
+        self.spike_count += (spikes_q.sum() + spikes_k.sum()).item()
         
         # Three-factor plasticity
         if self.training and self.use_plasticity:
             self.update_eligibility_trace(spikes_q, v)
             
-        return out, state_q, state_k
+        return out
 
     def update_eligibility_trace(self, presynaptic_spikes, postsynaptic_potential):
         # Simplified eligibility trace update
@@ -193,10 +187,8 @@ class SnnDt(BasePolicy, nn.Module):
         
         # Spiking transformer blocks
         attn_mask = nn.Transformer.generate_square_subsequent_mask(x.shape[1], device=x.device)
-        q_states = [None] * len(self.blocks)
-        k_states = [None] * len(self.blocks)
         for i, block in enumerate(self.blocks):
-            x, q_states[i], k_states[i] = block(x, q_states[i], k_states[i], attn_mask=attn_mask)
+            x = block(x, None, None, attn_mask=attn_mask)
         
         action_preds = self.action_predictor(x[:, 1::3])
         return action_preds
@@ -227,7 +219,12 @@ class SnnDt(BasePolicy, nn.Module):
         self.load_state_dict(torch.load(path))
 
     def count_spikes(self):
-        return sum(b.spike_count for b in self.blocks)
+        total_spikes = sum(block.spike_count for block in self.blocks)
+        return total_spikes / len(self.blocks) if len(self.blocks) > 0 else 0.0
+
+    def reset_spike_counts(self):
+        for block in self.blocks:
+            block.spike_count = 0.0
 
     def num_params(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)

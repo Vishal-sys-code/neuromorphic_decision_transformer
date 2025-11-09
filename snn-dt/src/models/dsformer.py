@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from norse.torch.module.lif import LIFCell
+from norse.torch.module.lif import LIF, LIFCell, LIFParameters
 
 from src.models.base import BasePolicy
 
@@ -16,8 +16,14 @@ class SpikingAttention(nn.Module):
         self.k_proj = nn.Linear(d_model, d_model)
         self.v_proj = nn.Linear(d_model, d_model)
 
-        self.q_lif = LIFCell()
-        self.k_lif = LIFCell()
+        p = LIFParameters(
+            tau_mem_inv=torch.tensor(1.0 / lif_tau),
+            v_th=torch.tensor(0.8),
+            method="super",
+            alpha=surrogate_k,
+        )
+        self.q_lif = LIF(p=p)
+        self.k_lif = LIF(p=p)
 
         self.spike_count = 0
 
@@ -28,15 +34,8 @@ class SpikingAttention(nn.Module):
         k = self.k_proj(x)
         v = self.v_proj(x)
 
-        spikes_q_seq = []
-        spikes_k_seq = []
-        for t in range(seq_len):
-            spikes_q, state_q = self.q_lif(q[:, t], state_q)
-            spikes_k, state_k = self.k_lif(k[:, t], state_k)
-            spikes_q_seq.append(spikes_q)
-            spikes_k_seq.append(spikes_k)
-        spikes_q = torch.stack(spikes_q_seq, dim=1)
-        spikes_k = torch.stack(spikes_k_seq, dim=1)
+        spikes_q, _ = self.q_lif(q)
+        spikes_k, _ = self.k_lif(k)
 
         q_reshaped = spikes_q.view(batch_size, seq_len, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
         k_reshaped = spikes_k.view(batch_size, seq_len, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
@@ -49,8 +48,10 @@ class SpikingAttention(nn.Module):
         
         attn_output = (attn_weights @ v_reshaped).permute(0, 2, 1, 3).reshape(batch_size, seq_len, self.d_model)
 
-        self.spike_count = spikes_q.sum() + spikes_k.sum()
-        return attn_output, state_q, state_k
+        if not hasattr(self, "spike_count"):
+            self.spike_count = 0.0
+        self.spike_count += (spikes_q.sum() + spikes_k.sum()).item()
+        return attn_output
 
 
 class DsFormer(BasePolicy, nn.Module):
@@ -95,6 +96,18 @@ class DsFormer(BasePolicy, nn.Module):
             action_input = actions
 
         action_embeddings = self.embed_action(action_input)
+
+        # Pad action embeddings to match state/return sequence length
+        if action_embeddings.shape[1] < seq_len:
+            padding_size = seq_len - action_embeddings.shape[1]
+            padding = torch.zeros(
+                action_embeddings.shape[0],
+                padding_size,
+                action_embeddings.shape[2],
+                device=action_embeddings.device,
+            )
+            action_embeddings = torch.cat([action_embeddings, padding], dim=1)
+
         return_embeddings = self.embed_return(batch["returns_to_go"])
         time_embeddings = self.embed_timestep(batch["timesteps"])
 
@@ -110,10 +123,8 @@ class DsFormer(BasePolicy, nn.Module):
         x = self.embed_ln(stacked_inputs)
 
         attn_mask = nn.Transformer.generate_square_subsequent_mask(x.shape[1], device=x.device)
-        q_states = [None] * len(self.blocks)
-        k_states = [None] * len(self.blocks)
         for i, block in enumerate(self.blocks):
-            x, q_states[i], k_states[i] = block(x, q_states[i], k_states[i], attn_mask=attn_mask)
+            x = block(x, None, None, attn_mask=attn_mask)
 
         action_preds = self.action_predictor(x[:, 1::3])
         return action_preds
@@ -144,7 +155,12 @@ class DsFormer(BasePolicy, nn.Module):
         self.load_state_dict(torch.load(path))
 
     def count_spikes(self):
-        return sum(b.spike_count for b in self.blocks)
+        total_spikes = sum(block.spike_count for block in self.blocks)
+        return total_spikes / len(self.blocks) if len(self.blocks) > 0 else 0.0
+
+    def reset_spike_counts(self):
+        for block in self.blocks:
+            block.spike_count = 0.0
 
     def num_params(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
