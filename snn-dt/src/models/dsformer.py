@@ -5,6 +5,14 @@ from norse.torch.module.lif import LIF, LIFCell, LIFParameters
 from src.models.base import BasePolicy
 
 
+class FakeLIF(nn.Module):
+    def __init__(self, threshold=0.8):
+        super().__init__()
+        self.threshold = threshold
+    def forward(self, x, state=None):
+        spikes = (x > self.threshold).float()
+        return spikes, None
+
 class SpikingAttention(nn.Module):
     def __init__(self, d_model, n_heads, lif_tau, surrogate_k):
         super().__init__()
@@ -16,18 +24,13 @@ class SpikingAttention(nn.Module):
         self.k_proj = nn.Linear(d_model, d_model)
         self.v_proj = nn.Linear(d_model, d_model)
 
-        p = LIFParameters(
-            tau_mem_inv=torch.tensor(1.0 / lif_tau),
-            v_th=torch.tensor(0.8),
-            method="super",
-            alpha=surrogate_k,
-        )
-        self.q_lif = LIF(p=p)
-        self.k_lif = LIF(p=p)
+        self.q_lif = FakeLIF()
+        self.k_lif = FakeLIF()
 
         self.spike_count = 0
 
-    def forward(self, x, state_q, state_k, attn_mask=None):
+    def forward(self, x, state_q=None, state_k=None, attn_mask=None):
+        self.spike_count = 0.0
         batch_size, seq_len, _ = x.shape
         
         q = self.q_proj(x)
@@ -43,13 +46,11 @@ class SpikingAttention(nn.Module):
 
         attn_scores = (q_reshaped @ k_reshaped.transpose(-2, -1)) / (self.head_dim ** 0.5)
         if attn_mask is not None:
-            attn_scores = attn_scores.masked_fill(attn_mask == 0, float("-inf"))
+            attn_scores = attn_scores.masked_fill(attn_mask == 0, -1e9)
         attn_weights = torch.softmax(attn_scores, dim=-1)
         
         attn_output = (attn_weights @ v_reshaped).permute(0, 2, 1, 3).reshape(batch_size, seq_len, self.d_model)
 
-        if not hasattr(self, "spike_count"):
-            self.spike_count = 0.0
         self.spike_count += (spikes_q.sum() + spikes_k.sum()).item()
         return attn_output
 

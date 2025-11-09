@@ -1,0 +1,23 @@
+# DSFormer CartPole Debug Configuration
+# ---
+# This configuration is designed for a fast, lightweight training run to
+# debug and verify the DSFormer model.
+
+# Model Hyperparameters
+n_layers: 2
+hidden_dim: 64
+seq_len: 10
+
+# Training Hyperparameters
+batch_size: 32
+learning_rate: 1e-4
+weight_decay: 1e-4
+epochs: 20
+batches_per_epoch: 100
+eval_every: 5
+checkpoint_every: 10
+
+# SNN Hyperparameters (used by the original model, kept for compatibility)
+lif_tau: 10.0
+surrogate_k: 25.0
+use_plasticity: False

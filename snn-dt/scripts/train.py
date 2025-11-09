@@ -133,6 +133,7 @@ def train(cfg, logger):
     # Create save directory
     save_dir = Path(cfg.save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"--- Checkpoint: Save directory created at {save_dir} ---")
 
     # Load data and metadata
     if cfg.model.name in ['iql', 'cql']:
@@ -154,12 +155,13 @@ def train(cfg, logger):
     cfg.dataset.act_dim = metadata["act_dim"]
     cfg.dataset.max_timesteps = metadata["max_timesteps"]
     
+    # Lazily import gymnasium to avoid potential C-extension conflicts at startup
     import gymnasium as gym
     temp_env = gym.make(cfg.env)
     cfg.dataset.is_discrete = isinstance(temp_env.action_space, gym.spaces.Discrete)
     temp_env.close()
 
-    # OS-aware num_workers
+    # OS-aware num_workers and lazy DataLoader import
     num_workers = 0
     from torch.utils.data import DataLoader
     train_loader = DataLoader(
@@ -173,6 +175,7 @@ def train(cfg, logger):
 
     # Initialize model and optimizer
     model = get_model(cfg).to(cfg.training.device)
+    logger.info(f"--- Checkpoint: Model '{cfg.model.name}' initialized on device '{cfg.training.device}' ---")
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(cfg.training.lr),
@@ -191,7 +194,7 @@ def train(cfg, logger):
     # Lazily initialize the environment
     env = None
 
-    logger.info("Starting training loop...")
+    logger.info("--- Checkpoint: Starting main training loop ---")
     for epoch in range(cfg.training.epochs):
         start_time = time.time()
         epoch_losses = []
@@ -293,6 +296,18 @@ def train(cfg, logger):
         
 
 def main():
+    # --- Robust Crash Logging ---
+    import faulthandler
+    faulthandler.enable()
+    
+    def handle_exception(exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        logging.getLogger().critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+    sys.excepthook = handle_exception
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default=None, help="Path to config file.")
     parser.add_argument("--model", type=str, required=True, help="Name of the model to train (dt, snn_dt, dsformer, iql, cql).")
@@ -406,8 +421,12 @@ def main():
     else:
         logger.info(f"Dataset found at {cfg.dataset.path}.")
 
-    logger.info("Starting training...")
-    train(cfg, logger)
+    logger.info("--- Checkpoint: Starting training ---")
+    try:
+        train(cfg, logger)
+    except Exception as e:
+        logger.exception("Exception during training:")
+        raise e
 
 
 if __name__ == "__main__":
