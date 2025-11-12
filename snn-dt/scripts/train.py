@@ -285,12 +285,15 @@ def train(cfg, logger):
     df.to_csv(save_dir / "metrics.csv", index=False)
     
     # Update summary
-    summary_path = Path(cfg.save_dir).parent.parent / "summary.csv"
-    summary_df = pd.DataFrame([{"model": cfg.model.name, "env": cfg.env, "seed": cfg.seed, "return_mean": df["return_mean"].max()}])
-    if summary_path.exists():
-        summary_df.to_csv(summary_path, mode="a", header=False, index=False)
+    if not df.empty and "return_mean" in df.columns:
+        summary_path = Path(cfg.save_dir).parent.parent / "summary.csv"
+        summary_df = pd.DataFrame([{"model": cfg.model.name, "env": cfg.env, "seed": cfg.seed, "return_mean": df["return_mean"].max()}])
+        if summary_path.exists():
+            summary_df.to_csv(summary_path, mode="a", header=False, index=False)
+        else:
+            summary_df.to_csv(summary_path, index=False)
     else:
-        summary_df.to_csv(summary_path, index=False)
+        logger.warning("No evaluation metrics found. Skipping summary generation.")
 
     logger.info("Training complete.")
         
@@ -397,11 +400,6 @@ def main():
     # Convert to AttrDict for easy access
     cfg = AttrDict(cfg)
 
-    # Adaptive training controls for SNNs
-    if "snn" in cfg.model.name or "dsformer" in cfg.model.name:
-        cfg.training.batches_per_epoch = min(cfg.training.batches_per_epoch, cfg_raw.get("snn_batches_per_epoch", 100))
-        cfg.training.eval_every = max(cfg.training.eval_every, cfg_raw.get("snn_eval_every", 50))
-    
     # Construct dataset path from env name, relative to project root
     cfg.dataset.path = str(project_root / f"data/{args.env}/dataset.npz")
     

@@ -22,3 +22,11 @@
 2025-11-09 14:50:55,110 [INFO] Dataset size: 1000 clips
 2025-11-09 14:50:55,139 [INFO] DataLoader created with num_workers=0 and pin_memory=False.
 2025-11-09 14:51:05,312 [INFO] Starting training loop...
+2025-11-12 09:53:11,160 [INFO] Checking for dataset...
+2025-11-12 09:53:11,277 [INFO] Dataset found at D:\Github\neuromorphic_decision_transformer\data\CartPole-v1\dataset.npz.
+2025-11-12 09:53:11,277 [INFO] --- Checkpoint: Starting training ---
+2025-11-12 09:53:11,293 [INFO] --- Checkpoint: Save directory created at results\all_runs\dsformer_CartPole-v1 ---
+2025-11-12 09:53:11,457 [INFO] Dataset size: 1000 clips
+2025-11-12 09:53:11,499 [INFO] DataLoader created with num_workers=0 and pin_memory=False.
+2025-11-12 09:53:11,556 [INFO] --- Checkpoint: Model 'dsformer' initialized on device 'cpu' ---
+2025-11-12 09:53:24,560 [INFO] --- Checkpoint: Starting main training loop ---
