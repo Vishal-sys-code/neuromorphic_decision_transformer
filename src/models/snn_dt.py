@@ -16,7 +16,7 @@ class RateCoder(nn.Module):
         spike_trains = torch.bernoulli(rates.unsqueeze(-1).expand(-1,-1,-1,self.T)) # [B,L,d,T]
         return spike_trains
 
-class SNNDT(nn.Module):
+class SNNDecisionTransformer(nn.Module):
     def __init__(self, embed_dim: int = 128, num_heads: int = 4, window_length: int = 10, num_layers: int = 1, use_pos_encoder: bool = True, use_router: bool = True): # Added num_layers
         super().__init__()
         self.embed_dim = embed_dim
@@ -127,7 +127,7 @@ if __name__ == '__main__':
 
     input_embeddings = torch.rand(B, L, d_model)
 
-    snn_dt_model = SNNDT(embed_dim=d_model, num_heads=H, window_length=T_window, num_layers=n_layers)
+    snn_dt_model = SNNDecisionTransformer(embed_dim=d_model, num_heads=H, window_length=T_window, num_layers=n_layers)
 
     output_representation = snn_dt_model(input_embeddings)
 

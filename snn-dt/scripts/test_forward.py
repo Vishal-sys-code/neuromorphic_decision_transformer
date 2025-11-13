@@ -25,7 +25,7 @@ max_timesteps = data['timesteps'].shape[1]
 cfg = {
     'model': {'name': 'snn_dt', 'd_model': 128, 'n_heads': 4, 'n_layers': 4},
     'training': {'device': 'cpu'},
-    'dataset': {'path': '', 'state_dim': state_dim, 'act_dim': act_dim, 'max_timesteps': max_timesteps},
+    'dataset': {'path': '', 'state_dim': state_dim, 'act_dim': act_dim, 'max_timesteps': max_timesteps, 'is_discrete': True},
     'env': 'CartPole-v1', 'seed': 42, 'save_dir': 'results/tmp',
     'snn': {'lif_tau': 20.0, 'surrogate_k': 25.0, 'use_plasticity': False}
 }

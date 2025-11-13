@@ -14,11 +14,11 @@ def test_trainer_smoke_test():
         np.savez(
             dataset_path,
             states=np.random.randn(10, 20, 4),
-            actions=np.random.randn(10, 20, 1),
+                actions=np.random.randint(0, 2, (10, 20, 1)),
             returns_to_go=np.random.randn(10, 20, 1),
             timesteps=np.random.randint(0, 100, (10, 20)),
             mask=np.ones((10, 20)),
-                metadata={"state_dim": 4, "act_dim": 1, "max_timesteps": 100},
+                    metadata={"state_dim": 4, "act_dim": 2, "max_timesteps": 100},
         )
 
         # Create a dummy config
@@ -37,6 +37,10 @@ def test_trainer_smoke_test():
                 "eval_every": 1,
                 "checkpoint_every": 1,
                 "log_wandb": False,
+                "persistent_workers": False,
+                "num_workers": 0,
+                "pin_memory": False,
+                "batches_per_epoch": 1,
             },
             "model": {
                 "name": "dt",
@@ -50,13 +54,15 @@ def test_trainer_smoke_test():
                 "path": dataset_path,
                 "max_timesteps": 100,
                 "state_dim": 4,
-                "act_dim": 1,
+                    "act_dim": 2,
+                    "is_discrete": True,
             },
         }
         cfg = AttrDict(config)
 
         # Run the training function
-        train(cfg)
+        import logging
+        train(cfg, logging.getLogger())
 
         # Check for output files
         assert os.path.exists(os.path.join(save_dir, "metrics.csv"))

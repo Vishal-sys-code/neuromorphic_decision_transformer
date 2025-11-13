@@ -3,18 +3,10 @@ import torch.nn as nn
 from norse.torch.module.lif import LIF, LIFCell, LIFParameters
 
 from src.models.base import BasePolicy
-
-
-class FakeLIF(nn.Module):
-    def __init__(self, threshold=0.8):
-        super().__init__()
-        self.threshold = threshold
-    def forward(self, x, state=None):
-        spikes = (x > self.threshold).float()
-        return spikes, None
+from src.modules.fake_lif import FakeLIF as FakeLIFModule
 
 class SpikingAttention(nn.Module):
-    def __init__(self, d_model, n_heads, lif_tau, surrogate_k):
+    def __init__(self, d_model, n_heads, lif_tau, surrogate_k, use_fake_lif=False):
         super().__init__()
         self.d_model = d_model
         self.n_heads = n_heads
@@ -24,13 +16,17 @@ class SpikingAttention(nn.Module):
         self.k_proj = nn.Linear(d_model, d_model)
         self.v_proj = nn.Linear(d_model, d_model)
 
-        self.q_lif = FakeLIF()
-        self.k_lif = FakeLIF()
+        if use_fake_lif:
+            self.q_lif = FakeLIFModule()
+            self.k_lif = FakeLIFModule()
+        else:
+            p = LIFParameters(tau_syn_inv=lif_tau, tau_mem_inv=lif_tau, v_th=torch.as_tensor(0.8))
+            self.q_lif = LIFCell(p=p)
+            self.k_lif = LIFCell(p=p)
 
-        self.spike_count = 0
+        self.register_buffer('spike_count', torch.tensor(0.0))
 
     def forward(self, x, state_q=None, state_k=None, attn_mask=None):
-        self.spike_count = 0.0
         batch_size, seq_len, _ = x.shape
         
         q = self.q_proj(x)
@@ -51,7 +47,7 @@ class SpikingAttention(nn.Module):
         
         attn_output = (attn_weights @ v_reshaped).permute(0, 2, 1, 3).reshape(batch_size, seq_len, self.d_model)
 
-        self.spike_count += (spikes_q.sum() + spikes_k.sum()).item()
+        self.spike_count += spikes_q.sum() + spikes_k.sum()
         return attn_output
 
 
@@ -73,6 +69,7 @@ class DsFormer(BasePolicy, nn.Module):
                 n_heads=cfg.model.n_heads,
                 lif_tau=cfg.snn.lif_tau,
                 surrogate_k=cfg.snn.surrogate_k,
+                use_fake_lif=self.cfg.model.get("use_fake_lif", False),
             )
             for _ in range(cfg.model.n_layers)
         ])
@@ -157,11 +154,12 @@ class DsFormer(BasePolicy, nn.Module):
 
     def count_spikes(self):
         total_spikes = sum(block.spike_count for block in self.blocks)
-        return total_spikes / len(self.blocks) if len(self.blocks) > 0 else 0.0
+        avg_spikes = total_spikes / len(self.blocks) if len(self.blocks) > 0 else 0.0
+        return avg_spikes.item() if isinstance(avg_spikes, torch.Tensor) else avg_spikes
 
     def reset_spike_counts(self):
         for block in self.blocks:
-            block.spike_count = 0.0
+            block.spike_count.zero_()
 
     def num_params(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)

@@ -128,7 +128,12 @@ class OfflineTransitionDataset(Dataset):
 
 
 def train(cfg, logger):
+    torch.backends.cudnn.benchmark = True
     seed_everything(cfg.seed)
+
+    if cfg.model.name in ["snn_dt", "dsformer"]:
+        cfg.training.batches_per_epoch = min(cfg.training.batches_per_epoch, 100)
+        cfg.training.eval_every = max(cfg.training.eval_every, 50)
     
     # Create save directory
     save_dir = Path(cfg.save_dir)
@@ -161,17 +166,17 @@ def train(cfg, logger):
     cfg.dataset.is_discrete = isinstance(temp_env.action_space, gym.spaces.Discrete)
     temp_env.close()
 
-    # OS-aware num_workers and lazy DataLoader import
-    num_workers = 0
     from torch.utils.data import DataLoader
+    use_persistent_workers = cfg.training.persistent_workers and cfg.training.num_workers > 0
     train_loader = DataLoader(
         dataset,
         batch_size=cfg.training.batch_size,
         shuffle=True,
-        num_workers=num_workers,
-        pin_memory=False,
+        num_workers=cfg.training.num_workers,
+        pin_memory=cfg.training.pin_memory,
+        persistent_workers=use_persistent_workers
     )
-    logger.info(f"DataLoader created with num_workers={num_workers} and pin_memory=False.")
+    logger.info(f"DataLoader created with num_workers={cfg.training.num_workers}, pin_memory={cfg.training.pin_memory}, persistent_workers={use_persistent_workers}.")
 
     # Initialize model and optimizer
     model = get_model(cfg).to(cfg.training.device)
@@ -242,7 +247,8 @@ def train(cfg, logger):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
                 epoch_losses.append(loss.item())
-                pbar.set_postfix(loss=f"{np.mean(epoch_losses):.4f}")
+                if i % 10 == 0:
+                    pbar.set_postfix(loss=f"{np.mean(epoch_losses):.4f}")
 
         # Evaluation, Checkpointing, and Logging
         if (epoch + 1) % cfg.training.eval_every == 0:
@@ -366,6 +372,9 @@ def main():
             "checkpoint_every": cfg_raw.get("checkpoint_every", 50),
             "device": "cuda" if torch.cuda.is_available() else "cpu",
             "batches_per_epoch": cfg_raw.get("batches_per_epoch", 1000),
+            "num_workers": cfg_raw.get("num_workers", 0),
+            "pin_memory": cfg_raw.get("pin_memory", False),
+            "persistent_workers": cfg_raw.get("persistent_workers", False),
         },
         "dataset": {
             "path": cfg_raw.get("dataset", None),

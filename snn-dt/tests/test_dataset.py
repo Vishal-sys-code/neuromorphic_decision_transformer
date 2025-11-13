@@ -15,10 +15,11 @@ def test_make_dataset():
         out_file = os.path.join(tmpdir, "dataset.npz")
 
         # Run the script
+        script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "make_dataset.py")
         subprocess.run(
             [
                 "python",
-                "scripts/make_dataset.py",
+                script_path,
                 "--env",
                 env,
                 "--seed",
