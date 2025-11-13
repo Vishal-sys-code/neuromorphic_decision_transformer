@@ -21,20 +21,21 @@ class SpikingAttention(nn.Module):
             self.k_lif = FakeLIFModule()
         else:
             p = LIFParameters(tau_syn_inv=lif_tau, tau_mem_inv=lif_tau, v_th=torch.as_tensor(0.8))
-            self.q_lif = LIFCell(p=p)
-            self.k_lif = LIFCell(p=p)
+            self.q_lif = LIF(p=p)
+            self.k_lif = LIF(p=p)
 
         self.register_buffer('spike_count', torch.tensor(0.0))
 
-    def forward(self, x, state_q=None, state_k=None, attn_mask=None):
+    def forward(self, x, attn_mask=None):
         batch_size, seq_len, _ = x.shape
         
         q = self.q_proj(x)
         k = self.k_proj(x)
         v = self.v_proj(x)
 
-        spikes_q, _ = self.q_lif(q)
-        spikes_k, _ = self.k_lif(k)
+        # Pass None for initial state to let LIF handle it
+        spikes_q, _ = self.q_lif(q, None)
+        spikes_k, _ = self.k_lif(k, None)
 
         q_reshaped = spikes_q.view(batch_size, seq_len, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
         k_reshaped = spikes_k.view(batch_size, seq_len, self.n_heads, self.head_dim).permute(0, 2, 1, 3)
@@ -122,7 +123,7 @@ class DsFormer(BasePolicy, nn.Module):
 
         attn_mask = nn.Transformer.generate_square_subsequent_mask(x.shape[1], device=x.device)
         for i, block in enumerate(self.blocks):
-            x = block(x, None, None, attn_mask=attn_mask)
+            x = block(x, attn_mask=attn_mask)
 
         action_preds = self.action_predictor(x[:, 1::3])
         return action_preds
