@@ -134,7 +134,6 @@ def train(cfg, logger):
 
     if cfg.model.name in ["snn_dt", "dsformer"]:
         cfg.training.batches_per_epoch = min(cfg.training.batches_per_epoch, 100)
-        cfg.training.eval_every = max(cfg.training.eval_every, 50)
     
     # Create save directory
     save_dir = Path(cfg.save_dir)
