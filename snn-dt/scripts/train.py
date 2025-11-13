@@ -129,6 +129,7 @@ class OfflineTransitionDataset(Dataset):
 
 def train(cfg, logger):
     torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.deterministic = False
     seed_everything(cfg.seed)
 
     if cfg.model.name in ["snn_dt", "dsformer"]:
@@ -167,16 +168,19 @@ def train(cfg, logger):
     temp_env.close()
 
     from torch.utils.data import DataLoader
-    use_persistent_workers = cfg.training.persistent_workers and cfg.training.num_workers > 0
+    num_workers = min(os.cpu_count(), 4)
+    pin_memory = True
+    persistent_workers = True if os.name != 'nt' else False
+
     train_loader = DataLoader(
         dataset,
         batch_size=cfg.training.batch_size,
         shuffle=True,
-        num_workers=cfg.training.num_workers,
-        pin_memory=cfg.training.pin_memory,
-        persistent_workers=use_persistent_workers
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
     )
-    logger.info(f"DataLoader created with num_workers={cfg.training.num_workers}, pin_memory={cfg.training.pin_memory}, persistent_workers={use_persistent_workers}.")
+    logger.info(f"DataLoader created with num_workers={num_workers}, pin_memory={pin_memory}, persistent_workers={persistent_workers}.")
 
     # Initialize model and optimizer
     model = get_model(cfg).to(cfg.training.device)
