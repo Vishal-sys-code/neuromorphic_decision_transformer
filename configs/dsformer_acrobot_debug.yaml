@@ -4,7 +4,7 @@ seq_len: 10
 batch_size: 32
 hidden_dim: 64
 n_layers: 2
-learning_rate: 5e-4
+learning_rate: 1e-4
 epochs: 1000
 eval_every: 10
 checkpoint_every: 50
