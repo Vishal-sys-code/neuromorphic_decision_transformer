@@ -20,7 +20,7 @@ def test_spiking_attention_produces_spikes():
     x = torch.randn(batch_size, seq_len, d_model) * 100.0
 
     # Forward pass
-    attn_output = block(x, None, None)
+    attn_output, _, _ = block(x, None, None)
 
     # Assertions
     assert attn_output.shape == (batch_size, seq_len, d_model), "Output shape is incorrect"
@@ -44,7 +44,7 @@ def test_fake_lif_produces_spikes():
     x = torch.randn(batch_size, seq_len, d_model) * 5.0
 
     # Forward pass
-    attn_output = block(x, None, None)
+    attn_output, _, _ = block(x, None, None)
 
     # Assertions
     assert attn_output.shape == (batch_size, seq_len, d_model), "Output shape is incorrect"
