@@ -26,13 +26,14 @@ class SpikingAttention(nn.Module):
 
         self.register_buffer('spike_count', torch.tensor(0.0))
 
-    def forward(self, x, state_q=None, state_k=None, attn_mask=None):
+    def forward(self, x, attn_mask=None):
         batch_size, seq_len, _ = x.shape
         
         q = self.q_proj(x)
         k = self.k_proj(x)
         v = self.v_proj(x)
 
+        state_q, state_k = None, None
         spikes_q, state_q = self.q_lif(q, state_q)
         spikes_k, state_k = self.k_lif(k, state_k)
 
@@ -47,8 +48,8 @@ class SpikingAttention(nn.Module):
         
         attn_output = (attn_weights @ v_reshaped).permute(0, 2, 1, 3).reshape(batch_size, seq_len, self.d_model)
 
-        self.spike_count += spikes_q.sum() + spikes_k.sum()
-        return attn_output, state_q, state_k
+        self.spike_count += (spikes_q.sum() + spikes_k.sum()).detach()
+        return attn_output
 
 
 class DsFormer(BasePolicy, nn.Module):
@@ -121,9 +122,8 @@ class DsFormer(BasePolicy, nn.Module):
         x = self.embed_ln(stacked_inputs)
 
         attn_mask = nn.Transformer.generate_square_subsequent_mask(x.shape[1], device=x.device)
-        state_q, state_k = None, None
         for i, block in enumerate(self.blocks):
-            x, state_q, state_k = block(x, state_q, state_k, attn_mask=attn_mask)
+            x = block(x, attn_mask=attn_mask)
 
         action_preds = self.action_predictor(x[:, 1::3])
         return action_preds

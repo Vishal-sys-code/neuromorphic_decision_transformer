@@ -1,10 +1,11 @@
 import sys
-import os
 import pytest
+from pathlib import Path
 
-# Add the project's root directory to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'snn-dt')))
+# Add the snn-dt directory to the Python path
+snn_dt_path = str(Path(__file__).resolve().parent / "snn-dt")
+if snn_dt_path not in sys.path:
+    sys.path.insert(0, snn_dt_path)
 
-if __name__ == "__main__":
-    # Discover and run tests
-    pytest.main()
+# Run pytest
+sys.exit(pytest.main(["-s", "snn-dt/tests/"]))
