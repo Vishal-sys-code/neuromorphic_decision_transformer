@@ -122,7 +122,6 @@ class SnnDt(BasePolicy, nn.Module):
         self.embed_return = nn.Linear(1, self.hidden_size)
         self.embed_state = nn.Linear(cfg.dataset.state_dim, self.hidden_size)
         self.embed_action = nn.Linear(cfg.dataset.act_dim, self.hidden_size)
-        self.embed_ln = nn.LayerNorm(self.hidden_size)
 
         self.blocks = nn.ModuleList([
             SpikingTransformerBlock(
@@ -183,7 +182,8 @@ class SnnDt(BasePolicy, nn.Module):
             .permute(0, 2, 1, 3)
             .reshape(batch_size, 3 * seq_len, self.hidden_size)
         )
-        x = self.embed_ln(stacked_inputs)
+        # We don't use LayerNorm here, as it can suppress inputs and prevent neuron spiking.
+        x = stacked_inputs
         
         # Spiking transformer blocks
         attn_mask = nn.Transformer.generate_square_subsequent_mask(x.shape[1], device=x.device)

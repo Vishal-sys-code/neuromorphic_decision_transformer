@@ -1,0 +1,59 @@
+2025-11-21 12:42:52,238 [INFO] Checking for dataset...
+2025-11-21 12:42:52,268 [INFO] Dataset found at D:\Github\neuromorphic_decision_transformer\data\Acrobot-v1\dataset.npz.
+2025-11-21 12:42:52,281 [INFO] --- Checkpoint: Starting training ---
+2025-11-21 12:42:52,335 [INFO] --- Checkpoint: Save directory created at baseline_comparisons_results\03_dsformer\dsformer_acrobot.log ---
+2025-11-21 12:42:54,057 [INFO] Dataset size: 1000 clips
+2025-11-21 12:42:54,158 [INFO] DataLoader created with num_workers=4, pin_memory=True, persistent_workers=False.
+2025-11-21 12:42:54,391 [INFO] --- Checkpoint: Model 'dsformer' initialized on device 'cpu' ---
+2025-11-21 12:43:25,163 [INFO] --- Checkpoint: Starting main training loop ---
+2025-11-21 12:45:17,470 [ERROR] Exception during training:
+Traceback (most recent call last):
+  File "D:\Github\neuromorphic_decision_transformer\snn-dt\scripts\train.py", line 436, in main
+    train(cfg, logger)
+    ~~~~~^^^^^^^^^^^^^
+  File "D:\Github\neuromorphic_decision_transformer\snn-dt\scripts\train.py", line 234, in train
+    action_preds = model(batch)
+  File "C:\Users\bisha\AppData\Local\Programs\Python\Python313\Lib\site-packages\torch\nn\modules\module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\bisha\AppData\Local\Programs\Python\Python313\Lib\site-packages\torch\nn\modules\module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "D:\Github\neuromorphic_decision_transformer\snn-dt\src\models\dsformer.py", line 126, in forward
+    x = block(x, attn_mask=attn_mask)
+  File "C:\Users\bisha\AppData\Local\Programs\Python\Python313\Lib\site-packages\torch\nn\modules\module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\bisha\AppData\Local\Programs\Python\Python313\Lib\site-packages\torch\nn\modules\module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "D:\Github\neuromorphic_decision_transformer\snn-dt\src\models\dsformer.py", line 44, in forward
+    attn_scores = (q_reshaped @ k_reshaped.transpose(-2, -1)) / (self.head_dim ** 0.5)
+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~
+RuntimeError: [enforce fail at alloc_cpu.cpp:116] data. DefaultCPUAllocator: not enough memory: you tried to allocate 2313225216 bytes.
+2025-11-21 12:45:17,937 [CRITICAL] Uncaught exception
+Traceback (most recent call last):
+  File "D:\Github\neuromorphic_decision_transformer\snn-dt\scripts\train.py", line 443, in <module>
+    main()
+    ~~~~^^
+  File "D:\Github\neuromorphic_decision_transformer\snn-dt\scripts\train.py", line 439, in main
+    raise e
+  File "D:\Github\neuromorphic_decision_transformer\snn-dt\scripts\train.py", line 436, in main
+    train(cfg, logger)
+    ~~~~~^^^^^^^^^^^^^
+  File "D:\Github\neuromorphic_decision_transformer\snn-dt\scripts\train.py", line 234, in train
+    action_preds = model(batch)
+  File "C:\Users\bisha\AppData\Local\Programs\Python\Python313\Lib\site-packages\torch\nn\modules\module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\bisha\AppData\Local\Programs\Python\Python313\Lib\site-packages\torch\nn\modules\module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "D:\Github\neuromorphic_decision_transformer\snn-dt\src\models\dsformer.py", line 126, in forward
+    x = block(x, attn_mask=attn_mask)
+  File "C:\Users\bisha\AppData\Local\Programs\Python\Python313\Lib\site-packages\torch\nn\modules\module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\bisha\AppData\Local\Programs\Python\Python313\Lib\site-packages\torch\nn\modules\module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "D:\Github\neuromorphic_decision_transformer\snn-dt\src\models\dsformer.py", line 44, in forward
+    attn_scores = (q_reshaped @ k_reshaped.transpose(-2, -1)) / (self.head_dim ** 0.5)
+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~
+RuntimeError: [enforce fail at alloc_cpu.cpp:116] data. DefaultCPUAllocator: not enough memory: you tried to allocate 2313225216 bytes.
