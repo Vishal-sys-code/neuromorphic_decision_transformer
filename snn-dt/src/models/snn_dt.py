@@ -27,9 +27,10 @@ class SpikingTransformerBlock(nn.Module):
             alpha=surrogate_k * 3,
         )
 
-        self.q_lif = LIFCell(p=p)
-        self.k_lif = LIFCell(p=p)
-        self.v_li = LICell()
+        # Use LIF layer (recurrent) instead of LIFCell, with dt=1.0 for correct time scaling
+        self.q_lif = LIF(p=p, dt=1.0)
+        self.k_lif = LIF(p=p, dt=1.0)
+        self.v_li = LICell(dt=1.0) # Also update LICell if needed, though LICell handles value projection integration
 
         self.q_state = None
         self.k_state = None
@@ -58,7 +59,7 @@ class SpikingTransformerBlock(nn.Module):
         q_proj = self.q_proj(x_time) * self.current_scale
         k_proj = self.k_proj(x_time) * self.current_scale
         v = self.v_proj(x)
-
+        
         # Vectorized LIF call (no python loop)
         spikes_q_time, self.q_state = self.q_lif(q_proj, self.q_state)
         spikes_k_time, self.k_state = self.k_lif(k_proj, self.k_state)
