@@ -22,13 +22,13 @@ class SpikingTransformerBlock(nn.Module):
         # Spiking neurons
         p = LIFParameters(
             tau_mem_inv=torch.tensor(1.0 / lif_tau),
-            v_th=torch.tensor(0.8),
+            v_th=torch.tensor(0.3),
             method="super",
             alpha=surrogate_k,
         )
 
-        self.q_lif = LIF(p=p)
-        self.k_lif = LIF(p=p)
+        self.q_lif = LIFCell(p=p)
+        self.k_lif = LIFCell(p=p)
         self.v_li = LICell()
         
         self.use_plasticity = False # Will be set by SnnDt
@@ -47,13 +47,33 @@ class SpikingTransformerBlock(nn.Module):
     def forward(self, x, state_q, state_k, attn_mask=None):
         batch_size, seq_len, _ = x.shape
         
-        # Linear projections
-        q = self.q_proj(x)
-        k = self.k_proj(x)
+        # --- FIX 1 & 3: Temporal Unfolding and Input Normalization ---
+        x_time = x.transpose(0, 1)  # (seq, B, d_model)
+        
+        spikes_q_list, spikes_k_list = [], []
+        state_q, state_k = None, None
+        
+        # Linear projections outside the loop
+        q_proj = torch.tanh(self.q_proj(x_time))
+        k_proj = torch.tanh(self.k_proj(x_time))
         v = self.v_proj(x)
 
-        spikes_q, _ = self.q_lif(q)
-        spikes_k, _ = self.k_lif(k)
+        if not hasattr(self, "spike_count"):
+            self.spike_count = 0.0
+
+        for t in range(seq_len):
+            # Use pre-projected inputs
+            sp_q, state_q = self.q_lif(q_proj[t], state_q)
+            sp_k, state_k = self.k_lif(k_proj[t], state_k)
+            
+            spikes_q_list.append(sp_q)
+            spikes_k_list.append(sp_k)
+            
+            # --- FIX 4: Correct Spike Count Accumulation ---
+            self.spike_count += float(sp_q.detach().sum() + sp_k.detach().sum())
+
+        spikes_q = torch.stack(spikes_q_list, dim=0).transpose(0, 1) # (B, seq, d_model)
+        spikes_k = torch.stack(spikes_k_list, dim=0).transpose(0, 1) # (B, seq, d_model)
 
         # Attention
         q_reshaped = spikes_q.view(batch_size, seq_len, self.n_heads, self.head_dim)
@@ -70,10 +90,6 @@ class SpikingTransformerBlock(nn.Module):
         # Dendritic routing
         routing_gate = self.routing_mlp(attn_output)
         out = attn_output * routing_gate
-
-        if not hasattr(self, "spike_count"):
-            self.spike_count = 0.0
-        self.spike_count += (spikes_q.sum() + spikes_k.sum()).item()
         
         # Three-factor plasticity
         if self.training and self.use_plasticity:
@@ -122,6 +138,7 @@ class SnnDt(BasePolicy, nn.Module):
         self.embed_return = nn.Linear(1, self.hidden_size)
         self.embed_state = nn.Linear(cfg.dataset.state_dim, self.hidden_size)
         self.embed_action = nn.Linear(cfg.dataset.act_dim, self.hidden_size)
+        self.embed_ln = nn.LayerNorm(self.hidden_size)
 
         self.blocks = nn.ModuleList([
             SpikingTransformerBlock(
@@ -182,8 +199,7 @@ class SnnDt(BasePolicy, nn.Module):
             .permute(0, 2, 1, 3)
             .reshape(batch_size, 3 * seq_len, self.hidden_size)
         )
-        # We don't use LayerNorm here, as it can suppress inputs and prevent neuron spiking.
-        x = stacked_inputs
+        x = self.embed_ln(stacked_inputs)
         
         # Spiking transformer blocks
         attn_mask = nn.Transformer.generate_square_subsequent_mask(x.shape[1], device=x.device)
