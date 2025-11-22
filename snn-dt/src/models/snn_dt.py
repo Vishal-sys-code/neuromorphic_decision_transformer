@@ -1,5 +1,5 @@
 """
-Rewritten SnnDt module with a biological time dimension.
+SNN-DT module with a biological time dimension.
 - Introduces `biological_ts` (number of simulation timesteps per token).
 - Properly maintains and updates LIF states across biological timesteps.
 - Accumulates spike counts per block and exposes `count_spikes()` and `reset_spike_counts()`.
