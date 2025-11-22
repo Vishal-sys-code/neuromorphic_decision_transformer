@@ -1,15 +1,19 @@
-env: CartPole-v1
-dataset: data/cartpole_random.pkl
-seq_len: 20
-batch_size: 64
-hidden_dim: 128
-n_layers: 4
-learning_rate: 1e-4
+# @package _global_
+
+# SNN-DT specific config for CartPole-v1
+seq_len: 10
+hidden_dim: 64
+n_heads: 2
+n_layers: 1
+batch_size: 32
+learning_rate: 5e-4
+weight_decay: 0.0
 epochs: 1000
 eval_every: 10
 checkpoint_every: 50
-seed: 42
+batches_per_epoch: 100
+
+# SNN specific
 lif_tau: 20.0
 surrogate_k: 25.0
-
-num_workers: 1
+use_plasticity: false

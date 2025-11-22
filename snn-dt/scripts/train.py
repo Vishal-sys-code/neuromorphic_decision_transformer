@@ -130,6 +130,10 @@ class OfflineTransitionDataset(Dataset):
 def train(cfg, logger):
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.deterministic = False
+    try:
+        torch.set_float32_matmul_precision("high")
+    except AttributeError:
+        pass # For older torch versions
     seed_everything(cfg.seed)
 
     if cfg.model.name in ["snn_dt", "dsformer"]:
