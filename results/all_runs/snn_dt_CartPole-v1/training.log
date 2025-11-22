@@ -4,3 +4,19 @@
 2025-11-09 10:06:36,398 [INFO] Dataset size: 1000 clips
 2025-11-09 10:06:36,472 [INFO] DataLoader created with num_workers=0 and pin_memory=False.
 2025-11-09 10:06:56,621 [INFO] Starting training loop...
+2025-11-22 18:30:06,577 [INFO] Checking for dataset...
+2025-11-22 18:30:06,578 [INFO] Dataset found at D:\Github\neuromorphic_decision_transformer\data\CartPole-v1\dataset.npz.
+2025-11-22 18:30:06,579 [INFO] --- Checkpoint: Starting training ---
+2025-11-22 18:30:06,593 [INFO] --- Checkpoint: Save directory created at results\all_runs\snn_dt_CartPole-v1 ---
+2025-11-22 18:30:06,822 [INFO] Dataset size: 1000 clips
+2025-11-22 18:30:06,872 [INFO] DataLoader created with num_workers=4, pin_memory=True, persistent_workers=False.
+2025-11-22 18:30:06,917 [INFO] --- Checkpoint: Model 'snn_dt' initialized on device 'cpu' ---
+2025-11-22 18:30:20,349 [INFO] --- Checkpoint: Starting main training loop ---
+2025-11-22 21:24:49,764 [INFO] Checking for dataset...
+2025-11-22 21:24:49,796 [INFO] Dataset found at D:\Github\neuromorphic_decision_transformer\data\CartPole-v1\dataset.npz.
+2025-11-22 21:24:49,796 [INFO] --- Checkpoint: Starting training ---
+2025-11-22 21:24:49,826 [INFO] --- Checkpoint: Save directory created at results\all_runs\snn_dt_CartPole-v1 ---
+2025-11-22 21:24:49,990 [INFO] Dataset size: 1000 clips
+2025-11-22 21:24:50,035 [INFO] DataLoader created with num_workers=4, pin_memory=True, persistent_workers=False.
+2025-11-22 21:24:50,073 [INFO] --- Checkpoint: Model 'snn_dt' initialized on device 'cpu' ---
+2025-11-22 21:25:03,174 [INFO] --- Checkpoint: Starting main training loop ---

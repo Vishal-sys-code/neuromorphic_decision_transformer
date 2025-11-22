@@ -20,17 +20,18 @@ class SpikingTransformerBlock(nn.Module):
         self.v_proj = nn.Linear(d_model, d_model)
 
         # Spiking neurons
+        dt = 0.001
         p = LIFParameters(
-            tau_mem_inv=torch.tensor(1.0 / lif_tau),
+            tau_mem_inv=torch.tensor(1.0 / (lif_tau * dt)),
             v_th=torch.tensor(v_th),
             method="super",
             alpha=surrogate_k * 3,
         )
 
-        # Use LIF layer (recurrent) instead of LIFCell, with dt=1.0 for correct time scaling
-        self.q_lif = LIF(p=p, dt=1.0)
-        self.k_lif = LIF(p=p, dt=1.0)
-        self.v_li = LICell(dt=1.0) # Also update LICell if needed, though LICell handles value projection integration
+        # Use LIF layer (recurrent) instead of LIFCell
+        self.q_lif = LIF(p=p, dt=dt)
+        self.k_lif = LIF(p=p, dt=dt)
+        self.v_li = LICell(dt=dt) # Also update LICell if needed, though LICell handles value projection integration
 
         self.q_state = None
         self.k_state = None
