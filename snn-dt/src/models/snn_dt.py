@@ -7,7 +7,7 @@ from src.models.base import BasePolicy
 
 
 class SpikingTransformerBlock(nn.Module):
-    def __init__(self, cfg, d_model, n_heads, lif_tau, surrogate_k):
+    def __init__(self, cfg, d_model, n_heads, lif_tau, surrogate_k, v_th, current_scale):
         super().__init__()
         self.cfg = cfg
         self.d_model = d_model
@@ -22,14 +22,18 @@ class SpikingTransformerBlock(nn.Module):
         # Spiking neurons
         p = LIFParameters(
             tau_mem_inv=torch.tensor(1.0 / lif_tau),
-            v_th=torch.tensor(0.3),
+            v_th=torch.tensor(v_th),
             method="super",
-            alpha=surrogate_k,
+            alpha=surrogate_k * 3,
         )
 
         self.q_lif = LIFCell(p=p)
         self.k_lif = LIFCell(p=p)
         self.v_li = LICell()
+
+        self.q_state = None
+        self.k_state = None
+        self.current_scale = current_scale
         
         self.use_plasticity = False # Will be set by SnnDt
         self.eligibility_trace = None
@@ -51,13 +55,13 @@ class SpikingTransformerBlock(nn.Module):
         x_time = x.transpose(0, 1)  # (seq, B, d_model)
         
         # Linear projections and normalization
-        q_proj = torch.tanh(self.q_proj(x_time))
-        k_proj = torch.tanh(self.k_proj(x_time))
+        q_proj = self.q_proj(x_time) * self.current_scale
+        k_proj = self.k_proj(x_time) * self.current_scale
         v = self.v_proj(x)
 
         # Vectorized LIF call (no python loop)
-        spikes_q_time, _ = self.q_lif(q_proj, None)
-        spikes_k_time, _ = self.k_lif(k_proj, None)
+        spikes_q_time, self.q_state = self.q_lif(q_proj, self.q_state)
+        spikes_k_time, self.k_state = self.k_lif(k_proj, self.k_state)
 
         # Transpose back to (B, seq, d_model)
         spikes_q = spikes_q_time.transpose(0, 1)
@@ -89,6 +93,10 @@ class SpikingTransformerBlock(nn.Module):
             self.update_eligibility_trace(spikes_q, v)
             
         return out
+
+    def reset_state(self):
+        self.q_state = None
+        self.k_state = None
 
     def update_eligibility_trace(self, presynaptic_spikes, postsynaptic_potential):
         # Simplified eligibility trace update
@@ -139,6 +147,8 @@ class SnnDt(BasePolicy, nn.Module):
                 n_heads=cfg.model.n_heads,
                 lif_tau=cfg.snn.lif_tau,
                 surrogate_k=cfg.snn.surrogate_k,
+                v_th=cfg.snn.v_th,
+                current_scale=cfg.snn.current_scale,
             )
             for _ in range(cfg.model.n_layers)
         ])
@@ -194,6 +204,8 @@ class SnnDt(BasePolicy, nn.Module):
         x = stacked_inputs
         
         # Spiking transformer blocks
+        for block in self.blocks:
+            block.reset_state()
         attn_mask = nn.Transformer.generate_square_subsequent_mask(x.shape[1], device=x.device)
         for i, block in enumerate(self.blocks):
             x = block(x, None, None, attn_mask=attn_mask)

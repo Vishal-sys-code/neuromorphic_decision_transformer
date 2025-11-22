@@ -393,9 +393,11 @@ def main():
         "seed": args.seed,
         "save_dir": args.save_dir,
         "snn": {
-            "lif_tau": cfg_raw.get("lif_tau", 20.0),
-            "surrogate_k": cfg_raw.get("surrogate_k", 25.0),
-            "use_plasticity": cfg_raw.get("use_plasticity", False)
+            "lif_tau": cfg_raw.get("snn", {}).get("lif_tau", 20.0),
+            "surrogate_k": cfg_raw.get("snn", {}).get("surrogate_k", 25.0),
+            "v_th": cfg_raw.get("snn", {}).get("v_th", 0.05),
+            "current_scale": cfg_raw.get("snn", {}).get("current_scale", 5.0),
+            "use_plasticity": cfg_raw.get("snn", {}).get("use_plasticity", False)
         },
         "iql": {
             "tau": cfg_raw.get("tau", 0.005),

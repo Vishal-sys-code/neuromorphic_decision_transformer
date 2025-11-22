@@ -31,6 +31,8 @@ class MockConfig:
     class Snn:
         lif_tau = 20
         surrogate_k = 10
+        v_th = 0.05
+        current_scale = 5.0
         
     class Iql:
         hidden_size = 256
