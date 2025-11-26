@@ -9,7 +9,10 @@ epochs: 1000
 eval_every: 10
 checkpoint_every: 50
 seed: 42
-lif_tau: 20.0
-surrogate_k: 25.0
-
 num_workers: 1
+
+snn:
+  lif_tau: 20.0
+  surrogate_k: 25.0
+  v_th: 0.3
+  current_scale: 1.0

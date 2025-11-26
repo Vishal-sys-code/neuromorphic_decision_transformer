@@ -70,6 +70,7 @@ class SpikingTransformerBlock(nn.Module):
         self.out_proj = nn.Linear(self.head_dim, d_model)
 
         self.spike_count = 0.0
+        self.last_attn_scores = None
 
     def forward(self, x, state_q, state_k, attn_mask=None):
         batch_size, seq_len, _ = x.shape
@@ -103,6 +104,7 @@ class SpikingTransformerBlock(nn.Module):
         v_reshaped = spikes_v.view(batch_size, seq_len, self.n_heads, self.head_dim) # Using spikes_v now
 
         attn_scores = torch.einsum("bnhd,bmhd->bhnm", q_reshaped, k_reshaped) / (self.head_dim ** 0.5)
+        self.last_attn_scores = attn_scores.detach()
         if attn_mask is not None:
             # attn_mask shape (seq, seq)
             attn_scores = attn_scores.masked_fill(attn_mask == 0, -1e9)
@@ -370,6 +372,14 @@ class SnnDt(BasePolicy, nn.Module):
             
         # Normalize
         return total_spikes / self.total_spike_opportunities
+
+    def get_max_attn_score(self):
+        max_scores = [
+            block.last_attn_scores.max().item()
+            for block in self.blocks
+            if block.last_attn_scores is not None
+        ]
+        return max(max_scores) if max_scores else 0.0
 
     def reset_spike_counts(self):
         for block in self.blocks:

@@ -275,6 +275,11 @@ def train(cfg, logger):
                 eval_results["spikes"] = spikes
             else:
                 eval_results["spikes"] = 0.0
+            
+            if hasattr(model, "get_max_attn_score"):
+                max_attn = model.get_max_attn_score()
+                log_str += f" | Max Attn: {max_attn:.2f}"
+                eval_results["max_attn"] = max_attn
 
             metrics.append({"epoch": epoch + 1, "loss": avg_loss, **eval_results, "time_s": epoch_time})
             log_str += f" | Eval Return: {eval_results['return_mean']:.2f}"
