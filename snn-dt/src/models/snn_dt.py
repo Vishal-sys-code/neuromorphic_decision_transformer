@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
-from norse.torch.module.leaky_integrator import LICell
-from norse.torch.module.lif import LIF, LIFCell, LIFParameters
+from src.models.vectorized_lif import VectorizedLIF
 
 from src.models.base import BasePolicy
 from src.models.phase_spike_encoder import PhaseSpikeEncoder
@@ -22,24 +21,9 @@ class SpikingTransformerBlock(nn.Module):
         self.v_proj = nn.Linear(d_model, d_model)
 
         # Spiking neurons
-        dt = 0.001
-        p = LIFParameters(
-            tau_mem_inv=torch.tensor(1.0 / (lif_tau * dt)),
-            v_th=torch.tensor(v_th),
-            method="super",
-            alpha=surrogate_k * 3,
-        )
-
-        # Use LIF layer (recurrent)
-        self.q_lif = LIF(p=p, dt=dt)
-        self.k_lif = LIF(p=p, dt=dt)
-        # v_proj is usually not followed by LIF in standard SNN-former, but here we might need it?
-        # The prompt says "Q/K/V projections -> LIF spiking".
-        # Original code used LICell for v_li.
-        # Task 5: "Fix LIF Behavior... Expose config: v_th threshold, membrane leak".
-        # We will use LIF for V as well if we want full spiking attention.
-        # But standard attention is Softmax(QK^T)V. If V is spikes, it works.
-        self.v_lif = LIF(p=p, dt=dt)
+        self.q_lif = VectorizedLIF(tau=lif_tau, v_th=v_th)
+        self.k_lif = VectorizedLIF(tau=lif_tau, v_th=v_th)
+        self.v_lif = VectorizedLIF(tau=lif_tau, v_th=v_th)
 
         self.q_state = None
         self.k_state = None
