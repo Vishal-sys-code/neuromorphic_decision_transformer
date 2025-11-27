@@ -8,12 +8,13 @@ from src.models.dendritic_router import DendriticRouter
 from src.models.three_factor_plasticity import ThreeFactorPlasticity
 
 class SpikingTransformerBlock(nn.Module):
-    def __init__(self, cfg, d_model, n_heads, lif_tau, surrogate_k, v_th, current_scale):
+    def __init__(self, cfg, d_model, n_heads, lif_tau, surrogate_k, v_th, current_scale, biological_timesteps=16):
         super().__init__()
         self.cfg = cfg
         self.d_model = d_model
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
+        self.biological_timesteps = biological_timesteps
 
         # Key, Query, Value projections
         self.q_proj = nn.Linear(d_model, d_model)
@@ -56,81 +57,61 @@ class SpikingTransformerBlock(nn.Module):
         self.spike_count = 0.0
         self.last_attn_scores = None
 
-    def forward(self, x, state_q, state_k, attn_mask=None):
-        batch_size, seq_len, _ = x.shape
-        
-        # --- Vectorized Temporal Processing ---
-        # Current SNN-DT treats sequence length as time steps for LIF state evolution
-        x_time = x.transpose(0, 1)  # (seq, B, d_model)
-        
-        # Linear projections and normalization
-        q_proj = self.q_proj(x_time) * self.current_scale
-        k_proj = self.k_proj(x_time) * self.current_scale
-        v_proj = self.v_proj(x_time) * self.current_scale
-        
-        # Vectorized LIF call (seq_len as time)
-        spikes_q_time, self.q_state = self.q_lif(q_proj, self.q_state)
-        spikes_k_time, self.k_state = self.k_lif(k_proj, self.k_state)
-        spikes_v_time, self.v_state = self.v_lif(v_proj, self.v_state)
+    def forward(self, x, attn_mask=None):
+        batch_size, seq_len, d_model = x.shape
+        T = self.biological_timesteps
 
-        # Transpose back to (B, seq, d_model)
-        spikes_q = spikes_q_time.transpose(0, 1)
-        spikes_k = spikes_k_time.transpose(0, 1)
-        spikes_v = spikes_v_time.transpose(0, 1)
+        # Reshape for biological time processing: (B, L, D) -> (B * L, D)
+        x_flat = x.reshape(batch_size * seq_len, d_model)
 
-        # Correct Spike Count Accumulation
-        # Task 4: "No accumulation across epochs." handled by reset_spike_counts() in SnnDt
-        self.spike_count += float(spikes_q.detach().sum() + spikes_k.detach().sum() + spikes_v.detach().sum())
+        # --- SNN Processing over Biological Time ---
+        # Project and expand for biological time: (B*L, D) -> (T, B*L, D)
+        q_currents = self.q_proj(x_flat).unsqueeze(0).repeat(T, 1, 1) * self.current_scale
+        k_currents = self.k_proj(x_flat).unsqueeze(0).repeat(T, 1, 1) * self.current_scale
+        v_currents = self.v_proj(x_flat).unsqueeze(0).repeat(T, 1, 1) * self.current_scale
 
-        # Attention
-        q_reshaped = spikes_q.view(batch_size, seq_len, self.n_heads, self.head_dim)
-        k_reshaped = spikes_k.view(batch_size, seq_len, self.n_heads, self.head_dim)
-        v_reshaped = spikes_v.view(batch_size, seq_len, self.n_heads, self.head_dim) # Using spikes_v now
+        # Generate spikes over biological time
+        q_spikes_time, self.q_state = self.q_lif(q_currents, self.q_state)
+        k_spikes_time, self.k_state = self.k_lif(k_currents, self.k_state)
+        v_spikes_time, self.v_state = self.v_lif(v_currents, self.v_state)
+
+        # Accumulate spike counts
+        self.spike_count += float(q_spikes_time.detach().sum() + k_spikes_time.detach().sum() + v_spikes_time.detach().sum())
+
+        # Average spikes over biological time to get rate-coded representation
+        q_rate = q_spikes_time.mean(dim=0).view(batch_size, seq_len, d_model)
+        k_rate = k_spikes_time.mean(dim=0).view(batch_size, seq_len, d_model)
+        v_rate = v_spikes_time.mean(dim=0).view(batch_size, seq_len, d_model)
+
+        # --- Attention Mechanism ---
+        q_reshaped = q_rate.view(batch_size, seq_len, self.n_heads, self.head_dim)
+        k_reshaped = k_rate.view(batch_size, seq_len, self.n_heads, self.head_dim)
+        v_reshaped = v_rate.view(batch_size, seq_len, self.n_heads, self.head_dim)
 
         attn_scores = torch.einsum("bnhd,bmhd->bhnm", q_reshaped, k_reshaped) / (self.head_dim ** 0.5)
         self.last_attn_scores = attn_scores.detach()
         if attn_mask is not None:
-            # attn_mask shape (seq, seq)
             attn_scores = attn_scores.masked_fill(attn_mask == 0, -1e9)
             
-        attn_weights = torch.softmax(attn_scores, dim=-1) # (B, H, L, L)
+        attn_weights = torch.softmax(attn_scores, dim=-1)
         
-        # Weighted sum of values
-        # (B, H, L, L) @ (B, L, H, D) ? No.
-        # v_reshaped: (B, L, H, D) -> (B, H, L, D)
-        v_heads = v_reshaped.permute(0, 2, 1, 3) # (B, H, L, D)
-        
-        # (B, H, L, L) @ (B, H, L, D) -> (B, H, L, D)
+        v_heads = v_reshaped.permute(0, 2, 1, 3)
         y_heads = torch.matmul(attn_weights, v_heads)
         
-        # Reshape to (B, L, H, D) for Dendritic Router
-        y_heads = y_heads.permute(0, 2, 1, 3)
+        # --- Dendritic Routing (Per-Head) ---
+        y_heads_for_router = y_heads.permute(0, 2, 1, 3)
+        y_routed, alpha = self.dendritic_router(y_heads_for_router)
         
-        # Dendritic routing
-        # "Apply gating before summing heads: y_routed = Sum_h alpha_h * y_h"
-        y_routed, alpha = self.dendritic_router(y_heads) # y_routed: (B, L, head_dim)
+        out = self.out_proj(y_routed)
         
-        # Project back to d_model
-        out = self.out_proj(y_routed) # (B, L, d_model)
-        
-        # Three-factor plasticity
-        # "Integrate ONLY into: Action head (final linear layer) or Specific projection layers if configured"
-        # Updating v_proj as it relates to values propagated
+        # --- Three-Factor Plasticity (Temporally Aware) ---
         if self.training and self.use_plasticity:
-            # Update eligibility trace for v_proj
-            # E = lambda * E + (pre * post)
-            # pre: x (input to v_proj). post: spikes_v (output of v_proj LIF)
-            # Note: v_proj is Linear, then LIF.
-            # So pre is 'x', post is 'spikes_v'.
-            
-            # x: (B, L, d_model). spikes_v: (B, L, d_model).
-            # Flatten B and L for update? Or average?
-            # ThreeFactorPlasticity handles batch average.
-            # We flatten seq_len into batch dimension effectively for plasticity
-            x_flat = x.reshape(-1, self.d_model)
-            spikes_v_flat = spikes_v.reshape(-1, self.d_model)
-            
-            self.eligibility_trace = self.plasticity_rule(self.eligibility_trace, x_flat, spikes_v_flat)
+            # pre: input currents to v_proj over time (T, B*L, D)
+            # post: output spikes from v_lif over time (T, B*L, D)
+            for t in range(T):
+                pre_t = v_currents[t]
+                post_t = v_spikes_time[t]
+                self.eligibility_trace = self.plasticity_rule(self.eligibility_trace, pre_t, post_t)
             
         return out, alpha
 
@@ -160,6 +141,9 @@ class SnnDt(BasePolicy, nn.Module):
         self.embed_return = nn.Linear(1, self.hidden_size)
         self.embed_state = nn.Linear(cfg.dataset.state_dim, self.hidden_size)
         self.embed_action = nn.Linear(cfg.dataset.act_dim, self.hidden_size)
+
+        # Projection for concatenated embeddings
+        self.embed_ln = nn.Linear(self.hidden_size * 2, self.hidden_size)
 
         self.blocks = nn.ModuleList([
             SpikingTransformerBlock(
@@ -250,13 +234,11 @@ class SnnDt(BasePolicy, nn.Module):
         
         phase_spikes = self.phase_spike_encoder(batch["timesteps"])  # (B, seq, d_model)
         
-        # Add phase spikes to embeddings (treating 0/1 as float values to be added)
-        # This effectively superimposes the position grid on the rate code.
-        # Concatenation would require changing the block input size.
-        state_embeddings = state_embeddings + phase_spikes
-        action_embeddings = action_embeddings + phase_spikes
-        return_embeddings = return_embeddings + phase_spikes
-        
+        # Concatenate phase spikes with rate-coded embeddings
+        state_embeddings = self.embed_ln(torch.cat([state_embeddings, phase_spikes], dim=-1))
+        action_embeddings = self.embed_ln(torch.cat([action_embeddings, phase_spikes], dim=-1))
+        return_embeddings = self.embed_ln(torch.cat([return_embeddings, phase_spikes], dim=-1))
+
         stacked_inputs = (
             torch.stack((return_embeddings, state_embeddings, action_embeddings), dim=1)
             .permute(0, 2, 1, 3)
@@ -275,7 +257,7 @@ class SnnDt(BasePolicy, nn.Module):
         phase_alignments = [] # Placeholder
         
         for i, block in enumerate(self.blocks):
-            x_out, alpha = block(x, None, None, attn_mask=attn_mask)
+            x_out, alpha = block(x, attn_mask=attn_mask)
             x = x + x_out # Residual
             x = self.layer_norms[i](x) # LayerNorm
             

@@ -4,3 +4,11 @@
 2025-11-07 16:07:53,716 [INFO] Dataset size: 1000 clips
 2025-11-07 16:07:53,750 [INFO] DataLoader created with num_workers=0 and pin_memory=False.
 2025-11-07 16:08:05,945 [INFO] Starting training loop...
+2025-11-27 22:46:28,188 [INFO] Checking for dataset...
+2025-11-27 22:46:28,189 [INFO] Dataset found at D:\Github\neuromorphic_decision_transformer\data\MountainCar-v0\dataset.npz.
+2025-11-27 22:46:28,190 [INFO] --- Checkpoint: Starting training ---
+2025-11-27 22:46:28,203 [INFO] --- Checkpoint: Save directory created at results\all_runs\snn_dt_MountainCar-v0 ---
+2025-11-27 22:46:28,399 [INFO] Dataset size: 1000 clips
+2025-11-27 22:46:28,445 [INFO] DataLoader created with num_workers=4, pin_memory=True, persistent_workers=False.
+2025-11-27 22:46:28,538 [INFO] --- Checkpoint: Model 'snn_dt' initialized on device 'cpu' ---
+2025-11-27 22:46:40,012 [INFO] --- Checkpoint: Starting main training loop ---
