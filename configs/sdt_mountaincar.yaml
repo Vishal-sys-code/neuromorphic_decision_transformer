@@ -1,18 +1,34 @@
+# config: SNN-DT training for MountainCar-v0
 env: MountainCar-v0
 dataset: data/mountaincar_random.pkl
+
+# model / data
 seq_len: 20
 batch_size: 64
 hidden_dim: 128
 n_layers: 4
+
+# training
 learning_rate: 1e-4
 epochs: 1000
 eval_every: 10
 checkpoint_every: 50
 seed: 42
 num_workers: 1
+# optional: limit batches per epoch for fast iteration (train.py enforces a cap for SNN models)
+batches_per_epoch: 100
 
+# SNN-specific hyperparameters
 snn:
-  lif_tau: 20.0
-  surrogate_k: 25.0
-  v_th: 0.3
-  current_scale: 1.0
+  lif_tau: 20.0          # membrane time constant (ms)
+  surrogate_k: 25.0     # surrogate gradient hardness
+  v_th: 0.3             # neuron firing threshold
+  current_scale: 1.0    # scale factor applied to projected currents
+  biological_time: 8    # T: biological timesteps per token (vectorized LIF time dimension)
+  use_plasticity: false # enable 3-factor plasticity (set true to activate)
+  eta_local: 1e-4       # plasticity learning rate (if enabled)
+  lambda_decay: 0.99    # eligibility trace decay (if enabled)
+
+# debug / perf flags (optional; can also be passed via CLI)
+# debug_use_fake_lif: false
+# embed_scale: 1.0
