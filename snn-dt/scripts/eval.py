@@ -42,6 +42,7 @@ def evaluate_policy(model, env, cfg, episodes):
                     actions,
                     returns_to_go,
                     timesteps,
+                    first_step=(t == 0),
                 )
             latencies.append(time.perf_counter() - start_time)
 

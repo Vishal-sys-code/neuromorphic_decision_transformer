@@ -18,6 +18,9 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+
+from src.models.base import BasePolicy
 
 
 # -------------------------
@@ -73,16 +76,23 @@ class VectorizedLIF(nn.Module):
         self.v_th = float(v_th)
         self.alpha = float(alpha)  # surrogate hardness
         self.dt = float(dt)
+        self.v = None
         # alpha_decay used in Euler update: v = rho * v + current
         # rho = exp(-dt / tau)
         self.register_buffer("rho", torch.tensor(math.exp(-self.dt / max(self.tau, 1e-6))))
+
+    def reset_state(self):
+        self.v = None
 
     def forward(self, currents: torch.Tensor, v0: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
         # currents: (T, B, L, N)
         T, B, L, N = currents.shape
         device = currents.device
         if v0 is None:
-            v = torch.zeros((B, L, N), dtype=currents.dtype, device=device)
+            if self.v is None:
+                v = torch.zeros((B, L, N), dtype=currents.dtype, device=device)
+            else:
+                v = self.v
         else:
             v = v0
 
@@ -100,6 +110,7 @@ class VectorizedLIF(nn.Module):
             # reset (soft reset)
             v = v * (1.0 - s_t)
             spikes_time[t] = s_t
+        self.v = v
         return spikes_time, v
 
 
@@ -316,6 +327,9 @@ class SpikingTransformerBlock(nn.Module):
         self.last_alpha = None
         self.last_attn_scores = None
         self.diagnostics = {}
+        
+    def reset_state(self):
+        self.lif.reset_state()
 
     def forward(self, x: torch.Tensor, phase_mod: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -415,7 +429,7 @@ class SpikingTransformerBlock(nn.Module):
 # -------------------------
 # Full SnnDt model
 # -------------------------
-class SnnDt(nn.Module):
+class SnnDt(BasePolicy, nn.Module):
     """
     SnnDt model that stacks SpikingTransformerBlocks with:
      - PhaseSpikeEncoder to generate modulation across biological time T
@@ -556,10 +570,36 @@ class SnnDt(nn.Module):
         )
         return action_preds
 
+    @torch.no_grad()
+    def predict_action(self, states, actions, returns_to_go, timesteps, first_step=False):
+        if first_step:
+            self.reset_state()
+            
+        device = next(self.parameters()).device
+        states = torch.from_numpy(states).float().to(device)
+        actions = torch.from_numpy(actions).float().to(device)
+        returns_to_go = torch.from_numpy(returns_to_go).float().to(device)
+        timesteps = torch.from_numpy(timesteps).long().to(device)
+
+        batch = {
+            "states": states,
+            "actions": actions,
+            "returns_to_go": returns_to_go,
+            "timesteps": timesteps,
+            "mask": torch.ones_like(states[..., 0]),
+        }
+
+        action_preds = self.forward(batch)
+        return action_preds[0, -1].cpu().numpy()
+
     def count_spikes(self) -> float:
         if self.total_spike_opportunities <= 0.0:
             return float(self.total_spike_count)
         return float(self.total_spike_count / max(1.0, self.total_spike_opportunities))
+
+    def reset_state(self):
+        for block in self.blocks:
+            block.reset_state()
 
     def reset_spike_counts(self):
         for b in self.blocks:
@@ -576,3 +616,12 @@ class SnnDt(nn.Module):
             if block.use_plasticity and block.plasticity_rule is not None:
                 # apply to v_proj weight (example)
                 block.plasticity_rule.apply(block.v_proj.weight, reward)
+
+    def save(self, path):
+        torch.save(self.state_dict(), path)
+
+    def load(self, path):
+        self.load_state_dict(torch.load(path))
+
+    def num_params(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
