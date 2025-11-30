@@ -277,6 +277,18 @@ class SpikingTransformerBlock(nn.Module):
         self.q_proj = nn.Linear(d_model, d_model)
         self.k_proj = nn.Linear(d_model, d_model)
         self.v_proj = nn.Linear(d_model, d_model)
+        
+        current_scale = float(getattr(self.cfg.snn, "current_scale", 1.0))
+        # add a small learnable gain so we can ramp input current easily
+        self.register_parameter("input_gain", torch.nn.Parameter(torch.tensor(float(current_scale), dtype=torch.float32)))
+
+        import torch.nn.init as init
+
+        for lin in (self.q_proj, self.k_proj, self.v_proj, getattr(self, 'out_proj', None)):
+            if lin is None: continue
+            init.xavier_uniform_(lin.weight, gain=1.0)
+            if lin.bias is not None:
+                lin.bias.data.zero_()
 
         # Vectorized LIF for full d_model
         lif_tau = float(getattr(cfg.snn, "lif_tau", 20.0))
@@ -321,18 +333,25 @@ class SpikingTransformerBlock(nn.Module):
         q = self.q_proj(x)  # (B, L, D)
         k = self.k_proj(x)
         v = self.v_proj(x)
+        
+        self.diagnostics['q_proj_min'] = q.min().item()
+        self.diagnostics['q_proj_max'] = q.max().item()
+        self.diagnostics['q_proj_mean'] = q.mean().item()
 
         # currents shape: (T, B, L, D)
         # scale current by cfg.snn.current_scale if present
-        current_scale = float(getattr(self.cfg.snn, "current_scale", 1.0))
-        q_curr = q.unsqueeze(0) * phase_mod * current_scale
-        k_curr = k.unsqueeze(0) * phase_mod * current_scale
-        v_curr = v.unsqueeze(0) * phase_mod * current_scale
+        q_curr = q.unsqueeze(0) * phase_mod * self.input_gain
+        k_curr = k.unsqueeze(0) * phase_mod * self.input_gain
+        v_curr = v.unsqueeze(0) * phase_mod * self.input_gain
 
         # run LIF (vectorized across time)
-        spikes_q_t, _ = self.lif(q_curr)  # (T, B, L, D)
+        spikes_q_t, q_state = self.lif(q_curr)  # (T, B, L, D)
         spikes_k_t, _ = self.lif(k_curr)
         spikes_v_t, _ = self.lif(v_curr)
+
+        if isinstance(q_state, torch.Tensor):
+            self.diagnostics['v_mem_q_min'] = q_state.min().item()
+            self.diagnostics['v_mem_q_max'] = q_state.max().item()
 
         # accumulate spike counts for diagnostics
         s_sum = spikes_q_t.sum() + spikes_k_t.sum() + spikes_v_t.sum()
@@ -361,9 +380,7 @@ class SpikingTransformerBlock(nn.Module):
         k_perm = k_h.permute(0, 2, 1, 3)
         v_perm = v_h.permute(0, 2, 1, 3)
 
-        # compute attn scores via einsum
-        attn_scores = torch.einsum("bhdl,bhdl->bhdd", q_perm.unsqueeze(-2), k_perm.unsqueeze(-1))
-        # above is awkward; simpler compute with matmul:
+        # compute attn scores via matmul:
         # (B, H, L, Dh) @ (B, H, Dh, L) -> (B, H, L, L)
         k_trans = k_perm.transpose(-1, -2)  # (B,H, Dh, L)
         attn_scores = torch.matmul(q_perm, k_trans) / math.sqrt(self.head_dim)  # (B,H,L,L)
@@ -420,7 +437,10 @@ class SnnDt(nn.Module):
 
         # embeddings
         self.embed_state = nn.Linear(cfg.dataset.state_dim, self.d_model)
-        self.embed_action = nn.Linear(cfg.dataset.act_dim, self.d_model)
+        if cfg.dataset.is_discrete:
+            self.embed_action = nn.Embedding(cfg.dataset.act_dim, self.d_model)
+        else:
+            self.embed_action = nn.Linear(cfg.dataset.act_dim, self.d_model)
         self.embed_return = nn.Linear(1, self.d_model)
 
         # Phase encoder (one global instance to produce modulation for all projections)
@@ -458,9 +478,25 @@ class SnnDt(nn.Module):
         B, L, _ = states.shape
         device = states.device
 
+        # Pad actions if they are shorter than states
+        if actions.shape[1] < states.shape[1]:
+            padding_needed = states.shape[1] - actions.shape[1]
+            if actions.dim() == 3:
+                actions = torch.nn.functional.pad(
+                    actions, (0, 0, 0, padding_needed), "constant", 0
+                )
+            else: # (B, L)
+                actions = torch.nn.functional.pad(
+                    actions, (0, padding_needed), "constant", 0
+                )
+
         # basic embeddings
         s_emb = self.embed_state(states)  # (B,L,D)
-        a_emb = self.embed_action(actions)
+        if self.cfg.dataset.is_discrete:
+            # Squeeze and convert to long for embedding lookup
+            a_emb = self.embed_action(actions.squeeze(-1).long())
+        else:
+            a_emb = self.embed_action(actions)
         r_emb = self.embed_return(returns)
 
         # phase modulation factors T x B x L x 1
@@ -468,6 +504,10 @@ class SnnDt(nn.Module):
         # we feed combined rate embedding (sum of s/a/r) to provide variety
         rate_emb = (s_emb + a_emb + r_emb)  # (B,L,D)
         phase_mod = self.phase_encoder(rate_emb)  # (T,B,L,1)
+
+        # The phase modulation needs to match the new sequence length of 3*L
+        # We repeat the modulation for each of the (R, S, A) tokens.
+        phase_mod = phase_mod.repeat(1, 1, 3, 1)
 
         # combine tokens into the typical transformer stacking (R, S, A)
         stacked = torch.stack((r_emb, s_emb, a_emb), dim=1)  # (B, 3, L, D)
