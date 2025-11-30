@@ -305,7 +305,9 @@ class SpikingTransformerBlock(nn.Module):
         lif_tau = float(getattr(cfg.snn, "lif_tau", 20.0))
         v_th = float(getattr(cfg.snn, "v_th", 0.5))
         surrogate_k = float(getattr(cfg.snn, "surrogate_k", 25.0))
-        self.lif = VectorizedLIF(tau=lif_tau, v_th=v_th, alpha=surrogate_k)
+        self.lif_q = VectorizedLIF(tau=lif_tau, v_th=v_th, alpha=surrogate_k)
+        self.lif_k = VectorizedLIF(tau=lif_tau, v_th=v_th, alpha=surrogate_k)
+        self.lif_v = VectorizedLIF(tau=lif_tau, v_th=v_th, alpha=surrogate_k)
 
         # Phase encoder (we will create one globally in SnnDt and pass modulation into block)
         # Dendritic router works on head-dim
@@ -329,9 +331,14 @@ class SpikingTransformerBlock(nn.Module):
         self.diagnostics = {}
         
     def reset_state(self):
-        self.lif.reset_state()
+        self.lif_q.reset_state()
+        self.lif_k.reset_state()
+        self.lif_v.reset_state()
 
     def forward(self, x: torch.Tensor, phase_mod: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        if self.training:
+            self.reset_state()
+            
         """
         x: (B, L, d_model)
         phase_mod: (T, B, L, 1)  -- modulation produced by PhaseSpikeEncoder (or others)
@@ -359,9 +366,9 @@ class SpikingTransformerBlock(nn.Module):
         v_curr = v.unsqueeze(0) * phase_mod * self.input_gain
 
         # run LIF (vectorized across time)
-        spikes_q_t, q_state = self.lif(q_curr)  # (T, B, L, D)
-        spikes_k_t, _ = self.lif(k_curr)
-        spikes_v_t, _ = self.lif(v_curr)
+        spikes_q_t, q_state = self.lif_q(q_curr)  # (T, B, L, D)
+        spikes_k_t, _ = self.lif_k(k_curr)
+        spikes_v_t, _ = self.lif_v(v_curr)
 
         if isinstance(q_state, torch.Tensor):
             self.diagnostics['v_mem_q_min'] = q_state.min().item()
