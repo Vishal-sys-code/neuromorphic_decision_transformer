@@ -7,6 +7,7 @@ class MockConfig:
         d_model = 64
         n_heads = 4
         n_layers = 1
+        seq_len = 5
     class DatasetConfig:
         state_dim = 10
         act_dim = 2
@@ -59,7 +60,7 @@ def test_training_step_loss_decrease():
         losses.append(loss.item())
         
         # Apply plasticity (simulated reward)
-        model.update_plasticity(reward=-loss.item()) # Negative loss as reward? Or just descent.
+        model.apply_plasticity(reward=-loss.item()) # Negative loss as reward? Or just descent.
         
     # Check if loss generally decreases
     assert losses[-1] < losses[0]

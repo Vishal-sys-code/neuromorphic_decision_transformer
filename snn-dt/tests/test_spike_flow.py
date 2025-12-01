@@ -7,6 +7,7 @@ class MockConfig:
         d_model = 64
         n_heads = 4
         n_layers = 1
+        seq_len = 5
     class DatasetConfig:
         state_dim = 10
         act_dim = 2
@@ -49,7 +50,7 @@ def test_snn_dt_spike_flow():
     assert model.count_spikes() > 0
     
     # Check plasticity updated trace (indirectly via no error)
-    model.update_plasticity(reward=1.0)
+    model.apply_plasticity(reward=1.0)
 
 def test_snn_dt_zero_spikes_if_high_threshold():
     cfg = MockConfig()

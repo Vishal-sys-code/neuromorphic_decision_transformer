@@ -94,7 +94,7 @@ class DecisionTransformer(BasePolicy, nn.Module):
         return action_preds
 
     @torch.no_grad()
-    def predict_action(self, states, actions, returns_to_go, timesteps):
+    def predict_action(self, states, actions, returns_to_go, timesteps, first_step=False):
         device = next(self.parameters()).device
         states = torch.from_numpy(states).float().to(device)
         actions = torch.from_numpy(actions).float().to(device)
