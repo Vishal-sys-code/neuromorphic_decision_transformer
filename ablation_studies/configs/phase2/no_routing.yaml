@@ -1,0 +1,6 @@
+phase_encoder:
+  enabled: true
+routing:
+  enabled: false
+local_plasticity:
+  enabled: true

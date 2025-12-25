@@ -1,0 +1,35 @@
+envs: ["CartPole-v1", "Acrobot-v1", "Pendulum-v1", "MountainCar-v0"]
+datasets_per_env:
+  steps: 10000
+  mix: "50% expert / 50% random"
+sequence_length_N: 20
+spiking_window_T: 10
+hidden_dim_d: 128
+num_layers_L: 2
+num_heads_H: 4
+batch_size: 64
+optimizer: AdamW
+lr: 3e-4
+weight_decay: 1e-2
+epochs: 50
+local_lr_eta_local: 0.05
+surrogate_slope_k: 10
+spike_energy_pJ: 5.0
+seeds: [1001, 1002, 1003]
+log_interval_steps: 250
+checkpoint_interval_epochs: 5
+eval_rollouts: 50
+
+# --- Model-specific configs ---
+iql:
+  tau: 0.005
+  temperature: 3.0
+  expectile: 0.7
+  hidden_size: 256
+cql:
+  tau: 0.005
+  temperature: 1.0
+  hidden_size: 256
+  with_lagrange: false
+  cql_weight: 1.0
+  target_action_gap: 10.0
