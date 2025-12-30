@@ -1,0 +1,38 @@
+{
+    "frozen_at": "2025-12-30T09:52:25.021433",
+    "source_dir": "d:\\Github\\neuromorphic_decision_transformer\\ablation_studies\\datasets\\processed\\CartPole-v1",
+    "normalization": {
+        "v1-stratified": {
+            "state_mean": [
+                0.383205771446228,
+                0.11351169645786285,
+                0.0057622939348220825,
+                0.0036555728875100613
+            ],
+            "state_std": [
+                0.5156245827674866,
+                0.3534005582332611,
+                0.03314344584941864,
+                0.2280774712562561
+            ]
+        },
+        "v1-random-heavy": {
+            "state_mean": [
+                0.34173867106437683,
+                0.11979816854000092,
+                0.005386938340961933,
+                -0.003705930430442095
+            ],
+            "state_std": [
+                0.5256646871566772,
+                0.42960450053215027,
+                0.05436287075281143,
+                0.40886640548706055
+            ]
+        }
+    },
+    "datasets": {
+        "stratified_dataset.npz": "v1-stratified",
+        "random_heavy_dataset.npz": "v1-random-heavy"
+    }
+}

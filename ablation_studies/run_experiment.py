@@ -26,6 +26,9 @@ from ablation_studies.src.models.ablation_dsformer import AblationDsFormer, Base
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
+        for k, v in self.items():
+            if isinstance(v, dict) and not isinstance(v, AttrDict):
+                self[k] = AttrDict(v)
         self.__dict__ = self
     def __getattr__(self, name):
         if name in self.__dict__: return self.__dict__[name]
@@ -128,8 +131,20 @@ def train(cfg, logger):
         raise FileNotFoundError(f"Dataset for {cfg.env} not found at {dataset_path}.")
     
     with np.load(dataset_path, allow_pickle=True) as data:
-        metadata = pickle.loads(data['metadata'].item())
-    cfg.dataset.update(metadata)
+        meta_item = data['metadata'].item()
+        if isinstance(meta_item, str):
+            metadata = json.loads(meta_item)
+        else:
+            metadata = pickle.loads(meta_item)
+        cfg.dataset.update(metadata)
+
+        if 'state_dim' not in cfg.dataset:
+            if 'states' in data: cfg.dataset.state_dim = data['states'].shape[-1]
+            elif 'state_mean' in data: cfg.dataset.state_dim = data['state_mean'].shape[-1]
+    
+        if 'act_dim' not in cfg.dataset:
+            if 'actions' in data: cfg.dataset.act_dim = data['actions'].shape[-1]
+            elif 'action_dim' in metadata: cfg.dataset.act_dim = metadata['action_dim']
     
     is_transition_model = cfg.model.name in ['iql', 'cql']
     DatasetClass = OfflineTransitionDataset if is_transition_model else OfflineSequenceDataset
@@ -139,7 +154,7 @@ def train(cfg, logger):
     train_loader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=min(os.cpu_count(), 4))
     
     model = get_model(cfg).to(cfg.device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay) if list(model.parameters()) else None
+    optimizer = torch.optim.AdamW(model.parameters(), lr=float(cfg.lr), weight_decay=float(cfg.weight_decay)) if list(model.parameters()) else None
     loss_fn = torch.nn.MSELoss()
 
     logger.info(json.dumps({"train/param_count": sum(p.numel() for p in model.parameters())}))
@@ -171,12 +186,17 @@ def main():
     parser.add_argument("--variant", required=True)
     parser.add_argument("--env", required=True)
     parser.add_argument("--seed", required=True, type=int)
+    parser.add_argument("--contract", default="experiment_contract.yaml", help="Path to experiment contract yaml")
     args = parser.parse_args()
 
     variant_path = Path(__file__).parent / f"configs/phase2/{args.variant}.yaml"
-    cfg = load_config(Path(__file__).parent / "experiment_contract.yaml", variant_path)
+    cfg = load_config(Path(__file__).parent / args.contract, variant_path)
     cfg.env, cfg.seed = args.env, args.seed
-    cfg.model.name = cfg.get('model', {}).get('name', args.variant if args.variant in ['dt', 'snn_dt', 'iql', 'cql'] else 'ablation_dsformer')
+    model_name = cfg.get('model', {}).get('name', args.variant if args.variant in ['dt', 'snn_dt', 'iql', 'cql'] else 'ablation_dsformer')
+    if 'model' not in cfg: cfg['model'] = AttrDict()
+    elif isinstance(cfg['model'], dict) and not isinstance(cfg['model'], AttrDict): cfg['model'] = AttrDict(cfg['model'])
+    
+    cfg.model.name = model_name
     
     run_name = cfg.model.name if cfg.model.name != 'ablation_dsformer' else args.variant
     save_dir = Path(__file__).parent / f"runs/{run_name}/seed_{args.seed}/{cfg.env}"

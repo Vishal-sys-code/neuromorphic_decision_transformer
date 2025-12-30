@@ -17,7 +17,7 @@ from ablation_studies.src.datasets import OfflineSequenceDataset
 # --- Configuration ---
 PROCESSED_DIR = Path(__file__).parent.parent / "datasets/processed"
 PLOTS_DIR = Path(__file__).parent.parent / "datasets/verification_plots"
-ENVS = ["CartPole-v1", "Acrobot-v1", "Pendulum-v1"]
+ENVS = ["CartPole-v1", "Acrobot-v1", "Pendulum-v1", "MountainCar-v0"]
 
 # --- Plotting Style ---
 sns.set_theme(style="whitegrid", context="paper")
@@ -46,29 +46,55 @@ def plot_distributions(env_name):
 
 def spike_sanity_check(env_name):
     """Performs a spike sanity check on both datasets."""
-    # Dummy config for the model
+    
+    # Load data first to get dims
+    strat_path = str(PROCESSED_DIR / env_name / "stratified_dataset.npz")
+    random_path = str(PROCESSED_DIR / env_name / "random_heavy_dataset.npz")
+    
+    strat_data = np.load(strat_path)
+    state_dim = strat_data['states'].shape[-1]
+    act_dim = strat_data['actions'].shape[-1]
+    
+    # Dummy config for the model matching AblationDsFormer expectations
     class DummyCfg:
+        # Top-level params expected by AblationDsFormer
+        hidden_dim_d = 128 
+        num_heads_H = 4
+        num_layers_L = 2
+        surrogate_slope_k = 10
+        local_lr_eta_local = 0.01
+
         class model:
             name = 'ablation_dsformer'
+            # Some versions might look here, keeping for safety
             hidden_dim_d = 128
-            num_heads_H = 4
-            num_layers_L = 2
-            surrogate_slope_k = 10
-            class routing: enabled = True
-            class phase_encoder: enabled = True
-            class local_plasticity: enabled = False
+            
+        class routing: 
+            enabled = True
+        
+        class phase_encoder: 
+            enabled = True
+            
+        class local_plasticity: 
+            enabled = False
+            
         class dataset:
             max_timesteps = 1000
+            state_dim = 0 # Will be updated below
+            act_dim = 0   # Will be updated below
+        
         device = 'cpu'
 
     cfg = DummyCfg()
+    cfg.dataset.state_dim = state_dim
+    cfg.dataset.act_dim = act_dim
     
     # Load model
     model = AblationDsFormer(cfg)
     
     # Run forward pass on a batch from each dataset
-    strat_dataset = OfflineSequenceDataset(str(PROCESSED_DIR / env_name / "stratified_dataset.npz"), 20)
-    random_dataset = OfflineSequenceDataset(str(PROCESSED_DIR / env_name / "random_heavy_dataset.npz"), 20)
+    strat_dataset = OfflineSequenceDataset(strat_path, 20)
+    random_dataset = OfflineSequenceDataset(random_path, 20)
     
     strat_batch = next(iter(torch.utils.data.DataLoader(strat_dataset, batch_size=32)))
     random_batch = next(iter(torch.utils.data.DataLoader(random_dataset, batch_size=32)))

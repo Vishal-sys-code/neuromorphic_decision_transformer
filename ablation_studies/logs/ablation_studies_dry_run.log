@@ -1,0 +1,287 @@
+--- Starting Ablation Studies ---
+Variants: ['no_plasticity', 'no_routing', 'no_phase', 'dt', 'snn_dt', 'iql', 'cql']
+Environments: ['CartPole-v1', 'Acrobot-v1', 'Pendulum-v1', 'MountainCar-v0']
+Seeds: [0, 1, 2, 3, 4]
+Contract: experiment_contract_light.yaml
+---------------------------------
+[1/140] Running: Variant=no_plasticity, Env=CartPole-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env CartPole-v1 --seed 0 --contract experiment_contract_light.yaml
+[2/140] Running: Variant=no_plasticity, Env=CartPole-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env CartPole-v1 --seed 1 --contract experiment_contract_light.yaml
+[3/140] Running: Variant=no_plasticity, Env=CartPole-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env CartPole-v1 --seed 2 --contract experiment_contract_light.yaml
+[4/140] Running: Variant=no_plasticity, Env=CartPole-v1, Seed=3      
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env CartPole-v1 --seed 3 --contract experiment_contract_light.yaml
+[5/140] Running: Variant=no_plasticity, Env=CartPole-v1, Seed=4      
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env CartPole-v1 --seed 4 --contract experiment_contract_light.yaml
+[6/140] Running: Variant=no_plasticity, Env=Acrobot-v1, Seed=0       
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env Acrobot-v1 --seed 0 --contract experiment_contract_light.yaml
+[7/140] Running: Variant=no_plasticity, Env=Acrobot-v1, Seed=1       
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env Acrobot-v1 --seed 1 --contract experiment_contract_light.yaml
+[8/140] Running: Variant=no_plasticity, Env=Acrobot-v1, Seed=2       
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env Acrobot-v1 --seed 2 --contract experiment_contract_light.yaml
+[9/140] Running: Variant=no_plasticity, Env=Acrobot-v1, Seed=3       
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env Acrobot-v1 --seed 3 --contract experiment_contract_light.yaml
+[10/140] Running: Variant=no_plasticity, Env=Acrobot-v1, Seed=4      
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env Acrobot-v1 --seed 4 --contract experiment_contract_light.yaml
+[11/140] Running: Variant=no_plasticity, Env=Pendulum-v1, Seed=0     
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env Pendulum-v1 --seed 0 --contract experiment_contract_light.yaml
+[12/140] Running: Variant=no_plasticity, Env=Pendulum-v1, Seed=1     
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env Pendulum-v1 --seed 1 --contract experiment_contract_light.yaml
+[13/140] Running: Variant=no_plasticity, Env=Pendulum-v1, Seed=2     
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env Pendulum-v1 --seed 2 --contract experiment_contract_light.yaml
+[14/140] Running: Variant=no_plasticity, Env=Pendulum-v1, Seed=3     
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env Pendulum-v1 --seed 3 --contract experiment_contract_light.yaml
+[15/140] Running: Variant=no_plasticity, Env=Pendulum-v1, Seed=4     
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env Pendulum-v1 --seed 4 --contract experiment_contract_light.yaml
+[16/140] Running: Variant=no_plasticity, Env=MountainCar-v0, Seed=0  
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env MountainCar-v0 --seed 0 --contract experiment_contract_light.yaml
+[17/140] Running: Variant=no_plasticity, Env=MountainCar-v0, Seed=1  
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env MountainCar-v0 --seed 1 --contract experiment_contract_light.yaml
+[18/140] Running: Variant=no_plasticity, Env=MountainCar-v0, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env MountainCar-v0 --seed 2 --contract experiment_contract_light.yaml
+[19/140] Running: Variant=no_plasticity, Env=MountainCar-v0, Seed=3  
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env MountainCar-v0 --seed 3 --contract experiment_contract_light.yaml
+[20/140] Running: Variant=no_plasticity, Env=MountainCar-v0, Seed=4  
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env MountainCar-v0 --seed 4 --contract experiment_contract_light.yaml
+[21/140] Running: Variant=no_routing, Env=CartPole-v1, Seed=0        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env CartPole-v1 --seed 0 --contract experiment_contract_light.yaml
+[22/140] Running: Variant=no_routing, Env=CartPole-v1, Seed=1        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env CartPole-v1 --seed 1 --contract experiment_contract_light.yaml
+[23/140] Running: Variant=no_routing, Env=CartPole-v1, Seed=2        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env CartPole-v1 --seed 2 --contract experiment_contract_light.yaml
+[24/140] Running: Variant=no_routing, Env=CartPole-v1, Seed=3        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env CartPole-v1 --seed 3 --contract experiment_contract_light.yaml
+[25/140] Running: Variant=no_routing, Env=CartPole-v1, Seed=4        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env CartPole-v1 --seed 4 --contract experiment_contract_light.yaml
+[26/140] Running: Variant=no_routing, Env=Acrobot-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env Acrobot-v1 --seed 0 --contract experiment_contract_light.yaml
+[27/140] Running: Variant=no_routing, Env=Acrobot-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env Acrobot-v1 --seed 1 --contract experiment_contract_light.yaml
+[28/140] Running: Variant=no_routing, Env=Acrobot-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env Acrobot-v1 --seed 2 --contract experiment_contract_light.yaml
+[29/140] Running: Variant=no_routing, Env=Acrobot-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env Acrobot-v1 --seed 3 --contract experiment_contract_light.yaml
+[30/140] Running: Variant=no_routing, Env=Acrobot-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env Acrobot-v1 --seed 4 --contract experiment_contract_light.yaml
+[31/140] Running: Variant=no_routing, Env=Pendulum-v1, Seed=0        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env Pendulum-v1 --seed 0 --contract experiment_contract_light.yaml
+[32/140] Running: Variant=no_routing, Env=Pendulum-v1, Seed=1        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env Pendulum-v1 --seed 1 --contract experiment_contract_light.yaml
+[33/140] Running: Variant=no_routing, Env=Pendulum-v1, Seed=2        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env Pendulum-v1 --seed 2 --contract experiment_contract_light.yaml
+[34/140] Running: Variant=no_routing, Env=Pendulum-v1, Seed=3        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env Pendulum-v1 --seed 3 --contract experiment_contract_light.yaml
+[35/140] Running: Variant=no_routing, Env=Pendulum-v1, Seed=4        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env Pendulum-v1 --seed 4 --contract experiment_contract_light.yaml
+[36/140] Running: Variant=no_routing, Env=MountainCar-v0, Seed=0     
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env MountainCar-v0 --seed 0 --contract experiment_contract_light.yaml
+[37/140] Running: Variant=no_routing, Env=MountainCar-v0, Seed=1     
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env MountainCar-v0 --seed 1 --contract experiment_contract_light.yaml
+[38/140] Running: Variant=no_routing, Env=MountainCar-v0, Seed=2     
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env MountainCar-v0 --seed 2 --contract experiment_contract_light.yaml
+[39/140] Running: Variant=no_routing, Env=MountainCar-v0, Seed=3     
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env MountainCar-v0 --seed 3 --contract experiment_contract_light.yaml
+[40/140] Running: Variant=no_routing, Env=MountainCar-v0, Seed=4     
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_routing --env MountainCar-v0 --seed 4 --contract experiment_contract_light.yaml
+[41/140] Running: Variant=no_phase, Env=CartPole-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env CartPole-v1 --seed 0 --contract experiment_contract_light.yaml
+[42/140] Running: Variant=no_phase, Env=CartPole-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env CartPole-v1 --seed 1 --contract experiment_contract_light.yaml
+[43/140] Running: Variant=no_phase, Env=CartPole-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env CartPole-v1 --seed 2 --contract experiment_contract_light.yaml
+[44/140] Running: Variant=no_phase, Env=CartPole-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env CartPole-v1 --seed 3 --contract experiment_contract_light.yaml
+[45/140] Running: Variant=no_phase, Env=CartPole-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env CartPole-v1 --seed 4 --contract experiment_contract_light.yaml
+[46/140] Running: Variant=no_phase, Env=Acrobot-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env Acrobot-v1 --seed 0 --contract experiment_contract_light.yaml
+[47/140] Running: Variant=no_phase, Env=Acrobot-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env Acrobot-v1 --seed 1 --contract experiment_contract_light.yaml
+[48/140] Running: Variant=no_phase, Env=Acrobot-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env Acrobot-v1 --seed 2 --contract experiment_contract_light.yaml
+[49/140] Running: Variant=no_phase, Env=Acrobot-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env Acrobot-v1 --seed 3 --contract experiment_contract_light.yaml
+[50/140] Running: Variant=no_phase, Env=Acrobot-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env Acrobot-v1 --seed 4 --contract experiment_contract_light.yaml
+[51/140] Running: Variant=no_phase, Env=Pendulum-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env Pendulum-v1 --seed 0 --contract experiment_contract_light.yaml
+[52/140] Running: Variant=no_phase, Env=Pendulum-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env Pendulum-v1 --seed 1 --contract experiment_contract_light.yaml
+[53/140] Running: Variant=no_phase, Env=Pendulum-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env Pendulum-v1 --seed 2 --contract experiment_contract_light.yaml
+[54/140] Running: Variant=no_phase, Env=Pendulum-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env Pendulum-v1 --seed 3 --contract experiment_contract_light.yaml
+[55/140] Running: Variant=no_phase, Env=Pendulum-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env Pendulum-v1 --seed 4 --contract experiment_contract_light.yaml
+[56/140] Running: Variant=no_phase, Env=MountainCar-v0, Seed=0       
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env MountainCar-v0 --seed 0 --contract experiment_contract_light.yaml
+[57/140] Running: Variant=no_phase, Env=MountainCar-v0, Seed=1       
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env MountainCar-v0 --seed 1 --contract experiment_contract_light.yaml
+[58/140] Running: Variant=no_phase, Env=MountainCar-v0, Seed=2       
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env MountainCar-v0 --seed 2 --contract experiment_contract_light.yaml
+[59/140] Running: Variant=no_phase, Env=MountainCar-v0, Seed=3       
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env MountainCar-v0 --seed 3 --contract experiment_contract_light.yaml
+[60/140] Running: Variant=no_phase, Env=MountainCar-v0, Seed=4       
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_phase --env MountainCar-v0 --seed 4 --contract experiment_contract_light.yaml
+[61/140] Running: Variant=dt, Env=CartPole-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env CartPole-v1 --seed 0 --contract experiment_contract_light.yaml
+[62/140] Running: Variant=dt, Env=CartPole-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env CartPole-v1 --seed 1 --contract experiment_contract_light.yaml
+[63/140] Running: Variant=dt, Env=CartPole-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env CartPole-v1 --seed 2 --contract experiment_contract_light.yaml
+[64/140] Running: Variant=dt, Env=CartPole-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env CartPole-v1 --seed 3 --contract experiment_contract_light.yaml
+[65/140] Running: Variant=dt, Env=CartPole-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env CartPole-v1 --seed 4 --contract experiment_contract_light.yaml
+[66/140] Running: Variant=dt, Env=Acrobot-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env Acrobot-v1 --seed 0 --contract experiment_contract_light.yaml
+[67/140] Running: Variant=dt, Env=Acrobot-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env Acrobot-v1 --seed 1 --contract experiment_contract_light.yaml
+[68/140] Running: Variant=dt, Env=Acrobot-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env Acrobot-v1 --seed 2 --contract experiment_contract_light.yaml
+[69/140] Running: Variant=dt, Env=Acrobot-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env Acrobot-v1 --seed 3 --contract experiment_contract_light.yaml
+[70/140] Running: Variant=dt, Env=Acrobot-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env Acrobot-v1 --seed 4 --contract experiment_contract_light.yaml
+[71/140] Running: Variant=dt, Env=Pendulum-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env Pendulum-v1 --seed 0 --contract experiment_contract_light.yaml
+[72/140] Running: Variant=dt, Env=Pendulum-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env Pendulum-v1 --seed 1 --contract experiment_contract_light.yaml
+[73/140] Running: Variant=dt, Env=Pendulum-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env Pendulum-v1 --seed 2 --contract experiment_contract_light.yaml
+[74/140] Running: Variant=dt, Env=Pendulum-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env Pendulum-v1 --seed 3 --contract experiment_contract_light.yaml
+[75/140] Running: Variant=dt, Env=Pendulum-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env Pendulum-v1 --seed 4 --contract experiment_contract_light.yaml
+[76/140] Running: Variant=dt, Env=MountainCar-v0, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env MountainCar-v0 --seed 0 --contract experiment_contract_light.yaml
+[77/140] Running: Variant=dt, Env=MountainCar-v0, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env MountainCar-v0 --seed 1 --contract experiment_contract_light.yaml
+[78/140] Running: Variant=dt, Env=MountainCar-v0, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env MountainCar-v0 --seed 2 --contract experiment_contract_light.yaml
+[79/140] Running: Variant=dt, Env=MountainCar-v0, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env MountainCar-v0 --seed 3 --contract experiment_contract_light.yaml
+[80/140] Running: Variant=dt, Env=MountainCar-v0, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant dt --env MountainCar-v0 --seed 4 --contract experiment_contract_light.yaml
+[81/140] Running: Variant=snn_dt, Env=CartPole-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env CartPole-v1 --seed 0 --contract experiment_contract_light.yaml
+[82/140] Running: Variant=snn_dt, Env=CartPole-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env CartPole-v1 --seed 1 --contract experiment_contract_light.yaml
+[83/140] Running: Variant=snn_dt, Env=CartPole-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env CartPole-v1 --seed 2 --contract experiment_contract_light.yaml
+[84/140] Running: Variant=snn_dt, Env=CartPole-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env CartPole-v1 --seed 3 --contract experiment_contract_light.yaml
+[85/140] Running: Variant=snn_dt, Env=CartPole-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env CartPole-v1 --seed 4 --contract experiment_contract_light.yaml
+[86/140] Running: Variant=snn_dt, Env=Acrobot-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env Acrobot-v1 --seed 0 --contract experiment_contract_light.yaml
+[87/140] Running: Variant=snn_dt, Env=Acrobot-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env Acrobot-v1 --seed 1 --contract experiment_contract_light.yaml
+[88/140] Running: Variant=snn_dt, Env=Acrobot-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env Acrobot-v1 --seed 2 --contract experiment_contract_light.yaml
+[89/140] Running: Variant=snn_dt, Env=Acrobot-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env Acrobot-v1 --seed 3 --contract experiment_contract_light.yaml
+[90/140] Running: Variant=snn_dt, Env=Acrobot-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env Acrobot-v1 --seed 4 --contract experiment_contract_light.yaml
+[91/140] Running: Variant=snn_dt, Env=Pendulum-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env Pendulum-v1 --seed 0 --contract experiment_contract_light.yaml
+[92/140] Running: Variant=snn_dt, Env=Pendulum-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env Pendulum-v1 --seed 1 --contract experiment_contract_light.yaml
+[93/140] Running: Variant=snn_dt, Env=Pendulum-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env Pendulum-v1 --seed 2 --contract experiment_contract_light.yaml
+[94/140] Running: Variant=snn_dt, Env=Pendulum-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env Pendulum-v1 --seed 3 --contract experiment_contract_light.yaml
+[95/140] Running: Variant=snn_dt, Env=Pendulum-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env Pendulum-v1 --seed 4 --contract experiment_contract_light.yaml
+[96/140] Running: Variant=snn_dt, Env=MountainCar-v0, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env MountainCar-v0 --seed 0 --contract experiment_contract_light.yaml
+[97/140] Running: Variant=snn_dt, Env=MountainCar-v0, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env MountainCar-v0 --seed 1 --contract experiment_contract_light.yaml
+[98/140] Running: Variant=snn_dt, Env=MountainCar-v0, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env MountainCar-v0 --seed 2 --contract experiment_contract_light.yaml
+[99/140] Running: Variant=snn_dt, Env=MountainCar-v0, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env MountainCar-v0 --seed 3 --contract experiment_contract_light.yaml
+[100/140] Running: Variant=snn_dt, Env=MountainCar-v0, Seed=4        
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant snn_dt --env MountainCar-v0 --seed 4 --contract experiment_contract_light.yaml
+[101/140] Running: Variant=iql, Env=CartPole-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env CartPole-v1 --seed 0 --contract experiment_contract_light.yaml
+[102/140] Running: Variant=iql, Env=CartPole-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env CartPole-v1 --seed 1 --contract experiment_contract_light.yaml
+[103/140] Running: Variant=iql, Env=CartPole-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env CartPole-v1 --seed 2 --contract experiment_contract_light.yaml
+[104/140] Running: Variant=iql, Env=CartPole-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env CartPole-v1 --seed 3 --contract experiment_contract_light.yaml
+[105/140] Running: Variant=iql, Env=CartPole-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env CartPole-v1 --seed 4 --contract experiment_contract_light.yaml
+[106/140] Running: Variant=iql, Env=Acrobot-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env Acrobot-v1 --seed 0 --contract experiment_contract_light.yaml
+[107/140] Running: Variant=iql, Env=Acrobot-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env Acrobot-v1 --seed 1 --contract experiment_contract_light.yaml
+[108/140] Running: Variant=iql, Env=Acrobot-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env Acrobot-v1 --seed 2 --contract experiment_contract_light.yaml
+[109/140] Running: Variant=iql, Env=Acrobot-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env Acrobot-v1 --seed 3 --contract experiment_contract_light.yaml
+[110/140] Running: Variant=iql, Env=Acrobot-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env Acrobot-v1 --seed 4 --contract experiment_contract_light.yaml
+[111/140] Running: Variant=iql, Env=Pendulum-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env Pendulum-v1 --seed 0 --contract experiment_contract_light.yaml
+[112/140] Running: Variant=iql, Env=Pendulum-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env Pendulum-v1 --seed 1 --contract experiment_contract_light.yaml
+[113/140] Running: Variant=iql, Env=Pendulum-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env Pendulum-v1 --seed 2 --contract experiment_contract_light.yaml
+[114/140] Running: Variant=iql, Env=Pendulum-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env Pendulum-v1 --seed 3 --contract experiment_contract_light.yaml
+[115/140] Running: Variant=iql, Env=Pendulum-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env Pendulum-v1 --seed 4 --contract experiment_contract_light.yaml
+[116/140] Running: Variant=iql, Env=MountainCar-v0, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env MountainCar-v0 --seed 0 --contract experiment_contract_light.yaml
+[117/140] Running: Variant=iql, Env=MountainCar-v0, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env MountainCar-v0 --seed 1 --contract experiment_contract_light.yaml
+[118/140] Running: Variant=iql, Env=MountainCar-v0, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env MountainCar-v0 --seed 2 --contract experiment_contract_light.yaml
+[119/140] Running: Variant=iql, Env=MountainCar-v0, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env MountainCar-v0 --seed 3 --contract experiment_contract_light.yaml
+[120/140] Running: Variant=iql, Env=MountainCar-v0, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant iql --env MountainCar-v0 --seed 4 --contract experiment_contract_light.yaml
+[121/140] Running: Variant=cql, Env=CartPole-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env CartPole-v1 --seed 0 --contract experiment_contract_light.yaml
+[122/140] Running: Variant=cql, Env=CartPole-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env CartPole-v1 --seed 1 --contract experiment_contract_light.yaml
+[123/140] Running: Variant=cql, Env=CartPole-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env CartPole-v1 --seed 2 --contract experiment_contract_light.yaml
+[124/140] Running: Variant=cql, Env=CartPole-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env CartPole-v1 --seed 3 --contract experiment_contract_light.yaml
+[125/140] Running: Variant=cql, Env=CartPole-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env CartPole-v1 --seed 4 --contract experiment_contract_light.yaml
+[126/140] Running: Variant=cql, Env=Acrobot-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env Acrobot-v1 --seed 0 --contract experiment_contract_light.yaml
+[127/140] Running: Variant=cql, Env=Acrobot-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env Acrobot-v1 --seed 1 --contract experiment_contract_light.yaml
+[128/140] Running: Variant=cql, Env=Acrobot-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env Acrobot-v1 --seed 2 --contract experiment_contract_light.yaml
+[129/140] Running: Variant=cql, Env=Acrobot-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env Acrobot-v1 --seed 3 --contract experiment_contract_light.yaml
+[130/140] Running: Variant=cql, Env=Acrobot-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env Acrobot-v1 --seed 4 --contract experiment_contract_light.yaml
+[131/140] Running: Variant=cql, Env=Pendulum-v1, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env Pendulum-v1 --seed 0 --contract experiment_contract_light.yaml
+[132/140] Running: Variant=cql, Env=Pendulum-v1, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env Pendulum-v1 --seed 1 --contract experiment_contract_light.yaml
+[133/140] Running: Variant=cql, Env=Pendulum-v1, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env Pendulum-v1 --seed 2 --contract experiment_contract_light.yaml
+[134/140] Running: Variant=cql, Env=Pendulum-v1, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env Pendulum-v1 --seed 3 --contract experiment_contract_light.yaml
+[135/140] Running: Variant=cql, Env=Pendulum-v1, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env Pendulum-v1 --seed 4 --contract experiment_contract_light.yaml
+[136/140] Running: Variant=cql, Env=MountainCar-v0, Seed=0
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env MountainCar-v0 --seed 0 --contract experiment_contract_light.yaml
+[137/140] Running: Variant=cql, Env=MountainCar-v0, Seed=1
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env MountainCar-v0 --seed 1 --contract experiment_contract_light.yaml
+[138/140] Running: Variant=cql, Env=MountainCar-v0, Seed=2
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env MountainCar-v0 --seed 2 --contract experiment_contract_light.yaml
+[139/140] Running: Variant=cql, Env=MountainCar-v0, Seed=3
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env MountainCar-v0 --seed 3 --contract experiment_contract_light.yaml
+[140/140] Running: Variant=cql, Env=MountainCar-v0, Seed=4
+Command: C:\Users\bisha\AppData\Local\Programs\Python\Python313\python.exe D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant cql --env MountainCar-v0 --seed 4 --contract experiment_contract_light.yaml
+--- All targeted experimental runs complete! ---

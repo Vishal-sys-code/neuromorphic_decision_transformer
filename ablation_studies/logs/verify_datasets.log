@@ -1,0 +1,23 @@
+Saved distribution plots for CartPole-v1.
+Spike Sanity Check for CartPole-v1:
+  - Stratified Dataset: 52.00 spikes
+  - Random-Heavy Dataset: 50.00 spikes
+  - Expected: Stratified < Random-Heavy
+Saved distribution plots for Acrobot-v1.
+Spike Sanity Check for Acrobot-v1:
+  - Stratified Dataset: 45.00 spikes
+  - Random-Heavy Dataset: 50.00 spikes
+  - Expected: Stratified < Random-Heavy
+Saved distribution plots for Pendulum-v1.
+Spike Sanity Check for Pendulum-v1:
+  - Stratified Dataset: 50.00 spikes
+Spike Sanity Check for Pendulum-v1:
+  - Stratified Dataset: 50.00 spikes
+  - Stratified Dataset: 50.00 spikes
+  - Random-Heavy Dataset: 53.00 spikes
+  - Expected: Stratified < Random-Heavy
+Saved distribution plots for MountainCar-v0.
+Spike Sanity Check for MountainCar-v0:
+  - Stratified Dataset: 53.00 spikes
+  - Random-Heavy Dataset: 45.00 spikes
+  - Expected: Stratified < Random-Heavy

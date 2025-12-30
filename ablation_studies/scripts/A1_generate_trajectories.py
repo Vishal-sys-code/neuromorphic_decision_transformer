@@ -6,7 +6,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 
 # --- Configuration ---
-ENVS = ["CartPole-v1", "Acrobot-v1", "Pendulum-v1"]
+ENVS = ["CartPole-v1", "Acrobot-v1", "Pendulum-v1", "MountainCar-v0"]
 NUM_TRAJECTORIES_PER_POLICY = 100
 SAVE_DIR = Path(__file__).parent.parent / "datasets/raw"
 

@@ -1,0 +1,30 @@
+{
+    "frozen_at": "2025-12-30T09:52:25.664465",
+    "source_dir": "d:\\Github\\neuromorphic_decision_transformer\\ablation_studies\\datasets\\processed\\MountainCar-v0",
+    "normalization": {
+        "v1-stratified": {
+            "state_mean": [
+                -0.4759666621685028,
+                0.00024226044479291886
+            ],
+            "state_std": [
+                0.10284403711557388,
+                0.006155759561806917
+            ]
+        },
+        "v1-random-heavy": {
+            "state_mean": [
+                -0.5137141942977905,
+                -0.00012021035217912868
+            ],
+            "state_std": [
+                0.08709383010864258,
+                0.006481692660599947
+            ]
+        }
+    },
+    "datasets": {
+        "stratified_dataset.npz": "v1-stratified",
+        "random_heavy_dataset.npz": "v1-random-heavy"
+    }
+}

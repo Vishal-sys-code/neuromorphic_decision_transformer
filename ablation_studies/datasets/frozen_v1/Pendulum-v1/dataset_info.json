@@ -1,0 +1,34 @@
+{
+    "frozen_at": "2025-12-30T09:52:25.466908",
+    "source_dir": "d:\\Github\\neuromorphic_decision_transformer\\ablation_studies\\datasets\\processed\\Pendulum-v1",
+    "normalization": {
+        "v1-stratified": {
+            "state_mean": [
+                -0.14592184126377106,
+                0.00828780047595501,
+                -0.03287610784173012
+            ],
+            "state_std": [
+                0.7651484608650208,
+                0.626964807510376,
+                2.9505043029785156
+            ]
+        },
+        "v1-random-heavy": {
+            "state_mean": [
+                -0.31896719336509705,
+                0.004638872109353542,
+                -0.09275626391172409
+            ],
+            "state_std": [
+                0.6953093409538269,
+                0.6440275311470032,
+                3.3523108959198
+            ]
+        }
+    },
+    "datasets": {
+        "stratified_dataset.npz": "v1-stratified",
+        "random_heavy_dataset.npz": "v1-random-heavy"
+    }
+}
