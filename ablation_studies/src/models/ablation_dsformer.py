@@ -4,8 +4,6 @@ import math
 
 # --- Base Class (for compatibility) ---
 class BasePolicy:
-    def predict_action(self, *args, **kwargs):
-        raise NotImplementedError
     def save(self, path):
         torch.save(self.state_dict(), path)
     def load(self, path, device='cpu'):
@@ -103,7 +101,7 @@ class SpikingAttentionBlock(nn.Module):
         else:
             attn_heads = attn_heads.mean(dim=2).view(B, L, 1, self.head_dim).expand_as(attn_heads)
         
-        attn_concat = attn_heads.view(B, L, D)
+        attn_concat = attn_heads.reshape(B, L, D)
         attn_output = self.out_proj(attn_concat)
         x = res + attn_output
 

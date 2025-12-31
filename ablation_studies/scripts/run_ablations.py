@@ -27,8 +27,8 @@ def main():
     total_jobs = len(VARIANTS) * len(ENVS) * len(SEEDS)
     current_job = 0
 
-    for variant in VARIANTS:
-        for env in ENVS:
+    for env in ENVS:
+        for variant in VARIANTS:
             for seed in SEEDS:
                 current_job += 1
                 cmd = [
