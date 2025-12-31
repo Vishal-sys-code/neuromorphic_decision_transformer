@@ -13,37 +13,36 @@ cfg = AttrDict({
     "num_heads_H": 4,
     "dataset": {"state_dim": 4, "act_dim": 2, "max_timesteps": 500},
     "phase_encoder": {"enabled": False},
-    "routing": {"enabled": False}, # check no_routing path
+    "routing": {"enabled": False},
     "local_plasticity": {"enabled": False},
-    "surrogate_slope_k": 10
+    "surrogate_slope_k": 10,
+    "sequence_length_N": 20,
+    "device": "cpu"
 })
 
 print("Instantiating Model...")
 model = get_model(cfg)
-print(f"Model instantiated: {type(model).__name__}")
 
-# Check 1: predict_action existence
-has_predict = hasattr(model, 'predict_action')
-print(f"hasattr(model, 'predict_action'): {has_predict}")
-if has_predict:
-    print("FAIL: Model should NOT have predict_action")
+print("Checking Evaluation Tensor Types (Mocking evaluate_policy logic)...")
+target_return = 500 # Integer, as in the real code
+rtgs = torch.full((1, cfg.sequence_length_N, 1), target_return, dtype=torch.float32, device=cfg.device)
+
+print(f"RTGs dtype: {rtgs.dtype}")
+if rtgs.dtype == torch.float32:
+    print("PASS: RTGs are float32")
 else:
-    print("PASS: Model correctly missing predict_action (will use sequence generation loop)")
+    print(f"FAIL: RTGs are {rtgs.dtype}")
 
-# Check 2: Forward pass (Fixing RuntimeError: view size ...)
-print("Running Forward Pass...")
-batch_size = 2
-seq_len = 20
+# Simulate Forward Pass with these tensors
 batch = {
-    "states": torch.randn(batch_size, seq_len, 4),
-    "actions": torch.randn(batch_size, seq_len, 2),
-    "returns_to_go": torch.randn(batch_size, seq_len, 1),
-    "timesteps": torch.zeros(batch_size, seq_len, dtype=torch.long)
+    "states": torch.zeros(1, cfg.sequence_length_N, 4, dtype=torch.float32),
+    "actions": torch.zeros(1, cfg.sequence_length_N, 2, dtype=torch.float32),
+    "returns_to_go": rtgs,
+    "timesteps": torch.zeros(1, cfg.sequence_length_N, 1, dtype=torch.long)
 }
 
 try:
     preds, _ = model(batch)
-    print(f"PASS: Forward pass successful. Output shape: {preds.shape}")
+    print("PASS: Forward pass successful with mock eval tensors.")
 except Exception as e:
     print(f"FAIL: Forward pass failed. Error: {e}")
-

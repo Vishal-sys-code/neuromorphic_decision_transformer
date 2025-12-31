@@ -97,11 +97,11 @@ def evaluate_policy(model, env_name, cfg):
                 done = terminated or truncated
                 episode_return += reward
         else: # For DT, SNN-DT, AblationDsFormer
-            states = torch.zeros(1, cfg.sequence_length_N, cfg.dataset.state_dim, device=cfg.device)
-            actions = torch.zeros(1, cfg.sequence_length_N, cfg.dataset.act_dim, device=cfg.device)
-            rtgs = torch.full((1, cfg.sequence_length_N, 1), target_return, device=cfg.device)
+            states = torch.zeros(1, cfg.sequence_length_N, cfg.dataset.state_dim, dtype=torch.float32, device=cfg.device)
+            actions = torch.zeros(1, cfg.sequence_length_N, cfg.dataset.act_dim, dtype=torch.float32, device=cfg.device)
+            rtgs = torch.full((1, cfg.sequence_length_N, 1), target_return, dtype=torch.float32, device=cfg.device)
             timesteps = torch.zeros(1, cfg.sequence_length_N, 1, dtype=torch.long, device=cfg.device)
-            states[0, 0] = torch.from_numpy(state).to(cfg.device)
+            states[0, 0] = torch.from_numpy(state).to(device=cfg.device, dtype=torch.float32)
             
             while not done:
                 batch = {"states": states, "actions": actions, "returns_to_go": rtgs, "timesteps": timesteps}
