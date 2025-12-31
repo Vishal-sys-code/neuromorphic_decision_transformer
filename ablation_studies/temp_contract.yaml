@@ -1,0 +1,21 @@
+envs: ["CartPole-v1"]
+datasets_per_env:
+  steps: 1000
+  mix: "50% expert / 50% random"
+sequence_length_N: 20
+spiking_window_T: 10
+hidden_dim_d: 128
+num_layers_L: 2
+num_heads_H: 4
+batch_size: 16
+optimizer: AdamW
+lr: 3e-4
+weight_decay: 1e-2
+epochs: 1
+local_lr_eta_local: 0.05
+surrogate_slope_k: 10
+spike_energy_pJ: 5.0
+seeds: [0]
+log_interval_steps: 10
+checkpoint_interval_epochs: 1
+eval_rollouts: 1

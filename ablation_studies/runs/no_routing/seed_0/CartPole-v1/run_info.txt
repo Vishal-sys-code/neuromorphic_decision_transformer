@@ -1,0 +1,2 @@
+Command: ablation_studies/run_experiment.py --variant no_routing --env CartPole-v1 --seed 0 --contract temp_contract.yaml
+Git Hash: e46b6f5d58e40260388a1f284b6ea5d01c8ea5de
