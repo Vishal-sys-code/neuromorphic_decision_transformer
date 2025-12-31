@@ -40,20 +40,19 @@ def main():
                     "--contract", CONTRACT
                 ]
                 
-                print(f"[{current_job}/{total_jobs}] Running: Variant={variant}, Env={env}, Seed={seed}")
+                print(f"\n--- [{current_job}/{total_jobs}] Running: Variant={variant}, Env={env}, Seed={seed} ---")
                 
                 if args.dry_run:
-                    print(f"Command: {' '.join(cmd)}")
+                    print(f"  Command: {' '.join(cmd)}")
                 else:
                     try:
                         subprocess.run(cmd, check=True)
+                        print(f"--- Finished: Variant={variant}, Env={env}, Seed={seed} (Success) ---")
                     except subprocess.CalledProcessError as e:
-                        print(f"Error running job: {e}")
-                        # Depending on preference, we might want to continue or stop. 
-                        # For now, let's continue to the next one but log the error.
-                        print("Continuing to next job...")
+                        print(f"  Error running job: {e}")
+                        print(f"--- Finished: Variant={variant}, Env={env}, Seed={seed} (Failed) ---")
 
-    print("--- All targeted experimental runs complete! ---")
+    print("\n--- All targeted experimental runs complete! ---")
 
 if __name__ == "__main__":
     main()

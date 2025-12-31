@@ -11,7 +11,7 @@ batch_size: 64
 optimizer: AdamW
 lr: 3e-4
 weight_decay: 1e-2
-epochs: 100
+epochs: 500
 local_lr_eta_local: 0.05
 surrogate_slope_k: 10
 spike_energy_pJ: 5.0

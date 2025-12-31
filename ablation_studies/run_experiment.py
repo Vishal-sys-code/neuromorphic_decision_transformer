@@ -19,6 +19,10 @@ import gymnasium as gym
 # --- Add Project Root to sys.path ---
 project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root))
+# Add snn-dt/src to sys.path to allow for model imports
+snn_dt_src_path = project_root / 'snn-dt' / 'src'
+if snn_dt_src_path.exists():
+    sys.path.insert(0, str(snn_dt_src_path))
 
 # --- Local Imports ---
 from ablation_studies.src.datasets import OfflineSequenceDataset, OfflineTransitionDataset
@@ -52,10 +56,10 @@ def load_config(contract_path, variant_path):
 # --- Model Factory ---
 def get_model(cfg):
     model_name_map = {
-        'dt': ('snn_dt.src.models.dt', 'DecisionTransformer'),
-        'snn_dt': ('snn_dt.src.models.snn_dt', 'SnnDt'),
-        'iql': ('snn_dt.src.models.iql', 'IQL'),
-        'cql': ('snn_dt.src.models.cql', 'CQL'),
+        'dt': ('models.dt', 'DecisionTransformer'),
+        'snn_dt': ('models.snn_dt', 'SnnDt'),
+        'iql': ('models.iql', 'IQL'),
+        'cql': ('models.cql', 'CQL'),
         'ablation_dsformer': ('ablation_studies.src.models.ablation_dsformer', 'AblationDsFormer'),
     }
     
@@ -115,9 +119,9 @@ def evaluate_policy(model, env_name, cfg):
                         action = int(np.argmax(action))
                 
                 state, reward, terminated, truncated, _ = env.step(action)
-                done = terminated or truncated or (t + 1 >= cfg.dataset.max_timesteps)
+                done = terminated or truncated or (t >= cfg.sequence_length_N - 1)
                 
-                if t < cfg.sequence_length_N - 1:
+                if not done:
                     actions[0, t+1] = torch.tensor(action, device=cfg.device)
                     states[0, t+1] = torch.from_numpy(state).to(cfg.device)
                     rtgs[0, t+1] = rtgs[0, t] - reward
@@ -160,13 +164,17 @@ def train(cfg, logger):
     dataset_args = {'path': str(dataset_path)}
     if not is_transition_model: dataset_args['seq_len'] = cfg.sequence_length_N
     dataset = DatasetClass(**dataset_args)
-    train_loader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=min(os.cpu_count(), 4))
+    # NOTE: num_workers is set to 0 to avoid a hanging issue with multiprocessing.
+    train_loader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=0)
     
     model = get_model(cfg).to(cfg.device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(cfg.lr), weight_decay=float(cfg.weight_decay)) if list(model.parameters()) else None
     loss_fn = torch.nn.MSELoss()
 
     logger.info(json.dumps({"train/param_count": sum(p.numel() for p in model.parameters())}))
+
+    # Create save directory if it doesn't exist
+    Path(cfg.save_dir).mkdir(parents=True, exist_ok=True)
 
     for epoch in range(1, cfg.epochs + 1):
         model.train()

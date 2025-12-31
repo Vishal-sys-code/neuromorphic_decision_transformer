@@ -32,8 +32,8 @@ class OfflineTransitionDataset(Dataset):
     Dataset for transition-based models like IQL and CQL.
     Processes trajectories into individual (s, a, r, s', d) transitions.
     """
-    def __init__(self, dataset_path):
-        data = np.load(dataset_path, mmap_mode='r')
+    def __init__(self, path):
+        data = np.load(path, mmap_mode='r')
         
         # Calculate total number of transitions
         total_transitions = int(np.sum(data['mask'])) - data['mask'].shape[0]

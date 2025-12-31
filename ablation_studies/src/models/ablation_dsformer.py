@@ -138,7 +138,7 @@ class AblationDsFormer(BasePolicy, nn.Module):
         
         state_embed = self.embed_state(batch["states"])
         action_embed = self.embed_action(batch["actions"])
-        rtg_embed = self.embed_return(batch["returns_to_go"])
+        rtg_embed = self.embed_return(batch["returns_to_go"].float())
         time_embed = self.embed_timestep(batch["timesteps"].squeeze(-1))
 
         state_embed, action_embed, rtg_embed = state_embed + time_embed, action_embed + time_embed, rtg_embed + time_embed
