@@ -1,3 +1,5 @@
 {"train/param_count": 399889}
 {"train/step": 250, "train/loss": 0.11305250972509384}
 {"train/step": 500, "train/loss": 0.0871908888220787}
+{"train/param_count": 399889}
+{"train/step": 250, "train/loss": 0.11305250972509384}

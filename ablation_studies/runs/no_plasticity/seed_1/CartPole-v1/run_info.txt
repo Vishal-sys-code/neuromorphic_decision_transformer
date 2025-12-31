@@ -1,2 +1,2 @@
 Command: D:\Github\neuromorphic_decision_transformer\ablation_studies\run_experiment.py --variant no_plasticity --env CartPole-v1 --seed 1 --contract experiment_contract_light.yaml
-Git Hash: 466bf1a092b8eeeb164f9d9a025c3c8cb3947227
+Git Hash: fd20c7baafb79138e1195b4cb4a1a62d3ace4f60
