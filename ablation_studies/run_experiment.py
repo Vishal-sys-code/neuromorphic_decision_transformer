@@ -107,6 +107,13 @@ def evaluate_policy(model, env_name, cfg):
                 batch = {"states": states, "actions": actions, "returns_to_go": rtgs, "timesteps": timesteps}
                 action_pred, _ = model(batch)
                 action = action_pred[0, t].cpu().numpy()
+                
+                if isinstance(env.action_space, gym.spaces.Discrete):
+                    if cfg.dataset.act_dim == 1:
+                        action = int(np.round(action.item()))
+                    else:
+                        action = int(np.argmax(action))
+                
                 state, reward, terminated, truncated, _ = env.step(action)
                 done = terminated or truncated or (t + 1 >= cfg.dataset.max_timesteps)
                 
