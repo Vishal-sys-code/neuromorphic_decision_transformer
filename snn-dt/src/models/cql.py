@@ -102,7 +102,7 @@ class CQL(BasePolicy, nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        self.device = cfg.training.device
+        self.device = cfg.device
         self.gamma = 0.99
         self.tau = cfg.cql.tau
         self.target_entropy = -cfg.dataset.act_dim
@@ -120,7 +120,7 @@ class CQL(BasePolicy, nn.Module):
         self.critic1_target.load_state_dict(self.critic1.state_dict())
         self.critic2_target.load_state_dict(self.critic2.state_dict())
         
-        lr = float(cfg.training.lr)
+        lr = float(cfg.lr)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=lr)
         self.critic1_optimizer = optim.Adam(self.critic1.parameters(), lr=lr)
         self.critic2_optimizer = optim.Adam(self.critic2.parameters(), lr=lr)

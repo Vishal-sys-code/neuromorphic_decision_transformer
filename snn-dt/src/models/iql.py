@@ -107,7 +107,7 @@ class IQL(BasePolicy, nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
-        self.device = cfg.training.device
+        self.device = cfg.device
         self.gamma = 0.99
         self.tau = cfg.iql.tau
         self.temperature = cfg.iql.temperature
@@ -124,10 +124,10 @@ class IQL(BasePolicy, nn.Module):
         self.critic1_target.load_state_dict(self.critic1.state_dict())
         self.critic2_target.load_state_dict(self.critic2.state_dict())
 
-        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=float(cfg.training.lr))
-        self.critic1_optimizer = optim.Adam(self.critic1.parameters(), lr=float(cfg.training.lr))
-        self.critic2_optimizer = optim.Adam(self.critic2.parameters(), lr=float(cfg.training.lr))
-        self.value_optimizer = optim.Adam(self.value_net.parameters(), lr=float(cfg.training.lr))
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=float(cfg.lr))
+        self.critic1_optimizer = optim.Adam(self.critic1.parameters(), lr=float(cfg.lr))
+        self.critic2_optimizer = optim.Adam(self.critic2.parameters(), lr=float(cfg.lr))
+        self.value_optimizer = optim.Adam(self.value_net.parameters(), lr=float(cfg.lr))
 
     def forward(self, batch):
         # IQL has a custom learn method, so forward is a no-op for now
