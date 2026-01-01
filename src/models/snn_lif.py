@@ -8,12 +8,21 @@ Uses Norse for the LIFCell dynamics.
 
 import torch
 import torch.nn as nn
-import norse.torch as norse
+
+try:
+    import norse.torch as norse
+    NORSE_AVAILABLE = True
+except ImportError:
+    norse = None
+    NORSE_AVAILABLE = False
 
 
 class LIFNeuronLayer(nn.Module):
     def __init__(self, input_size: int, output_size: int):
         super().__init__()
+        if not NORSE_AVAILABLE:
+            raise ImportError("LIFNeuronLayer requires the 'norse' package. Please install it with `pip install norse`.")
+
         # Linear projection from inputs to membrane currents
         self.fc = nn.Linear(input_size, output_size)
         # The Norse LIFCell handles membrane potential integration and spiking
