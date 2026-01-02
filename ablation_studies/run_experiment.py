@@ -101,34 +101,68 @@ def evaluate_policy(model, env_name, cfg):
                 done = terminated or truncated
                 episode_return += reward
         else: # For DT, SNN-DT, AblationDsFormer
-            states = torch.zeros(1, cfg.sequence_length_N, cfg.dataset.state_dim, dtype=torch.float32, device=cfg.device)
-            actions = torch.zeros(1, cfg.sequence_length_N, cfg.dataset.act_dim, dtype=torch.float32, device=cfg.device)
-            rtgs = torch.full((1, cfg.sequence_length_N, 1), target_return, dtype=torch.float32, device=cfg.device)
-            timesteps = torch.zeros(1, cfg.sequence_length_N, 1, dtype=torch.long, device=cfg.device)
-            states[0, 0] = torch.from_numpy(state).to(device=cfg.device, dtype=torch.float32)
+            state_dim = cfg.dataset.state_dim
+            act_dim = cfg.dataset.act_dim
+            max_len = cfg.sequence_length_N
+            device = cfg.device
+            
+            # Initialize context buffers (fixed size N)
+            states = torch.zeros(1, max_len, state_dim, dtype=torch.float32, device=device)
+            actions = torch.zeros(1, max_len, act_dim, dtype=torch.float32, device=device)
+            rtgs = torch.full((1, max_len, 1), target_return, dtype=torch.float32, device=device)
+            timesteps = torch.zeros(1, max_len, 1, dtype=torch.long, device=device)
+            
+            # Set initial state
+            states[0, 0] = torch.from_numpy(state).to(device=device, dtype=torch.float32)
+            timesteps[0, 0] = 0
             
             while not done:
-                batch = {"states": states, "actions": actions, "returns_to_go": rtgs, "timesteps": timesteps}
+                # Use the valid index for prediction (t if t < N, else N-1)
+                valid_idx = min(t, max_len - 1)
+                
+                batch = {
+                    "states": states, 
+                    "actions": actions, 
+                    "returns_to_go": rtgs, 
+                    "timesteps": timesteps
+                }
+                
                 action_pred, _ = model(batch)
-                action = action_pred[0, t].cpu().numpy()
+                action = action_pred[0, valid_idx].cpu().numpy()
                 
                 if isinstance(env.action_space, gym.spaces.Discrete):
                     if cfg.dataset.act_dim == 1:
-                        # Clamp action to valid range [0, n-1] to avoid -1 or n
+                        # Clamp action to valid range [0, n-1]
                         raw_action = int(np.round(action.item()))
                         action = max(0, min(raw_action, env.action_space.n - 1))
                     else:
                         action = int(np.argmax(action))
                 
-                state, reward, terminated, truncated, _ = env.step(action)
-                done = terminated or truncated or (t >= cfg.sequence_length_N - 1)
+                next_state, reward, terminated, truncated, _ = env.step(action)
+                done = terminated or truncated # Respect env termination
+                episode_return += reward
                 
                 if not done:
-                    actions[0, t+1] = torch.tensor(action, device=cfg.device)
-                    states[0, t+1] = torch.from_numpy(state).to(cfg.device)
-                    rtgs[0, t+1] = rtgs[0, t] - reward
-                    timesteps[0, t+1] = t + 1
-                episode_return += reward
+                    if t < max_len - 1:
+                        # Append to buffer
+                        actions[0, t] = torch.tensor(action, device=device)
+                        states[0, t+1] = torch.from_numpy(next_state).to(device)
+                        rtgs[0, t+1] = rtgs[0, t] - reward
+                        timesteps[0, t+1] = t + 1
+                    else:
+                        # Sliding window shift
+                        actions[0, -1] = torch.tensor(action, device=device) # Store taken action
+                        
+                        states = torch.roll(states, shifts=-1, dims=1)
+                        actions = torch.roll(actions, shifts=-1, dims=1)
+                        rtgs = torch.roll(rtgs, shifts=-1, dims=1)
+                        timesteps = torch.roll(timesteps, shifts=-1, dims=1)
+                        
+                        states[0, -1] = torch.from_numpy(next_state).to(device)
+                        actions[0, -1] = 0.0 # Placeholder for next action
+                        rtgs[0, -1] = rtgs[0, -2] - reward
+                        timesteps[0, -1] = t + 1
+                        
                 t += 1
         total_rewards.append(episode_return)
 
