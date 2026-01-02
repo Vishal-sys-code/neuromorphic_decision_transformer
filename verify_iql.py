@@ -32,7 +32,8 @@ cfg.iql.expectile = 0.7
 cfg.dataset = AttrDict()
 cfg.dataset.act_dim = 2
 cfg.dataset.state_dim = 4
-cfg.dataset.is_discrete = True
+cfg.dataset.state_dim = 4
+# cfg.dataset.is_discrete = True # Removed to verify the fix works without this setting
 
 try:
     model = IQL(cfg)
