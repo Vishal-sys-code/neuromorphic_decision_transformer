@@ -144,3 +144,24 @@ python ablation_studies/run_experiment.py --variant cql --env MountainCar-v0 --s
 python ablation_studies/run_experiment.py --variant cql --env MountainCar-v0 --seed 2 --contract experiment_contract_light.yaml
 python ablation_studies/run_experiment.py --variant cql --env MountainCar-v0 --seed 3 --contract experiment_contract_light.yaml
 python ablation_studies/run_experiment.py --variant cql --env MountainCar-v0 --seed 4 --contract experiment_contract_light.yaml
+
+python ablation_studies/run_experiment.py --variant full --env CartPole-v1 --seed 0 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env CartPole-v1 --seed 1 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env CartPole-v1 --seed 2 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env CartPole-v1 --seed 3 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env CartPole-v1 --seed 4 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env Acrobot-v1 --seed 0 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env Acrobot-v1 --seed 1 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env Acrobot-v1 --seed 2 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env Acrobot-v1 --seed 3 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env Acrobot-v1 --seed 4 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env Pendulum-v1 --seed 0 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env Pendulum-v1 --seed 1 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env Pendulum-v1 --seed 2 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env Pendulum-v1 --seed 3 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env Pendulum-v1 --seed 4 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env MountainCar-v0 --seed 0 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env MountainCar-v0 --seed 1 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env MountainCar-v0 --seed 2 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env MountainCar-v0 --seed 3 --contract experiment_contract_light.yaml
+python ablation_studies/run_experiment.py --variant full --env MountainCar-v0 --seed 4 --contract experiment_contract_light.yaml

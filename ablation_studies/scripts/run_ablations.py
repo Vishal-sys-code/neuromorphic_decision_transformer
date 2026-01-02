@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 # Configuration
-VARIANTS = ["no_plasticity", "no_routing", "no_phase", "dt", "snn_dt", "iql", "cql"]
+VARIANTS = ["no_plasticity", "no_routing", "no_phase", "dt", "snn_dt", "iql", "cql", "full"]
 ENVS = ["CartPole-v1", "Acrobot-v1", "Pendulum-v1", "MountainCar-v0"]
 SEEDS = [0, 1, 2, 3, 4]
 CONTRACT = "experiment_contract_light.yaml"
