@@ -114,7 +114,9 @@ def evaluate_policy(model, env_name, cfg):
                 
                 if isinstance(env.action_space, gym.spaces.Discrete):
                     if cfg.dataset.act_dim == 1:
-                        action = int(np.round(action.item()))
+                        # Clamp action to valid range [0, n-1] to avoid -1 or n
+                        raw_action = int(np.round(action.item()))
+                        action = max(0, min(raw_action, env.action_space.n - 1))
                     else:
                         action = int(np.argmax(action))
                 
