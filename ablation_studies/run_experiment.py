@@ -91,6 +91,9 @@ def evaluate_policy(model, env_name, cfg):
 
     total_rewards = []
     for _ in range(cfg.eval_rollouts):
+        if hasattr(model, 'reset_state'):
+            model.reset_state()
+            
         state, _ = env.reset()
         done, episode_return, t = False, 0, 0
         
@@ -105,7 +108,10 @@ def evaluate_policy(model, env_name, cfg):
                 episode_return += reward
         else: # For DT, SNN-DT, AblationDsFormer
             state_dim = cfg.dataset.state_dim
-            act_dim = cfg.dataset.act_dim
+            # For discrete actions, we want shape (B, L, 1) containing indices
+            # For continuous, we want (B, L, act_dim)
+            is_discrete = getattr(cfg.dataset, 'is_discrete', False)
+            act_dim = 1 if is_discrete else cfg.dataset.act_dim
             max_len = cfg.sequence_length_N
             device = cfg.device
             
