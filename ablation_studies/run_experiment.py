@@ -252,6 +252,36 @@ def main():
     cfg.model.name = model_name
     
     run_name = cfg.model.name if cfg.model.name != 'ablation_dsformer' else args.variant
+
+    # --- Compatibility Bridge (Contract -> snn-dt models) ---
+    # Map top-level contract content to cfg.model and cfg.snn where expected
+    
+    # Model params
+    if 'd_model' not in cfg.model and 'hidden_dim_d' in cfg:
+        cfg.model.d_model = cfg.hidden_dim_d
+    if 'n_heads' not in cfg.model and 'num_heads_H' in cfg:
+        cfg.model.n_heads = cfg.num_heads_H
+    if 'n_layers' not in cfg.model and 'num_layers_L' in cfg:
+        cfg.model.n_layers = cfg.num_layers_L
+    if 'seq_len' not in cfg.model and 'sequence_length_N' in cfg:
+        cfg.model.seq_len = cfg.sequence_length_N
+    if 'action_tanh' not in cfg.model:
+        cfg.model.action_tanh = False
+
+    # SNN params
+    if 'snn' not in cfg:
+        cfg['snn'] = AttrDict()
+    elif isinstance(cfg['snn'], dict) and not isinstance(cfg['snn'], AttrDict):
+        cfg['snn'] = AttrDict(cfg['snn'])
+        
+    if 'biological_time' not in cfg.snn and 'spiking_window_T' in cfg:
+        cfg.snn.biological_time = cfg.spiking_window_T
+    if 'surrogate_k' not in cfg.snn and 'surrogate_slope_k' in cfg:
+        cfg.snn.surrogate_k = cfg.surrogate_slope_k
+    if 'eta_local' not in cfg.snn and 'local_lr_eta_local' in cfg:
+        cfg.snn.eta_local = cfg.local_lr_eta_local
+    # ----------------------------------------------------
+    
     save_dir = Path(__file__).parent / f"runs/{run_name}/seed_{args.seed}/{cfg.env}"
     save_dir.mkdir(parents=True, exist_ok=True)
     cfg.save_dir = str(save_dir)
