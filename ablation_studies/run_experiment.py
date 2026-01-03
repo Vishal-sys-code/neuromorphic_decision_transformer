@@ -94,7 +94,10 @@ def evaluate_policy(model, env_name, cfg):
         state, _ = env.reset()
         done, episode_return, t = False, 0, 0
         
-        if hasattr(model, 'predict_action'): # For IQL, CQL
+        # Decide evaluation loop type based on model type
+        is_transition_model = cfg.model.name in ['iql', 'cql']
+        
+        if is_transition_model: # For IQL, CQL
             while not done:
                 action = model.predict_action(state)
                 state, reward, terminated, truncated, _ = env.step(action)
@@ -124,7 +127,8 @@ def evaluate_policy(model, env_name, cfg):
                     "states": states, 
                     "actions": actions, 
                     "returns_to_go": rtgs, 
-                    "timesteps": timesteps
+                    "timesteps": timesteps,
+                    "mask": torch.ones_like(states[:, :, 0])
                 }
                 
                 action_pred, _ = model(batch)
