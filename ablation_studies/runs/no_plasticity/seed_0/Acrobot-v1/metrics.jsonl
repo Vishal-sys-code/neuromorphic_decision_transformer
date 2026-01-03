@@ -1,0 +1,6 @@
+{"train/param_count": 400659}
+{"train/step": 250, "train/loss": 0.5562862157821655}
+{"train/step": 500, "train/loss": 0.5089941024780273}
+{"epoch": 10, "val/mean_return": -500.0, "val/std_return": 0.0}
+{"train/step": 750, "train/loss": 0.5525811910629272}
+{"train/step": 1000, "train/loss": 0.4962354302406311}
