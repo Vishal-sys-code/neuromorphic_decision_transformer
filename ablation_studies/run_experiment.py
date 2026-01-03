@@ -217,6 +217,7 @@ def train(cfg, logger):
     # NOTE: num_workers is set to 0 to avoid a hanging issue with multiprocessing.
     train_loader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=0)
     
+    
     model = get_model(cfg).to(cfg.device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(cfg.lr), weight_decay=float(cfg.weight_decay)) if list(model.parameters()) else None
     loss_fn = torch.nn.MSELoss()
@@ -244,8 +245,10 @@ def train(cfg, logger):
                 loss.backward()
                 optimizer.step()
             
+            
             if (epoch * len(train_loader) + batch_idx) % cfg.log_interval_steps == 0:
-                logger.info(json.dumps({"train/step": epoch * len(train_loader) + batch_idx, "train/loss": loss.item()}))
+                loss_val = loss.item() if isinstance(loss, torch.Tensor) else loss
+                logger.info(json.dumps({"train/step": epoch * len(train_loader) + batch_idx, "train/loss": loss_val}))
         
         if epoch % cfg.checkpoint_interval_epochs == 0:
             val_metrics = evaluate_policy(model, cfg.env, cfg)
