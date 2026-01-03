@@ -221,7 +221,11 @@ def train(cfg, logger):
                 loss = model.learn(batch)['value_loss']
             else:
                 optimizer.zero_grad()
-                action_preds, _ = model(batch)
+                output = model(batch)
+                if isinstance(output, tuple):
+                    action_preds = output[0]
+                else:
+                    action_preds = output
                 loss = loss_fn(action_preds, batch["actions"])
                 loss.backward()
                 optimizer.step()
