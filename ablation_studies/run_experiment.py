@@ -292,6 +292,30 @@ def main():
         cfg.snn.surrogate_k = cfg.surrogate_slope_k
     if 'eta_local' not in cfg.snn and 'local_lr_eta_local' in cfg:
         cfg.snn.eta_local = cfg.local_lr_eta_local
+    
+    # Check environment for discreteness
+    import gymnasium as gym
+    act_dim_override = None
+    try:
+        tmp_env = gym.make(cfg.env)
+        is_discrete = isinstance(tmp_env.action_space, gym.spaces.Discrete)
+        if is_discrete and hasattr(tmp_env.action_space, 'n'):
+            act_dim_override = tmp_env.action_space.n
+        tmp_env.close()
+    except Exception as e:
+        print(f"Warning: Could not determine discreteness from env {cfg.env}: {e}")
+        is_discrete = False # Default
+
+    if 'dataset' not in cfg:
+        cfg['dataset'] = AttrDict()
+    elif isinstance(cfg['dataset'], dict) and not isinstance(cfg['dataset'], AttrDict):
+        cfg['dataset'] = AttrDict(cfg['dataset'])
+    
+    if 'is_discrete' not in cfg.dataset:
+        cfg.dataset.is_discrete = is_discrete
+    
+    if act_dim_override is not None:
+        cfg.dataset.act_dim = act_dim_override
     # ----------------------------------------------------
     
     save_dir = Path(__file__).parent / f"runs/{run_name}/seed_{args.seed}/{cfg.env}"
