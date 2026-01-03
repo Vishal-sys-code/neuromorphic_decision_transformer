@@ -43,3 +43,26 @@ Command: !python ablation_studies/run_grouped_ablation.py --variant no_routing -
 
 
 =================================================
+
+Command: python ablation_studies/run_grouped_ablation.py --variant no_phase --env CartPole-v1 --contract experiment_contract_light.yaml
+
+╭───────────────────────────────────────────────────────────────╮
+│ Ablation Group: no_phase        | CartPole-v1                 │
+│ Seeds:          0 to 4                                        │
+╰───────────────────────────────────────────────────────────────╯
+
+  [SEED 0] ✓ Finished   Return: 289.64
+  [SEED 1] ✓ Finished   Return: 464.25
+  [SEED 2] ✓ Finished   Return: 340.83
+  [SEED 3] ✓ Finished   Return: 330.16
+  [SEED 4] ✓ Finished   Return: 402.30
+
+─────────────────────────────────────────────────────────────────
+  FINAL RESULT:
+  Mean Return: 365.44 ± 61.19
+  Success Rate: 5/5
+─────────────────────────────────────────────────────────────────
+
+
+=================================================
+
