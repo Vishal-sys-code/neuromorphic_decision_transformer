@@ -22,10 +22,10 @@ class Colors:
     UNDERLINE = '\033[4m'
 
 def print_header(variant, env, num_seeds):
-    print(f"\n{Colors.OKCYAN}╭───────────────────────────────────────────────────────────────╮{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}│{Colors.ENDC} {Colors.BOLD}Ablation Group:{Colors.ENDC} {variant:<15} | {env:<20} {Colors.OKCYAN}│{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}│{Colors.ENDC} {Colors.BOLD}Seeds:{Colors.ENDC}          0 to {num_seeds - 1:<3}                              {Colors.OKCYAN}│{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}╰───────────────────────────────────────────────────────────────╯{Colors.ENDC}\n")
+    print(f"\n{Colors.OKCYAN}---------------------------------------------------------------{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}|{Colors.ENDC} {Colors.BOLD}Ablation Group:{Colors.ENDC} {variant:<15} | {env:<20} {Colors.OKCYAN}|{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}|{Colors.ENDC} {Colors.BOLD}Seeds:{Colors.ENDC}          0 to {num_seeds - 1:<3}                              {Colors.OKCYAN}|{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}---------------------------------------------------------------{Colors.ENDC}\n")
 
 def run_single_seed(variant, env, seed, contract):
     """
@@ -49,14 +49,14 @@ def run_single_seed(variant, env, seed, contract):
         return True
         
     except subprocess.CalledProcessError as e:
-        print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.FAIL}✗ FAILED{Colors.ENDC}")
-        print(f"{Colors.FAIL}  ┌─ Error Log ───────────────────────────────────────────────────{Colors.ENDC}")
+        print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.FAIL}x FAILED{Colors.ENDC}")
+        print(f"{Colors.FAIL}  | Error Log ---------------------------------------------------{Colors.ENDC}")
         # Filter stderr to remove tqdm noise (lines containing %|)
         err_lines = [line for line in e.stderr.splitlines() if "%|" not in line and "it/s" not in line]
         # Print last 20 lines of filtered error
         for line in err_lines[-20:]:
-            print(f"{Colors.FAIL}  │ {line}{Colors.ENDC}")
-        print(f"{Colors.FAIL}  └───────────────────────────────────────────────────────────────{Colors.ENDC}")
+            print(f"{Colors.FAIL}  | {line}{Colors.ENDC}")
+        print(f"{Colors.FAIL}  ---------------------------------------------------------------{Colors.ENDC}")
         return False
 
 def get_run_metrics(variant, env, seed):
@@ -112,14 +112,14 @@ def main():
             val_return = get_run_metrics(args.variant, args.env, seed)
             if val_return is not None:
                 returns.append(val_return)
-                print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.OKGREEN}✓ Finished{Colors.ENDC}   Return: {Colors.BOLD}{val_return:.2f}{Colors.ENDC}")
+                print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.OKGREEN}+ Finished{Colors.ENDC}   Return: {Colors.BOLD}{val_return:.2f}{Colors.ENDC}")
             else:
                 print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.WARNING}? Finished{Colors.ENDC}   Return: {Colors.WARNING}Not Found{Colors.ENDC}")
         else:
              # run_single_seed prints the failure block
              pass
             
-    print(f"\n{Colors.OKCYAN}─────────────────────────────────────────────────────────────────{Colors.ENDC}")
+    print(f"\n{Colors.OKCYAN}-----------------------------------------------------------------{Colors.ENDC}")
     if returns:
         mean_ret = np.mean(returns)
         std_ret = np.std(returns)
@@ -127,11 +127,11 @@ def main():
         std_str = f"{std_ret:.2f}"
         
         print(f"  {Colors.BOLD}FINAL RESULT:{Colors.ENDC}")
-        print(f"  Mean Return: {Colors.OKGREEN}{mean_str}{Colors.ENDC} ± {Colors.OKGREEN}{std_str}{Colors.ENDC}")
+        print(f"  Mean Return: {Colors.OKGREEN}{mean_str}{Colors.ENDC} +/- {Colors.OKGREEN}{std_str}{Colors.ENDC}")
         print(f"  Success Rate: {len(returns)}/{args.num_seeds}")
     else:
         print(f"  {Colors.FAIL}NO SUCCESSFUL RUNS{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}─────────────────────────────────────────────────────────────────{Colors.ENDC}\n")
+    print(f"{Colors.OKCYAN}-----------------------------------------------------------------{Colors.ENDC}\n")
 
 if __name__ == "__main__":
     main()
