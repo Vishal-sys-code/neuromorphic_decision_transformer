@@ -137,7 +137,12 @@ class AblationDsFormer(BasePolicy, nn.Module):
         B, L = batch["states"].shape[:2]
         
         state_embed = self.embed_state(batch["states"])
-        action_embed = self.embed_action(batch["actions"])
+        
+        actions = batch["actions"]
+        if actions.shape[-1] == 1 and self.embed_action.in_features > 1:
+             actions = torch.nn.functional.one_hot(actions.squeeze(-1).long(), num_classes=self.embed_action.in_features).float()
+        action_embed = self.embed_action(actions)
+        
         rtg_embed = self.embed_return(batch["returns_to_go"].float())
         time_embed = self.embed_timestep(batch["timesteps"].squeeze(-1))
 
