@@ -1,0 +1,2 @@
+Command: ablation_studies/run_experiment.py --variant iql --env CartPole-v1 --seed 0 --contract verification_contract_iql.yaml
+Git Hash: 773e77bedf8c098ed11d449fbf8248ebb12df1db
