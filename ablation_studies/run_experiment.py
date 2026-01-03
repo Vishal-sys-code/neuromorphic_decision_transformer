@@ -127,11 +127,15 @@ def evaluate_policy(model, env_name, cfg):
                     "states": states, 
                     "actions": actions, 
                     "returns_to_go": rtgs, 
-                    "timesteps": timesteps,
+                    "timesteps": timesteps.squeeze(-1),
                     "mask": torch.ones_like(states[:, :, 0])
                 }
                 
-                action_pred, _ = model(batch)
+                output = model(batch)
+                if isinstance(output, tuple):
+                    action_pred = output[0]
+                else:
+                    action_pred = output
                 action = action_pred[0, valid_idx].cpu().numpy()
                 
                 if isinstance(env.action_space, gym.spaces.Discrete):
