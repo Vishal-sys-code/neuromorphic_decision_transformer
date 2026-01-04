@@ -1,7 +1,7 @@
 ✅ python ablation_studies/run_grouped_ablation.py --variant no_plasticity --env CartPole-v1 --contract experiment_contract_light.yaml
-python ablation_studies/run_grouped_ablation.py --variant no_plasticity --env Acrobot-v1 --contract experiment_contract_light.yaml
-python ablation_studies/run_grouped_ablation.py --variant no_plasticity --env Pendulum-v1 --contract experiment_contract_light.yaml
-python ablation_studies/run_grouped_ablation.py --variant no_plasticity --env MountainCar-v0 --contract experiment_contract_light.yaml
+✅ python ablation_studies/run_grouped_ablation.py --variant no_plasticity --env Acrobot-v1 --contract experiment_contract_light.yaml
+✅ python ablation_studies/run_grouped_ablation.py --variant no_plasticity --env Pendulum-v1 --contract experiment_contract_light.yaml
+✅ python ablation_studies/run_grouped_ablation.py --variant no_plasticity --env MountainCar-v0 --contract experiment_contract_light.yaml
 
 ✅ python ablation_studies/run_grouped_ablation.py --variant no_routing --env CartPole-v1 --contract experiment_contract_light.yaml
 python ablation_studies/run_grouped_ablation.py --variant no_routing --env Acrobot-v1 --contract experiment_contract_light.yaml
