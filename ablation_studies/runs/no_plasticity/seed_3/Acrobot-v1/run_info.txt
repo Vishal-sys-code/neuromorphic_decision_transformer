@@ -1,0 +1,2 @@
+Command: ablation_studies/run_experiment.py --variant no_plasticity --env Acrobot-v1 --seed 3 --contract experiment_contract_light.yaml
+Git Hash: b41ac652980ef82209ad2eaa51eb82499d9fd6b6
