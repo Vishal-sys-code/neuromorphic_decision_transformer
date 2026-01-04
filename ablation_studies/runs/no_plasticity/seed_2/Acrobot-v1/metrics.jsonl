@@ -1,0 +1,9 @@
+{"train/param_count": 400659}
+{"train/step": 250, "train/loss": 0.512620210647583}
+{"train/step": 500, "train/loss": 0.5088616609573364}
+{"epoch": 10, "val/mean_return": -494.17, "val/std_return": 37.560099840122895}
+{"train/step": 750, "train/loss": 0.5410749912261963}
+{"train/step": 1000, "train/loss": 0.4645751416683197}
+{"epoch": 20, "val/mean_return": -500.0, "val/std_return": 0.0}
+{"train/step": 1250, "train/loss": 0.5023418068885803}
+{"train/step": 1500, "train/loss": 0.531222939491272}
