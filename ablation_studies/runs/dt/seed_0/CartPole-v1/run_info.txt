@@ -1,2 +1,2 @@
-Command: ablation_studies/run_experiment.py --variant dt --env CartPole-v1 --seed 0 --contract verification_contract.yaml
-Git Hash: cac377013999405f0b8d8b7cc51258f54bb877e0
+Command: ablation_studies/run_experiment.py --variant dt --env CartPole-v1 --seed 0 --contract experiment_contract_light.yaml
+Git Hash: e559142d594b6e1f79c7bd2d44b6c40963d1e3ac
