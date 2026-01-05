@@ -4,6 +4,8 @@ import sys
 import numpy as np
 import json
 from pathlib import Path
+import tempfile
+import os
 
 # --- Configuration ---
 DEFAULT_SEEDS = 5
@@ -30,7 +32,8 @@ def print_header(variant, env, num_seeds):
 def run_single_seed(variant, env, seed, contract):
     """
     Runs a single experiment seed using run_experiment.py via subprocess.
-    Returns the result dictionary (or None if failed).
+    Uses temp files to capture output to avoid pipe deadlocks.
+    Returns (success, output_log).
     """
     cmd = [
         sys.executable,
@@ -41,23 +44,37 @@ def run_single_seed(variant, env, seed, contract):
         "--contract", contract
     ]
     
-    # print(f"  > Starting Seed {seed}...", end="", flush=True) # Too noisy if we print header
-    
-    try:
-        # Run the command and capture output
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return True
-        
-    except subprocess.CalledProcessError as e:
-        print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.FAIL}x FAILED{Colors.ENDC}")
-        print(f"{Colors.FAIL}  | Error Log ---------------------------------------------------{Colors.ENDC}")
-        # Filter stderr to remove tqdm noise (lines containing %|)
-        err_lines = [line for line in e.stderr.splitlines() if "%|" not in line and "it/s" not in line]
-        # Print last 20 lines of filtered error
-        for line in err_lines[-20:]:
-            print(f"{Colors.FAIL}  | {line}{Colors.ENDC}")
-        print(f"{Colors.FAIL}  ---------------------------------------------------------------{Colors.ENDC}")
-        return False
+    # Create temporary files for stdout and stderr
+    # This avoids buffer overflows and deadlocks on Windows with large output (e.g. from tqdm)
+    with tempfile.TemporaryFile(mode='w+') as out_f, tempfile.TemporaryFile(mode='w+') as err_f:
+        try:
+            # Run the command
+            subprocess.run(cmd, stdout=out_f, stderr=err_f, text=True, check=True)
+            
+            # Read output for return (rewind first)
+            out_f.seek(0)
+            err_f.seek(0)
+            output_log = out_f.read() + "\n" + err_f.read()
+            return True, output_log
+            
+        except subprocess.CalledProcessError as e:
+            # Read output for error reporting
+            out_f.seek(0)
+            err_f.seek(0)
+            stdout_content = out_f.read()
+            stderr_content = err_f.read()
+            
+            print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.FAIL}x FAILED{Colors.ENDC}")
+            print(f"{Colors.FAIL}  | Error Log ---------------------------------------------------{Colors.ENDC}")
+            
+            # Filter stderr to remove tqdm noise (lines containing %|)
+            err_lines = [line for line in stderr_content.splitlines() if "%|" not in line and "it/s" not in line]
+            # Print last 20 lines of filtered error
+            for line in err_lines[-20:]:
+                print(f"{Colors.FAIL}  | {line}{Colors.ENDC}")
+            print(f"{Colors.FAIL}  ---------------------------------------------------------------{Colors.ENDC}")
+            
+            return False, stdout_content + "\n" + stderr_content
 
 def get_run_metrics(variant, env, seed):
     """
@@ -96,6 +113,7 @@ def main():
     parser.add_argument("--variant", required=True, help="Experiment variant")
     parser.add_argument("--env", required=True, help="Environment")
     parser.add_argument("--num_seeds", type=int, default=DEFAULT_SEEDS, help="Number of seeds to run")
+    parser.add_argument("--start_seed", type=int, default=0, help="Starting seed index")
     parser.add_argument("--contract", default=DEFAULT_CONTRACT, help="Experiment contract YAML")
     
     args = parser.parse_args()
@@ -104,9 +122,10 @@ def main():
     
     returns = []
     
-    for seed in range(args.num_seeds):
+    # Adjust range to respect start_seed and num_seeds
+    for seed in range(args.start_seed, args.start_seed + args.num_seeds):
         print(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] Running...", end="", flush=True)
-        success = run_single_seed(args.variant, args.env, seed, args.contract)
+        success, output_log = run_single_seed(args.variant, args.env, seed, args.contract)
         
         if success:
             val_return = get_run_metrics(args.variant, args.env, seed)
@@ -115,6 +134,13 @@ def main():
                 print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.OKGREEN}+ Finished{Colors.ENDC}   Return: {Colors.BOLD}{val_return:.2f}{Colors.ENDC}")
             else:
                 print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.WARNING}? Finished{Colors.ENDC}   Return: {Colors.WARNING}Not Found{Colors.ENDC}")
+                # Print the captured output for debugging
+                print(f"{Colors.WARNING}  | Debug Output (Last 20 lines) ---------------------------------{Colors.ENDC}")
+                log_lines = [line for line in output_log.splitlines() if "%|" not in line]
+                for line in log_lines[-20:]:
+                    print(f"{Colors.WARNING}  | {line}{Colors.ENDC}")
+                print(f"{Colors.WARNING}  ----------------------------------------------------------------{Colors.ENDC}")
+
         else:
              # run_single_seed prints the failure block
              pass
