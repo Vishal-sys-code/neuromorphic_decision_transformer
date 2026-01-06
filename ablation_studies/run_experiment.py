@@ -220,7 +220,11 @@ def train(cfg, logger):
     
     model = get_model(cfg).to(cfg.device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(cfg.lr), weight_decay=float(cfg.weight_decay)) if list(model.parameters()) else None
-    loss_fn = torch.nn.MSELoss()
+    
+    if cfg.dataset.is_discrete:
+        loss_fn = torch.nn.CrossEntropyLoss(reduction='none')
+    else:
+        loss_fn = torch.nn.MSELoss(reduction='none')
 
     logger.info(json.dumps({"train/param_count": sum(p.numel() for p in model.parameters())}))
 
@@ -241,7 +245,28 @@ def train(cfg, logger):
                     action_preds = output[0]
                 else:
                     action_preds = output
-                loss = loss_fn(action_preds, batch["actions"])
+                
+                mask = batch["mask"].reshape(-1)
+                
+                if cfg.dataset.is_discrete:
+                    # action_preds: (B, L, act_dim) -> (B*L, act_dim)
+                    # batch["actions"]: (B, L, 1) -> (B*L)
+                    preds = action_preds.reshape(-1, cfg.dataset.act_dim)
+                    targets = batch["actions"].reshape(-1).long()
+                    
+                    raw_loss = loss_fn(preds, targets)
+                else:
+                    # action_preds: (B, L, act_dim) -> (B*L, act_dim)
+                    # batch["actions"]: (B, L, act_dim) -> (B*L, act_dim)
+                    preds = action_preds.reshape(-1, cfg.dataset.act_dim)
+                    targets = batch["actions"].reshape(-1, cfg.dataset.act_dim)
+                    
+                    raw_loss = loss_fn(preds, targets)
+                    if raw_loss.dim() > 1:
+                        raw_loss = raw_loss.mean(dim=-1)
+
+                loss = (raw_loss * mask).sum() / mask.sum().clamp(min=1.0)
+                
                 loss.backward()
                 optimizer.step()
             
