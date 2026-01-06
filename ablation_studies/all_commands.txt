@@ -14,9 +14,9 @@
 ✅ python ablation_studies/run_grouped_ablation.py --variant no_phase --env MountainCar-v0 --contract experiment_contract_light.yaml
 
 ✅ python ablation_studies/run_grouped_ablation.py --variant dt --env CartPole-v1 --contract experiment_contract_light.yaml
-python ablation_studies/run_grouped_ablation.py --variant dt --env Acrobot-v1 --contract experiment_contract_light.yaml
-python ablation_studies/run_grouped_ablation.py --variant dt --env Pendulum-v1 --contract experiment_contract_light.yaml
-python ablation_studies/run_grouped_ablation.py --variant dt --env MountainCar-v0 --contract experiment_contract_light.yaml
+✅ python ablation_studies/run_grouped_ablation.py --variant dt --env Acrobot-v1 --contract experiment_contract_light.yaml
+✅ python ablation_studies/run_grouped_ablation.py --variant dt --env Pendulum-v1 --contract experiment_contract_light.yaml
+✅ python ablation_studies/run_grouped_ablation.py --variant dt --env MountainCar-v0 --contract experiment_contract_light.yaml
 
 ✅ python ablation_studies/run_grouped_ablation.py --variant snn_dt --env CartPole-v1 --contract experiment_contract_light.yaml
 python ablation_studies/run_grouped_ablation.py --variant snn_dt --env Acrobot-v1 --contract experiment_contract_light.yaml
