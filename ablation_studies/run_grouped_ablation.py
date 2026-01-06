@@ -76,9 +76,10 @@ def run_single_seed(variant, env, seed, contract):
             
             return False, stdout_content + "\n" + stderr_content
 
-def get_run_metrics(variant, env, seed):
+def get_run_metrics(variant, env, seed, output_log=None):
     """
     Reads the metrics.jsonl file for a specific run to get the final performance.
+    If metrics file is missing/empty and output_log is provided, attempts to parse metrics from it.
     """
     project_root = Path(__file__).parent
     
@@ -92,19 +93,39 @@ def get_run_metrics(variant, env, seed):
             metrics_file = p
             break
             
-    if not metrics_file:
-        return None
-
     final_return = None
-    try:
-        with open(metrics_file, 'r') as f:
-            for line in f:
-                if not line.strip(): continue
-                data = json.loads(line)
-                if 'val/mean_return' in data:
-                    final_return = data['val/mean_return']
-    except Exception:
-        pass
+    
+    # Try reading from file first
+    if metrics_file:
+        try:
+            with open(metrics_file, 'r') as f:
+                for line in f:
+                    if not line.strip(): continue
+                    try:
+                        data = json.loads(line)
+                        if 'val/mean_return' in data:
+                            final_return = data['val/mean_return']
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            pass
+            
+    # Fallback: Parse from output_log if file read failed or yielded nothing
+    if final_return is None and output_log is not None:
+        for line in output_log.splitlines():
+            if "val/mean_return" in line:
+                try:
+                    # Finds the JSON structure inside the line
+                    # Usually formatted as: {"epoch": ..., "val/mean_return": ...}
+                    start_idx = line.find('{')
+                    end_idx = line.rfind('}')
+                    if start_idx != -1 and end_idx != -1:
+                        json_str = line[start_idx : end_idx + 1]
+                        data = json.loads(json_str)
+                        if 'val/mean_return' in data:
+                            final_return = data['val/mean_return']
+                except Exception:
+                    continue
         
     return final_return
 
@@ -128,7 +149,7 @@ def main():
         success, output_log = run_single_seed(args.variant, args.env, seed, args.contract)
         
         if success:
-            val_return = get_run_metrics(args.variant, args.env, seed)
+            val_return = get_run_metrics(args.variant, args.env, seed, output_log)
             if val_return is not None:
                 returns.append(val_return)
                 print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.OKGREEN}+ Finished{Colors.ENDC}   Return: {Colors.BOLD}{val_return:.2f}{Colors.ENDC}")
