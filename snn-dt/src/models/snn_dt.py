@@ -213,7 +213,7 @@ class DendriticRouter(nn.Module):
 # -------------------------
 # Three-factor plasticity (skeleton)
 # -------------------------
-class ThreeFactorPlasticity:
+class ThreeFactorPlasticity(nn.Module):
     """
     Minimal three-factor plasticity class:
       - maintains eligibility trace E (same shape as a weight matrix)
@@ -224,10 +224,11 @@ class ThreeFactorPlasticity:
     """
 
     def __init__(self, weight_shape: Tuple[int, int], eta: float = 1e-3, lambda_decay: float = 0.99, device: Optional[torch.device] = None):
-        self.device = device
+        super().__init__()
         self.eta = float(eta)
         self.lambda_decay = float(lambda_decay)
-        self.E = torch.zeros(weight_shape, device=device)
+        # Register E as a buffer so it is moved to device along with the model
+        self.register_buffer("E", torch.zeros(weight_shape, device=device))
 
     def update_trace(self, pre: torch.Tensor, post: torch.Tensor):
         """
@@ -260,6 +261,9 @@ class ThreeFactorPlasticity:
                 else:
                     # shapes mismatch -> no-op (user must ensure shapes align)
                     pass
+
+    def reset(self):
+        self.E.zero_()
 
 
 # -------------------------
@@ -334,6 +338,8 @@ class SpikingTransformerBlock(nn.Module):
         self.lif_q.reset_state()
         self.lif_k.reset_state()
         self.lif_v.reset_state()
+        if self.plasticity_rule is not None and hasattr(self.plasticity_rule, 'reset'):
+            self.plasticity_rule.reset()
 
     def forward(self, x: torch.Tensor, phase_mod: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.training:
