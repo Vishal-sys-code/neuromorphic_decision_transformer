@@ -400,8 +400,8 @@ def main():
         "snn": {
             "lif_tau": cfg_raw.get("snn", {}).get("lif_tau", 20.0),
             "surrogate_k": cfg_raw.get("snn", {}).get("surrogate_k", 25.0),
-            "v_th": cfg_raw.get("snn", {}).get("v_th", 0.05),
-            "current_scale": cfg_raw.get("snn", {}).get("current_scale", 5.0),
+            "v_th": cfg_raw.get("snn", {}).get("v_th", 1.0),
+            "current_scale": cfg_raw.get("snn", {}).get("current_scale", 0.2),
             "use_plasticity": cfg_raw.get("snn", {}).get("use_plasticity", False)
         },
         "iql": {
@@ -422,6 +422,9 @@ def main():
     
     # Convert to AttrDict for easy access
     cfg = AttrDict(cfg)
+
+    if cfg.model.name == "snn_dt":
+        logger.info(f"SNN Config: {cfg.snn}")
 
     # Construct dataset path from env name, relative to project root
     cfg.dataset.path = str(project_root / f"data/{args.env}/dataset.npz")
