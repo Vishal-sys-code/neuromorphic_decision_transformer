@@ -1,2 +1,15 @@
 model:
   name: snn_dt
+  # Optimization for CartPole
+  d_model: 128
+  n_heads: 4
+  n_layers: 2
+  seq_len: 20
+snn:
+  lif_tau: 20.0
+  v_th: 1.0
+  current_scale: 0.5
+  surrogate_k: 25.0
+  biological_time: 4
+  use_plasticity: true
+  eta_local: 0.05
