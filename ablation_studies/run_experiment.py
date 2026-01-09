@@ -181,7 +181,17 @@ def evaluate_policy(model, env_name, cfg):
         total_rewards.append(episode_return)
 
     env.close()
-    return {"val/mean_return": np.mean(total_rewards), "val/std_return": np.std(total_rewards)}
+    
+    val_metrics = {
+        "val/mean_return": np.mean(total_rewards),
+        "val/std_return": np.std(total_rewards)
+    }
+    
+    # Log evaluation energy metrics if available
+    if hasattr(model, 'count_spikes'):
+        val_metrics["val/spikes_per_inference"] = model.count_spikes()
+        
+    return val_metrics
 
 # --- Main Training Loop ---
 def train(cfg, logger):
@@ -273,7 +283,22 @@ def train(cfg, logger):
             
             if (epoch * len(train_loader) + batch_idx) % cfg.log_interval_steps == 0:
                 loss_val = loss.item() if isinstance(loss, torch.Tensor) else loss
-                logger.info(json.dumps({"train/step": epoch * len(train_loader) + batch_idx, "train/loss": loss_val}))
+                log_data = {"train/step": epoch * len(train_loader) + batch_idx, "train/loss": loss_val}
+                if hasattr(model, 'last_logs'):
+                    log_data.update({f"train/{k}": v for k, v in model.last_logs.items() if k != "loss"})
+                elif hasattr(model, 'last_diagnostics'):
+                    # Map SNN-DT specific diagnostics
+                    diags = model.last_diagnostics
+                    if 'spikes_norm' in diags:
+                        log_data['train/spikes_per_inference'] = diags['spikes_norm']
+                    if 'block_0_alpha_mean' in diags:
+                        # Log alpha mean as proxy for entropy/routing activity
+                        log_data['train/router_alpha_mean'] = diags['block_0_alpha_mean']
+                    # Log everything else
+                    for k, v in diags.items():
+                        if k not in ['spikes_norm']:
+                             log_data[f"train/{k}"] = v
+                logger.info(json.dumps(log_data))
         
         if epoch % cfg.checkpoint_interval_epochs == 0:
             val_metrics = evaluate_policy(model, cfg.env, cfg)
