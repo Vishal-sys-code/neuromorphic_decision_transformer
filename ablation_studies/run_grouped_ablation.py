@@ -24,10 +24,10 @@ class Colors:
     UNDERLINE = '\033[4m'
 
 def print_header(variant, env, num_seeds):
-    print(f"\n{Colors.OKCYAN}---------------------------------------------------------------{Colors.ENDC}")
+    print(f"\n{Colors.OKCYAN}---------------------------------------------------------------------------------{Colors.ENDC}")
     print(f"{Colors.OKCYAN}|{Colors.ENDC} {Colors.BOLD}Ablation Group:{Colors.ENDC} {variant:<15} | {env:<20} {Colors.OKCYAN}|{Colors.ENDC}")
     print(f"{Colors.OKCYAN}|{Colors.ENDC} {Colors.BOLD}Seeds:{Colors.ENDC}          0 to {num_seeds - 1:<3}                              {Colors.OKCYAN}|{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}---------------------------------------------------------------{Colors.ENDC}\n")
+    print(f"{Colors.OKCYAN}---------------------------------------------------------------------------------{Colors.ENDC}\n")
 
 def run_single_seed(variant, env, seed, contract):
     """
@@ -80,6 +80,7 @@ def get_run_metrics(variant, env, seed, output_log=None):
     """
     Reads the metrics.jsonl file for a specific run to get the final performance.
     If metrics file is missing/empty and output_log is provided, attempts to parse metrics from it.
+    Returns tuple: (mean_return, spikes_per_inference)
     """
     project_root = Path(__file__).parent
     
@@ -94,6 +95,7 @@ def get_run_metrics(variant, env, seed, output_log=None):
             break
             
     final_return = None
+    final_spikes = None
     
     # Try reading from file first
     if metrics_file:
@@ -105,15 +107,17 @@ def get_run_metrics(variant, env, seed, output_log=None):
                         data = json.loads(line)
                         if 'val/mean_return' in data:
                             final_return = data['val/mean_return']
+                        if 'val/spikes_per_inference' in data:
+                            final_spikes = data['val/spikes_per_inference']
                     except json.JSONDecodeError:
                         continue
         except Exception:
             pass
             
     # Fallback: Parse from output_log if file read failed or yielded nothing
-    if final_return is None and output_log is not None:
+    if (final_return is None or final_spikes is None) and output_log is not None:
         for line in output_log.splitlines():
-            if "val/mean_return" in line:
+            if "val/mean_return" in line or "val/spikes_per_inference" in line:
                 try:
                     # Finds the JSON structure inside the line
                     # Usually formatted as: {"epoch": ..., "val/mean_return": ...}
@@ -124,10 +128,12 @@ def get_run_metrics(variant, env, seed, output_log=None):
                         data = json.loads(json_str)
                         if 'val/mean_return' in data:
                             final_return = data['val/mean_return']
+                        if 'val/spikes_per_inference' in data:
+                            final_spikes = data['val/spikes_per_inference']
                 except Exception:
                     continue
         
-    return final_return
+    return final_return, final_spikes
 
 def main():
     parser = argparse.ArgumentParser(description="Run a group of ablation experiments (multiple seeds) and report Mean +/- Std.")
@@ -142,6 +148,7 @@ def main():
     print_header(args.variant, args.env, args.num_seeds)
     
     returns = []
+    spikes_list = []
     
     # Adjust range to respect start_seed and num_seeds
     for seed in range(args.start_seed, args.start_seed + args.num_seeds):
@@ -149,10 +156,13 @@ def main():
         success, output_log = run_single_seed(args.variant, args.env, seed, args.contract)
         
         if success:
-            val_return = get_run_metrics(args.variant, args.env, seed, output_log)
+            val_return, val_spikes = get_run_metrics(args.variant, args.env, seed, output_log)
             if val_return is not None:
                 returns.append(val_return)
-                print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.OKGREEN}+ Finished{Colors.ENDC}   Return: {Colors.BOLD}{val_return:.2f}{Colors.ENDC}")
+                spikes_str = f"{val_spikes:.2f}" if val_spikes is not None else "N/A"
+                if val_spikes is not None: spikes_list.append(val_spikes)
+                
+                print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.OKGREEN}+ Finished{Colors.ENDC}   Return: {Colors.BOLD}{val_return:.2f}{Colors.ENDC}   Spikes/Inf: {Colors.OKCYAN}{spikes_str}{Colors.ENDC}")
             else:
                 print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.WARNING}? Finished{Colors.ENDC}   Return: {Colors.WARNING}Not Found{Colors.ENDC}")
                 # Print the captured output for debugging
@@ -166,19 +176,23 @@ def main():
              # run_single_seed prints the failure block
              pass
             
-    print(f"\n{Colors.OKCYAN}-----------------------------------------------------------------{Colors.ENDC}")
+    print(f"\n{Colors.OKCYAN}---------------------------------------------------------------------------------{Colors.ENDC}")
     if returns:
         mean_ret = np.mean(returns)
         std_ret = np.std(returns)
         mean_str = f"{mean_ret:.2f}"
         std_str = f"{std_ret:.2f}"
         
+        mean_spikes = np.mean(spikes_list) if spikes_list else 0.0
+        spikes_final_str = f"{mean_spikes:.2f}" if spikes_list else "N/A"
+        
         print(f"  {Colors.BOLD}FINAL RESULT:{Colors.ENDC}")
         print(f"  Mean Return: {Colors.OKGREEN}{mean_str}{Colors.ENDC} +/- {Colors.OKGREEN}{std_str}{Colors.ENDC}")
+        print(f"  Mean Spikes: {Colors.OKCYAN}{spikes_final_str}{Colors.ENDC}")
         print(f"  Success Rate: {len(returns)}/{args.num_seeds}")
     else:
         print(f"  {Colors.FAIL}NO SUCCESSFUL RUNS{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}-----------------------------------------------------------------{Colors.ENDC}\n")
+    print(f"{Colors.OKCYAN}---------------------------------------------------------------------------------{Colors.ENDC}\n")
 
 if __name__ == "__main__":
     main()
