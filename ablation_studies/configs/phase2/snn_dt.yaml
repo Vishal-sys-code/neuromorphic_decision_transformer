@@ -7,9 +7,9 @@ model:
   seq_len: 20
 snn:
   lif_tau: 20.0
-  v_th: 0.6
-  current_scale: 1.0
-  surrogate_k: 25.0
-  biological_time: 4
+  v_th: 1.0        # Increased from 0.6 to reduce spiking
+  current_scale: 0.2 # Decreased from 1.0 to reduce spiking
+  surrogate_k: 10.0 # Matched to contract
+  biological_time: 10 # Matched to contract
   use_plasticity: true
   eta_local: 0.05
