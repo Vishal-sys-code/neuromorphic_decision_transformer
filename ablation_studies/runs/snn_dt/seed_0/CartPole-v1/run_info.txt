@@ -1,2 +1,2 @@
 Command: ablation_studies/run_experiment.py --variant snn_dt --env CartPole-v1 --seed 0 --contract experiment_contract_fast.yaml
-Git Hash: fd22b51978e910cd887abc2305d4b49e6235feeb
+Git Hash: 52ee253b76ad95497c74fade593bae728a3139a7
