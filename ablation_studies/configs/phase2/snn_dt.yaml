@@ -7,8 +7,8 @@ model:
   seq_len: 20
 snn:
   lif_tau: 20.0
-  v_th: 1.0
-  current_scale: 0.5
+  v_th: 0.6
+  current_scale: 1.0
   surrogate_k: 25.0
   biological_time: 4
   use_plasticity: true
