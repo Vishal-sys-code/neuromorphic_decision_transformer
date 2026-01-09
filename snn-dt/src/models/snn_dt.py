@@ -538,7 +538,7 @@ class SnnDt(BasePolicy, nn.Module):
 
         # reset block states and diagnostics
         for b in self.blocks:
-            if hasattr(b, "lif"):
+            if hasattr(b, "spike_count"):
                 # zero state handled internally if none provided; clear spike_count for each forward pass
                 b.spike_count = 0.0
                 b.last_alpha = None
@@ -557,9 +557,9 @@ class SnnDt(BasePolicy, nn.Module):
 
             # diagnostics aggregation
             self.total_spike_count += block.spike_count
-            # total opportunities for normalization: B * seq * d_model * 3 (Q,K,V) * 1 (per block)
+            # total opportunities for normalization: B * seq * d_model * 3 (Q,K,V) * 1 (per block) * T (time)
             # We accumulate across blocks for global normalization
-            self.total_spike_opportunities += float(B * x.shape[1] * (3 * self.d_model))
+            self.total_spike_opportunities += float(B * x.shape[1] * (3 * self.d_model) * self.T)
             self.last_diagnostics[f"block_{i}_spike_rate_q"] = block.diagnostics.get("spike_rate_q", 0.0)
             self.last_diagnostics[f"block_{i}_spike_rate_v"] = block.diagnostics.get("spike_rate_v", 0.0)
             self.last_diagnostics[f"block_{i}_q_min"] = block.diagnostics.get("q_min", 0.0)
