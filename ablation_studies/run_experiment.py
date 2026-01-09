@@ -344,7 +344,7 @@ def main():
         cfg['snn'] = AttrDict()
     elif isinstance(cfg['snn'], dict) and not isinstance(cfg['snn'], AttrDict):
         cfg['snn'] = AttrDict(cfg['snn'])
-        
+    
     if 'biological_time' not in cfg.snn and 'spiking_window_T' in cfg:
         cfg.snn.biological_time = cfg.spiking_window_T
     if 'surrogate_k' not in cfg.snn and 'surrogate_slope_k' in cfg:
@@ -388,6 +388,9 @@ def main():
 
     with open(save_dir / "run_info.txt", "w") as f:
         f.write(f"Command: {' '.join(sys.argv)}\nGit Hash: {subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip().decode('utf-8')}\n")
+
+    if 'snn' in cfg:
+        logger.info(f"SNN Config: {cfg.snn}")
 
     train(cfg, logger)
 
