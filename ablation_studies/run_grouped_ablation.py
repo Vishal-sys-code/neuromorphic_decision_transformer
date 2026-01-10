@@ -64,17 +64,19 @@ def run_single_seed(variant, env, seed, contract):
             stdout_content = out_f.read()
             stderr_content = err_f.read()
             
-            print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.FAIL}x FAILED{Colors.ENDC}")
-            print(f"{Colors.FAIL}  | Error Log ---------------------------------------------------{Colors.ENDC}")
+            # Construct error message instead of printing directly
+            error_msg = []
+            error_msg.append(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.FAIL}x FAILED{Colors.ENDC}")
+            error_msg.append(f"{Colors.FAIL}  | Error Log ---------------------------------------------------{Colors.ENDC}")
             
             # Filter stderr to remove tqdm noise (lines containing %|)
             err_lines = [line for line in stderr_content.splitlines() if "%|" not in line and "it/s" not in line]
             # Print last 20 lines of filtered error
             for line in err_lines[-20:]:
-                print(f"{Colors.FAIL}  | {line}{Colors.ENDC}")
-            print(f"{Colors.FAIL}  ---------------------------------------------------------------{Colors.ENDC}")
+                error_msg.append(f"{Colors.FAIL}  | {line}{Colors.ENDC}")
+            error_msg.append(f"{Colors.FAIL}  ---------------------------------------------------------------{Colors.ENDC}")
             
-            return False, stdout_content + "\n" + stderr_content
+            return False, "\n".join(error_msg)
 
 def get_run_metrics(variant, env, seed, output_log=None):
     """
@@ -143,6 +145,8 @@ def main():
     parser.add_argument("--start_seed", type=int, default=0, help="Starting seed index")
     parser.add_argument("--contract", default=DEFAULT_CONTRACT, help="Experiment contract YAML")
     
+    parser.add_argument("--max_workers", type=int, default=5, help="Number of parallel workers (default: 5)")
+    
     args = parser.parse_args()
     
     print_header(args.variant, args.env, args.num_seeds)
@@ -150,32 +154,50 @@ def main():
     returns = []
     spikes_list = []
     
-    # Adjust range to respect start_seed and num_seeds
-    for seed in range(args.start_seed, args.start_seed + args.num_seeds):
-        print(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] Running...", end="", flush=True)
-        success, output_log = run_single_seed(args.variant, args.env, seed, args.contract)
-        
-        if success:
-            val_return, val_spikes = get_run_metrics(args.variant, args.env, seed, output_log)
-            if val_return is not None:
-                returns.append(val_return)
-                spikes_str = f"{val_spikes:.2f}" if val_spikes is not None else "N/A"
-                if val_spikes is not None: spikes_list.append(val_spikes)
-                
-                print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.OKGREEN}+ Finished{Colors.ENDC}   Return: {Colors.BOLD}{val_return:.2f}{Colors.ENDC}   Spikes/Inf: {Colors.OKCYAN}{spikes_str}{Colors.ENDC}")
-            else:
-                print(f"\r  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.WARNING}? Finished{Colors.ENDC}   Return: {Colors.WARNING}Not Found{Colors.ENDC}")
-                # Print the captured output for debugging
-                print(f"{Colors.WARNING}  | Debug Output (Last 20 lines) ---------------------------------{Colors.ENDC}")
-                log_lines = [line for line in output_log.splitlines() if "%|" not in line]
-                for line in log_lines[-20:]:
-                    print(f"{Colors.WARNING}  | {line}{Colors.ENDC}")
-                print(f"{Colors.WARNING}  ----------------------------------------------------------------{Colors.ENDC}")
+    import concurrent.futures
 
-        else:
-             # run_single_seed prints the failure block
-             pass
+    # Adjust range to respect start_seed and num_seeds
+    seeds_to_run = list(range(args.start_seed, args.start_seed + args.num_seeds))
+    
+    print(f"Starting {len(seeds_to_run)} runs with {args.max_workers} workers...\n")
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=args.max_workers) as executor:
+        # Submit all jobs
+        future_to_seed = {
+            executor.submit(run_single_seed, args.variant, args.env, seed, args.contract): seed 
+            for seed in seeds_to_run
+        }
+        
+        # Process as they complete
+        for future in concurrent.futures.as_completed(future_to_seed):
+            seed = future_to_seed[future]
+            try:
+                success, output_log = future.result()
+                
+                if success:
+                    val_return, val_spikes = get_run_metrics(args.variant, args.env, seed, output_log)
+                    if val_return is not None:
+                        returns.append(val_return)
+                        spikes_str = f"{val_spikes:.2f}" if val_spikes is not None else "N/A"
+                        if val_spikes is not None: spikes_list.append(val_spikes)
+                        
+                        print(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.OKGREEN}+ Finished{Colors.ENDC}   Return: {Colors.BOLD}{val_return:.2f}{Colors.ENDC}   Spikes/Inf: {Colors.OKCYAN}{spikes_str}{Colors.ENDC}")
+                    else:
+                        print(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.WARNING}? Finished{Colors.ENDC}   Return: {Colors.WARNING}Not Found{Colors.ENDC}")
+                        # Print the captured output for debugging
+                        print(f"{Colors.WARNING}  | Debug Output (Last 20 lines) ---------------------------------{Colors.ENDC}")
+                        log_lines = [line for line in output_log.splitlines() if "%|" not in line]
+                        for line in log_lines[-20:]:
+                            print(f"{Colors.WARNING}  | {line}{Colors.ENDC}")
+                        print(f"{Colors.WARNING}  ----------------------------------------------------------------{Colors.ENDC}")
             
+                else:
+                    # Failure case: output_log contains the formatted error message
+                    print(output_log)
+
+            except Exception as exc:
+                print(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.FAIL}Generated an exception: {exc}{Colors.ENDC}")
+
     print(f"\n{Colors.OKCYAN}---------------------------------------------------------------------------------{Colors.ENDC}")
     if returns:
         mean_ret = np.mean(returns)
