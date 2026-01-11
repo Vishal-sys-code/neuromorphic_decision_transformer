@@ -155,10 +155,18 @@ def main():
     spikes_list = []
     
     import concurrent.futures
+    import torch
 
     # Adjust range to respect start_seed and num_seeds
     seeds_to_run = list(range(args.start_seed, args.start_seed + args.num_seeds))
     
+    # Auto-detect single GPU environment (e.g., Colab T4) and force serial execution
+    # to prevent OOM/Thrashing when trying to run multiple training jobs on one GPU.
+    if args.max_workers > 1:
+        if torch.cuda.is_available() and torch.cuda.device_count() == 1:
+            print(f"{Colors.WARNING}Single GPU detected. Forcing max_workers=1 to prevent crashes.{Colors.ENDC}")
+            args.max_workers = 1
+
     print(f"Starting {len(seeds_to_run)} runs with {args.max_workers} workers...\n")
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=args.max_workers) as executor:
