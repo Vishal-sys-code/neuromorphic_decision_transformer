@@ -171,9 +171,9 @@ def train(cfg, logger):
     temp_env.close()
 
     from torch.utils.data import DataLoader
-    num_workers = min(os.cpu_count(), 4)
-    pin_memory = True
-    persistent_workers = True if os.name != 'nt' else False
+    num_workers = cfg.training.num_workers
+    pin_memory = cfg.training.pin_memory
+    persistent_workers = cfg.training.persistent_workers
 
     train_loader = DataLoader(
         dataset,
