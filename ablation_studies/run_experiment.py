@@ -289,15 +289,21 @@ def train(cfg, logger):
                 elif hasattr(model, 'last_diagnostics'):
                     # Map SNN-DT specific diagnostics
                     diags = model.last_diagnostics
+                    # Helper to convert tensor to float
+                    def to_float(x):
+                         if isinstance(x, torch.Tensor):
+                             return x.item()
+                         return x
+
                     if 'spikes_norm' in diags:
-                        log_data['train/spikes_per_inference'] = diags['spikes_norm']
+                        log_data['train/spikes_per_inference'] = to_float(diags['spikes_norm'])
                     if 'block_0_alpha_mean' in diags:
                         # Log alpha mean as proxy for entropy/routing activity
-                        log_data['train/router_alpha_mean'] = diags['block_0_alpha_mean']
+                        log_data['train/router_alpha_mean'] = to_float(diags['block_0_alpha_mean'])
                     # Log everything else
                     for k, v in diags.items():
                         if k not in ['spikes_norm']:
-                             log_data[f"train/{k}"] = v
+                             log_data[f"train/{k}"] = to_float(v)
                 logger.info(json.dumps(log_data))
         
         if epoch % cfg.checkpoint_interval_epochs == 0:
