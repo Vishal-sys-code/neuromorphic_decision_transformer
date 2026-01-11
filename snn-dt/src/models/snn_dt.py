@@ -80,6 +80,7 @@ class VectorizedLIF(nn.Module):
         # alpha_decay used in Euler update: v = rho * v + current
         # rho = exp(-dt / tau)
         self.register_buffer("rho", torch.tensor(math.exp(-self.dt / max(self.tau, 1e-6))))
+        self.register_buffer("v_th_tensor", torch.tensor(self.v_th))
 
     def reset_state(self):
         self.v = None
@@ -97,6 +98,10 @@ class VectorizedLIF(nn.Module):
             v = v0
 
         spikes_time = torch.zeros_like(currents, dtype=currents.dtype)
+        
+        # Ensure v_th is on the correct device
+        if self.v_th_tensor.device != device:
+             self.v_th_tensor = self.v_th_tensor.to(device)
 
         # Vectorized loop across T implemented in PyTorch operations
         # We iterate over time axis but the operations are efficient; T is usually small (8-32)
@@ -106,7 +111,7 @@ class VectorizedLIF(nn.Module):
             # membrane update: v = rho * v + I_t
             v = self.rho * v + I_t
             # spike generation (surrogate)
-            s_t = surrogate_spike(v, torch.tensor(self.v_th, device=device, dtype=v.dtype), self.alpha)
+            s_t = surrogate_spike(v, self.v_th_tensor, self.alpha)
             # reset (soft reset)
             v = v * (1.0 - s_t)
             spikes_time[t] = s_t
@@ -329,10 +334,10 @@ class SpikingTransformerBlock(nn.Module):
                                                          device=None)
 
         # diagnostics
-        self.spike_count = 0.0
+        self.spike_count_tensor = None
         self.last_alpha = None
         self.last_attn_scores = None
-        self.diagnostics = {}
+        self.diagnostics_tensors = {}
         
     def reset_state(self):
         self.lif_q.reset_state()
@@ -356,14 +361,19 @@ class SpikingTransformerBlock(nn.Module):
         T = phase_mod.shape[0]
         device = x.device
 
+        if self.spike_count_tensor is None:
+             self.spike_count_tensor = torch.tensor(0.0, device=device)
+        else:
+             if self.spike_count_tensor.device != device:
+                  self.spike_count_tensor = self.spike_count_tensor.to(device)
+
         # Project once (token-level), then create time-varying currents:
         q = self.q_proj(x)  # (B, L, D)
         k = self.k_proj(x)
         v = self.v_proj(x)
         
-        self.diagnostics['q_proj_min'] = q.min().item()
-        self.diagnostics['q_proj_max'] = q.max().item()
-        self.diagnostics['q_proj_mean'] = q.mean().item()
+        # Diagnostics - Store as tensor/skip .item()
+        # self.diagnostics['q_proj_min'] = q.min().item() # REMOVED for speed
 
         # currents shape: (T, B, L, D)
         # scale current by cfg.snn.current_scale if present
@@ -376,24 +386,18 @@ class SpikingTransformerBlock(nn.Module):
         spikes_k_t, _ = self.lif_k(k_curr)
         spikes_v_t, _ = self.lif_v(v_curr)
 
-        if isinstance(q_state, torch.Tensor):
-            self.diagnostics['v_mem_q_min'] = q_state.min().item()
-            self.diagnostics['v_mem_q_max'] = q_state.max().item()
-
         # accumulate spike counts for diagnostics
         s_sum = spikes_q_t.sum() + spikes_k_t.sum() + spikes_v_t.sum()
-        self.spike_count += float(s_sum.detach())
+        self.spike_count_tensor = self.spike_count_tensor + s_sum.detach()
 
         # spike-rate per token: sum over T => (B, L, D)
         spikes_q = spikes_q_t.sum(dim=0)
         spikes_k = spikes_k_t.sum(dim=0)
         spikes_v = spikes_v_t.sum(dim=0)
 
-        # diagnostics (simple)
-        self.diagnostics['q_min'] = q.min().item()
-        self.diagnostics['q_max'] = q.max().item()
-        self.diagnostics['spike_rate_q'] = spikes_q_t.detach().mean().item()
-        self.diagnostics['spike_rate_v'] = spikes_v_t.detach().mean().item()
+        # diagnostics (simple) - Store tensors, avoid .item()
+        self.diagnostics_tensors['spike_rate_q'] = spikes_q_t.detach().mean()
+        self.diagnostics_tensors['spike_rate_v'] = spikes_v_t.detach().mean()
 
         # reshape to heads: (B, L, H, head_dim)
         q_h = spikes_q.view(B, L, self.n_heads, self.head_dim)
@@ -485,7 +489,7 @@ class SnnDt(BasePolicy, nn.Module):
         self.use_plasticity = bool(getattr(cfg.snn, "use_plasticity", False))
 
         # statefulness / diagnostics
-        self.total_spike_count = 0.0
+        self.total_spike_count_tensor = None
         self.total_spike_opportunities = 0.0
         self.last_diagnostics = {}
 
@@ -504,6 +508,13 @@ class SnnDt(BasePolicy, nn.Module):
 
         B, L, _ = states.shape
         device = states.device
+        
+        if self.total_spike_count_tensor is None:
+             self.total_spike_count_tensor = torch.tensor(0.0, device=device)
+        else:
+             if self.total_spike_count_tensor.device != device:
+                  self.total_spike_count_tensor = self.total_spike_count_tensor.to(device)
+
 
         # Pad actions if they are shorter than states
         if actions.shape[1] < states.shape[1]:
@@ -544,14 +555,14 @@ class SnnDt(BasePolicy, nn.Module):
 
         # reset block states and diagnostics
         for b in self.blocks:
-            if hasattr(b, "spike_count"):
+            if hasattr(b, "spike_count_tensor"):
                 # zero state handled internally if none provided; clear spike_count for each forward pass
-                b.spike_count = 0.0
+                b.spike_count_tensor = torch.tensor(0.0, device=device)
                 b.last_alpha = None
                 b.last_attn_scores = None
-                b.diagnostics = {}
+                b.diagnostics_tensors = {}
 
-        self.total_spike_count = 0.0
+        self.total_spike_count_tensor = torch.tensor(0.0, device=device)
         self.total_spike_opportunities = 0.0
 
         # run each block
@@ -562,25 +573,21 @@ class SnnDt(BasePolicy, nn.Module):
             x = self.layer_norms[i](x)
 
             # diagnostics aggregation
-            self.total_spike_count += block.spike_count
+            self.total_spike_count_tensor = self.total_spike_count_tensor + block.spike_count_tensor
+            
             # total opportunities for normalization: B * seq * d_model * 3 (Q,K,V) * 1 (per block) * T (time)
             # We accumulate across blocks for global normalization
+            # Using numbers is fine here as it's not a GPU sync op
             self.total_spike_opportunities += float(B * x.shape[1] * (3 * self.d_model) * self.T)
-            self.last_diagnostics[f"block_{i}_spike_rate_q"] = block.diagnostics.get("spike_rate_q", 0.0)
-            self.last_diagnostics[f"block_{i}_spike_rate_v"] = block.diagnostics.get("spike_rate_v", 0.0)
-            self.last_diagnostics[f"block_{i}_q_min"] = block.diagnostics.get("q_min", 0.0)
-            self.last_diagnostics[f"block_{i}_alpha_mean"] = alpha.mean().item() if alpha is not None else 0.0
+            
+            # NO .item() calls here
+            # self.last_diagnostics[f"block_{i}_spike_rate_q"] = block.diagnostics.get("spike_rate_q", 0.0)
+            # self.last_diagnostics[f"block_{i}_spike_rate_v"] = block.diagnostics.get("spike_rate_v", 0.0)
 
         # final action prediction using tokens corresponding to actions:
         action_preds = self.action_predictor(x[:, 1::3])  # select action positions (works with 3*L layout)
-        # finalize diagnostics
-        self.last_diagnostics["spikes_total_raw"] = float(self.total_spike_count)
-        self.last_diagnostics["spikes_norm"] = self.count_spikes()
-        # keep last attn max
-        self.last_diagnostics["max_attn"] = max(
-            (block.last_attn_scores.max().item() if block.last_attn_scores is not None else 0.0)
-            for block in self.blocks
-        )
+        
+        # We delay final diagnostics computation to logging time or when count_spikes is called
         return action_preds
 
     @torch.no_grad()
@@ -606,18 +613,29 @@ class SnnDt(BasePolicy, nn.Module):
         return action_preds[0, -1].cpu().numpy()
 
     def count_spikes(self) -> float:
+        # NOW we can call .item() as this is typically called for logging
         if self.total_spike_opportunities <= 0.0:
-            return float(self.total_spike_count)
-        return float(self.total_spike_count / max(1.0, self.total_spike_opportunities))
+            if isinstance(self.total_spike_count_tensor, torch.Tensor):
+                return self.total_spike_count_tensor.item()
+            return 0.0
+        
+        val = 0.0
+        if isinstance(self.total_spike_count_tensor, torch.Tensor):
+            val = self.total_spike_count_tensor.item()
+        else:
+            val = self.total_spike_count_tensor
+            
+        return float(val / max(1.0, self.total_spike_opportunities))
 
     def reset_state(self):
         for block in self.blocks:
             block.reset_state()
 
     def reset_spike_counts(self):
+        device = next(self.parameters()).device
         for b in self.blocks:
-            b.spike_count = 0.0
-        self.total_spike_count = 0.0
+            b.spike_count_tensor = torch.tensor(0.0, device=device)
+        self.total_spike_count_tensor = torch.tensor(0.0, device=device)
         self.total_spike_opportunities = 0.0
         self.last_diagnostics = {}
 
