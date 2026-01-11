@@ -53,6 +53,9 @@ class MockConfig:
         device = "cpu"
         lr = 3e-4
 
+    device = "cpu"
+    lr = 3e-4
+
 
 def test_dt_forward_pass():
     cfg = MockConfig()
