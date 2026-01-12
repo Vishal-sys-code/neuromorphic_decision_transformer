@@ -36,23 +36,25 @@ from scripts.eval import evaluate_policy
 
 class OfflineDataset(Dataset):
     def __init__(self, dataset_path):
-        data = np.load(dataset_path, mmap_mode='r')
-        self.states = torch.from_numpy(data["states"]).float()
-        self.actions = torch.from_numpy(data["actions"]).float()
-        self.returns_to_go = torch.from_numpy(data["returns_to_go"]).float()
-        self.timesteps = torch.from_numpy(data["timesteps"]).long()
-        self.mask = torch.from_numpy(data["mask"]).float()
+        # Load with mmap_mode='r' to keep data on disk
+        self.data = np.load(dataset_path, mmap_mode='r')
+        self.states = self.data["states"]
+        self.actions = self.data["actions"]
+        self.returns_to_go = self.data["returns_to_go"]
+        self.timesteps = self.data["timesteps"]
+        self.mask = self.data["mask"]
 
     def __len__(self):
         return len(self.states)
 
     def __getitem__(self, idx):
+        # Convert to tensor only when accessed
         return {
-            "states": self.states[idx],
-            "actions": self.actions[idx],
-            "returns_to_go": self.returns_to_go[idx],
-            "timesteps": self.timesteps[idx],
-            "mask": self.mask[idx],
+            "states": torch.as_tensor(self.states[idx], dtype=torch.float32),
+            "actions": torch.as_tensor(self.actions[idx], dtype=torch.float32),
+            "returns_to_go": torch.as_tensor(self.returns_to_go[idx], dtype=torch.float32),
+            "timesteps": torch.as_tensor(self.timesteps[idx], dtype=torch.long),
+            "mask": torch.as_tensor(self.mask[idx], dtype=torch.float32),
         }
 
 
@@ -266,24 +268,27 @@ def train(cfg, logger):
             epoch_time = time.time() - start_time
             avg_loss = np.mean(epoch_losses)
             
-            log_str = f"Epoch {epoch+1}/{cfg.training.epochs} | Time: {epoch_time:.2f}s | Loss: {avg_loss:.4f}"
+            # Simplified Log String
+            log_items = [f"Epoch {epoch+1}/{cfg.training.epochs}"]
+            log_items.append(f"Loss: {avg_loss:.4f}")
+            log_items.append(f"Return: {eval_results['return_mean']:.2f}")
             
             # Spike counting for SNN models
             if hasattr(model, "count_spikes"):
                 spikes = model.count_spikes()
-                log_str += f" | Spikes: {spikes:.2f}"
+                log_items.append(f"Spikes: {spikes:.4f}")
                 eval_results["spikes"] = spikes
             else:
                 eval_results["spikes"] = 0.0
             
             if hasattr(model, "get_max_attn_score"):
                 max_attn = model.get_max_attn_score()
-                log_str += f" | Max Attn: {max_attn:.2f}"
+                # log_items.append(f"MaxAttn: {max_attn:.2f}") # Reduced clutter
                 eval_results["max_attn"] = max_attn
 
             metrics.append({"epoch": epoch + 1, "loss": avg_loss, **eval_results, "time_s": epoch_time})
-            log_str += f" | Eval Return: {eval_results['return_mean']:.2f}"
-            logger.info(log_str)
+            
+            logger.info(" | ".join(log_items))
             
             if eval_results['return_mean'] > best_eval_return:
                 best_eval_return = eval_results['return_mean']
