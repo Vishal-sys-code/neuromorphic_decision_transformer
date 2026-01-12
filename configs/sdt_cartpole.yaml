@@ -12,8 +12,13 @@ epochs: 1000
 eval_every: 10
 checkpoint_every: 50
 batches_per_epoch: 100
+num_workers: 0
 
 # SNN specific
-lif_tau: 20.0
-surrogate_k: 25.0
-use_plasticity: false
+snn:
+  lif_tau: 20.0
+  surrogate_k: 25.0
+  v_th: 1.0
+  current_scale: 0.2
+  biological_time: 4
+  use_plasticity: false
