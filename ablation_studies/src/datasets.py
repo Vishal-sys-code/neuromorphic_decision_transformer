@@ -7,24 +7,25 @@ class OfflineSequenceDataset(Dataset):
     Dataset for sequence-based models like Decision Transformer.
     """
     def __init__(self, path, seq_len):
-        data = np.load(path, mmap_mode='r')
-        self.states = torch.from_numpy(data["states"]).float()
-        self.actions = torch.from_numpy(data["actions"]).float()
-        self.returns_to_go = torch.from_numpy(data["returns_to_go"]).float()
-        self.timesteps = torch.from_numpy(data["timesteps"]).long()
-        self.masks = torch.from_numpy(data["mask"]).float()
+        self.data = np.load(path, mmap_mode='r')
+        self.states = self.data["states"]
+        self.actions = self.data["actions"]
+        self.returns_to_go = self.data["returns_to_go"]
+        self.timesteps = self.data["timesteps"]
+        self.masks = self.data["mask"]
         self.seq_len = seq_len
 
     def __len__(self):
         return len(self.states)
 
     def __getitem__(self, idx):
+        # Lazy conversion to tensor
         return {
-            "states": self.states[idx, :self.seq_len],
-            "actions": self.actions[idx, :self.seq_len],
-            "returns_to_go": self.returns_to_go[idx, :self.seq_len],
-            "timesteps": self.timesteps[idx, :self.seq_len],
-            "mask": self.masks[idx, :self.seq_len],
+            "states": torch.as_tensor(self.states[idx, :self.seq_len], dtype=torch.float32),
+            "actions": torch.as_tensor(self.actions[idx, :self.seq_len], dtype=torch.float32),
+            "returns_to_go": torch.as_tensor(self.returns_to_go[idx, :self.seq_len], dtype=torch.float32),
+            "timesteps": torch.as_tensor(self.timesteps[idx, :self.seq_len], dtype=torch.long),
+            "mask": torch.as_tensor(self.masks[idx, :self.seq_len], dtype=torch.float32),
         }
 
 class OfflineTransitionDataset(Dataset):
