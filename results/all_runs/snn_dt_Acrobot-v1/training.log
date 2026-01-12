@@ -1,0 +1,9 @@
+2026-01-12 09:45:28,030 [INFO] SNN Config: {'lif_tau': 20.0, 'surrogate_k': 25.0, 'v_th': 1.0, 'current_scale': 0.2, 'use_plasticity': False}
+2026-01-12 09:45:28,032 [INFO] Checking for dataset...
+2026-01-12 09:45:28,033 [INFO] Dataset found at D:\Github\neuromorphic_decision_transformer\data\Acrobot-v1\dataset.npz.
+2026-01-12 09:45:28,033 [INFO] --- Checkpoint: Starting training ---
+2026-01-12 09:45:28,046 [INFO] --- Checkpoint: Save directory created at results\all_runs\snn_dt_Acrobot-v1 ---
+2026-01-12 09:45:28,561 [INFO] Dataset size: 1000 clips
+2026-01-12 09:45:28,601 [INFO] DataLoader created with num_workers=1, pin_memory=False, persistent_workers=False.
+2026-01-12 09:45:28,672 [INFO] --- Checkpoint: Model 'snn_dt' initialized on device 'cpu' ---
+2026-01-12 09:45:41,710 [INFO] --- Checkpoint: Starting main training loop ---
