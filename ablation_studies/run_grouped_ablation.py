@@ -24,10 +24,11 @@ class Colors:
     UNDERLINE = '\033[4m'
 
 def print_header(variant, env, num_seeds):
-    print(f"\n{Colors.OKCYAN}---------------------------------------------------------------------------------{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}|{Colors.ENDC} {Colors.BOLD}Ablation Group:{Colors.ENDC} {variant:<15} | {env:<20} {Colors.OKCYAN}|{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}|{Colors.ENDC} {Colors.BOLD}Seeds:{Colors.ENDC}          0 to {num_seeds - 1:<3}                              {Colors.OKCYAN}|{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}---------------------------------------------------------------------------------{Colors.ENDC}\n")
+    print(f"\n{Colors.OKCYAN}---------------------------------------------------------------{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}|{Colors.ENDC} {Colors.BOLD}Ablation Group:{Colors.ENDC} {variant:<18} | {env:<23}|")
+    seeds_str = f"0 to {num_seeds - 1}"
+    print(f"{Colors.OKCYAN}|{Colors.ENDC} {Colors.BOLD}Seeds:{Colors.ENDC}          {seeds_str:<44}{Colors.OKCYAN}|{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}---------------------------------------------------------------{Colors.ENDC}\n")
 
 def run_single_seed(variant, env, seed, contract):
     """
@@ -67,14 +68,14 @@ def run_single_seed(variant, env, seed, contract):
             # Construct error message instead of printing directly
             error_msg = []
             error_msg.append(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.FAIL}x FAILED{Colors.ENDC}")
-            error_msg.append(f"{Colors.FAIL}  | Error Log ---------------------------------------------------{Colors.ENDC}")
+            error_msg.append(f"{Colors.FAIL}  | Error Log ---------------------------------------------{Colors.ENDC}")
             
             # Filter stderr to remove tqdm noise (lines containing %|)
             err_lines = [line for line in stderr_content.splitlines() if "%|" not in line and "it/s" not in line]
             # Print last 20 lines of filtered error
             for line in err_lines[-20:]:
                 error_msg.append(f"{Colors.FAIL}  | {line}{Colors.ENDC}")
-            error_msg.append(f"{Colors.FAIL}  ---------------------------------------------------------------{Colors.ENDC}")
+            error_msg.append(f"{Colors.FAIL}  -------------------------------------------------------{Colors.ENDC}")
             
             return False, "\n".join(error_msg)
 
@@ -189,7 +190,10 @@ def main():
                         spikes_str = f"{val_spikes:.2f}" if val_spikes is not None else "N/A"
                         if val_spikes is not None: spikes_list.append(val_spikes)
                         
-                        print(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.OKGREEN}+ Finished{Colors.ENDC}   Return: {Colors.BOLD}{val_return:.2f}{Colors.ENDC}   Spikes/Inf: {Colors.OKCYAN}{spikes_str}{Colors.ENDC}")
+                        msg = f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.OKGREEN}+ Finished{Colors.ENDC}   Return: {Colors.BOLD}{val_return:.2f}{Colors.ENDC}"
+                        if val_spikes is not None:
+                             msg += f"   Spikes: {Colors.OKCYAN}{spikes_str}{Colors.ENDC}"
+                        print(msg)
                     else:
                         print(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.WARNING}? Finished{Colors.ENDC}   Return: {Colors.WARNING}Not Found{Colors.ENDC}")
                         # Print the captured output for debugging
@@ -206,7 +210,7 @@ def main():
             except Exception as exc:
                 print(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.FAIL}Generated an exception: {exc}{Colors.ENDC}")
 
-    print(f"\n{Colors.OKCYAN}---------------------------------------------------------------------------------{Colors.ENDC}")
+    print(f"\n{Colors.OKCYAN}---------------------------------------------------------------{Colors.ENDC}")
     if returns:
         mean_ret = np.mean(returns)
         std_ret = np.std(returns)
@@ -218,11 +222,12 @@ def main():
         
         print(f"  {Colors.BOLD}FINAL RESULT:{Colors.ENDC}")
         print(f"  Mean Return: {Colors.OKGREEN}{mean_str}{Colors.ENDC} +/- {Colors.OKGREEN}{std_str}{Colors.ENDC}")
-        print(f"  Mean Spikes: {Colors.OKCYAN}{spikes_final_str}{Colors.ENDC}")
+        if spikes_list:
+            print(f"  Mean Spikes: {Colors.OKCYAN}{spikes_final_str}{Colors.ENDC}")
         print(f"  Success Rate: {len(returns)}/{args.num_seeds}")
     else:
         print(f"  {Colors.FAIL}NO SUCCESSFUL RUNS{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}---------------------------------------------------------------------------------{Colors.ENDC}\n")
+    print(f"{Colors.OKCYAN}---------------------------------------------------------------{Colors.ENDC}\n")
 
 if __name__ == "__main__":
     main()
