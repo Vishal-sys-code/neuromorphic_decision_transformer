@@ -243,7 +243,13 @@ def train(cfg, logger):
 
     for epoch in range(1, cfg.epochs + 1):
         model.train()
+        
+        # Limit batches per epoch if configured
+        max_batches = cfg.get('batches_per_epoch', len(train_loader))
+        
         for batch_idx, batch in enumerate(tqdm(train_loader, desc=f"Epoch {epoch}/{cfg.epochs}", file=sys.stderr)):
+            if batch_idx >= max_batches:
+                break
             batch = {k: v.to(cfg.device) for k, v in batch.items()}
             
             if is_transition_model:
