@@ -210,24 +210,31 @@ def main():
             except Exception as exc:
                 print(f"  [{Colors.BOLD}SEED {seed}{Colors.ENDC}] {Colors.FAIL}Generated an exception: {exc}{Colors.ENDC}")
 
-    print(f"\n{Colors.OKCYAN}---------------------------------------------------------------{Colors.ENDC}")
+    # Structured Summary Table
+    print(f"\n{Colors.OKCYAN}╔══════════════════════════════════════════════════════════════════╗{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}║{Colors.ENDC} {Colors.BOLD}{'FINAL RESULTS SUMMARY':^64}{Colors.ENDC} {Colors.OKCYAN}║{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}╠══════════════════════════════════════════════════════════════════╣{Colors.ENDC}")
+    
     if returns:
         mean_ret = np.mean(returns)
         std_ret = np.std(returns)
-        mean_str = f"{mean_ret:.2f}"
-        std_str = f"{std_ret:.2f}"
-        
         mean_spikes = np.mean(spikes_list) if spikes_list else 0.0
-        spikes_final_str = f"{mean_spikes:.2f}" if spikes_list else "N/A"
+        spikes_final_str = f"{mean_spikes:.4f}" if spikes_list else "N/A"
+        success_rate = f"{len(returns)}/{args.num_seeds}"
+
+        # Row 1: Return
+        print(f"{Colors.OKCYAN}║{Colors.ENDC} {Colors.BOLD}{'Mean Return':<20}{Colors.ENDC} │ {Colors.OKGREEN}{mean_ret:>10.2f}{Colors.ENDC} ± {Colors.OKGREEN}{std_ret:<10.2f}{Colors.ENDC}             {Colors.OKCYAN}║{Colors.ENDC}")
         
-        print(f"  {Colors.BOLD}FINAL RESULT:{Colors.ENDC}")
-        print(f"  Mean Return: {Colors.OKGREEN}{mean_str}{Colors.ENDC} +/- {Colors.OKGREEN}{std_str}{Colors.ENDC}")
-        if spikes_list:
-            print(f"  Mean Spikes: {Colors.OKCYAN}{spikes_final_str}{Colors.ENDC}")
-        print(f"  Success Rate: {len(returns)}/{args.num_seeds}")
+        # Row 2: Spikes (Energy)
+        print(f"{Colors.OKCYAN}║{Colors.ENDC} {Colors.BOLD}{'Mean Spikes/Step':<20}{Colors.ENDC} │ {Colors.OKCYAN}{spikes_final_str:>23}{Colors.ENDC}                  {Colors.OKCYAN}║{Colors.ENDC}")
+        
+        # Row 3: Success Rate
+        print(f"{Colors.OKCYAN}║{Colors.ENDC} {Colors.BOLD}{'Success Rate':<20}{Colors.ENDC} │ {success_rate:>23}                  {Colors.OKCYAN}║{Colors.ENDC}")
+
     else:
-        print(f"  {Colors.FAIL}NO SUCCESSFUL RUNS{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}---------------------------------------------------------------{Colors.ENDC}\n")
+         print(f"{Colors.OKCYAN}║{Colors.ENDC} {Colors.FAIL}{'NO SUCCESSFUL RUNS':^64}{Colors.ENDC} {Colors.OKCYAN}║{Colors.ENDC}")
+
+    print(f"{Colors.OKCYAN}╚══════════════════════════════════════════════════════════════════╝{Colors.ENDC}\n")
 
 if __name__ == "__main__":
     main()
