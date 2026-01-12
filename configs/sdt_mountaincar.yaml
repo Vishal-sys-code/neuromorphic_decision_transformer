@@ -3,8 +3,8 @@ env: MountainCar-v0
 dataset: data/mountaincar_v0_mixed.pkl
 
 # model / data
-seq_len: 20
-batch_size: 64
+seq_len: 10
+batch_size: 32
 hidden_dim: 64
 n_layers: 2
 n_heads: 2
@@ -15,7 +15,7 @@ epochs: 1000
 eval_every: 10
 checkpoint_every: 50
 seed: 42
-num_workers: 1
+num_workers: 0
 # optional: limit batches per epoch for fast iteration (train.py enforces a cap for SNN models)
 batches_per_epoch: 100
 
@@ -23,9 +23,9 @@ batches_per_epoch: 100
 snn:
   lif_tau: 20.0          # membrane time constant (ms)
   surrogate_k: 25.0     # surrogate gradient hardness
-  v_th: 0.15             # neuron firing threshold
-  current_scale: 0.5    # scale factor applied to projected currents
-  biological_time: 6    # T: biological timesteps per token (vectorized LIF time dimension)
+  v_th: 1.0              # neuron firing threshold (increased for sparsity)
+  current_scale: 0.2    # scale factor applied to projected currents (reduced for sparsity)
+  biological_time: 4    # T: biological timesteps per token (reduced for speed)
   use_plasticity: false # enable 3-factor plasticity (set true to activate)
   eta_local: 1e-4       # plasticity learning rate (if enabled)
   lambda_decay: 0.99    # eligibility trace decay (if enabled)
