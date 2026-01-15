@@ -147,6 +147,7 @@ def main():
     parser.add_argument("--contract", default=DEFAULT_CONTRACT, help="Experiment contract YAML")
     
     parser.add_argument("--max_workers", type=int, default=5, help="Number of parallel workers (default: 5)")
+    parser.add_argument("--force_parallel", action="store_true", help="Force parallel execution even on single GPU")
     
     args = parser.parse_args()
     
@@ -163,9 +164,10 @@ def main():
     
     # Auto-detect single GPU environment (e.g., Colab T4) and force serial execution
     # to prevent OOM/Thrashing when trying to run multiple training jobs on one GPU.
-    if args.max_workers > 1:
+    if args.max_workers > 1 and not args.force_parallel:
         if torch.cuda.is_available() and torch.cuda.device_count() == 1:
             print(f"{Colors.WARNING}Single GPU detected. Forcing max_workers=1 to prevent crashes.{Colors.ENDC}")
+            print(f"{Colors.WARNING}Use --force_parallel to override this safety check.{Colors.ENDC}")
             args.max_workers = 1
 
     print(f"Starting {len(seeds_to_run)} runs with {args.max_workers} workers...\n")
