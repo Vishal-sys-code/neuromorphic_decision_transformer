@@ -1,4 +1,26 @@
 
+---------------------------------------------------------------
+| Ablation Group: snn_dt             | CartPole-v1            |
+| Seeds:          0 to 4                                      |
+---------------------------------------------------------------
+
+Single GPU detected. Forcing max_workers=1 to prevent crashes.
+Use --force_parallel to override this safety check.
+Starting 5 runs with 1 workers...
+
+  [SEED 0] + Finished   Return: 254.60   Spikes: 0.16
+  [SEED 1] + Finished   Return: 178.60   Spikes: 0.16
+  [SEED 2] + Finished   Return: 260.60   Spikes: 0.13
+  [SEED 3] + Finished   Return: 231.00   Spikes: 0.18
+  [SEED 4] + Finished   Return: 343.30   Spikes: 0.11
+
+╔══════════════════════════════════════════════════════════════════╗
+║                      FINAL RESULTS SUMMARY                       ║
+╠══════════════════════════════════════════════════════════════════╣
+║ Mean Return          │     253.62 ± 53.35                        ║
+║ Mean Spikes/Step     │                  0.1488                   ║
+║ Success Rate         │                     5/5                   ║
+╚══════════════════════════════════════════════════════════════════╝
 
 =================================================================================================================
 ---------------------------------------------------------------
