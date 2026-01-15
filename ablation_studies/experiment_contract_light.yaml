@@ -19,7 +19,7 @@ spike_energy_pJ: 5.0
 seeds: [0, 1, 2, 3, 4]
 log_interval_steps: 250
 checkpoint_interval_epochs: 10
-eval_rollouts: 100
+eval_rollouts: 10
 
 # --- Model-specific configs ---
 iql:
