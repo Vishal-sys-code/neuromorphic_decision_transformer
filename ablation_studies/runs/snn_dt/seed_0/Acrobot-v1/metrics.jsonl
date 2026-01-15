@@ -1,13 +1,6 @@
-SNN Config: {'lif_tau': 20.0, 'v_th': 1.0, 'current_scale': 0.2, 'surrogate_k': 10.0, 'biological_time': 10, 'use_plasticity': True, 'eta_local': 0.05}
+SNN Config: {'lif_tau': 20.0, 'v_th': 0.5, 'current_scale': 1.0, 'surrogate_k': 10.0, 'biological_time': 10, 'use_plasticity': True, 'eta_local': 0.05}
 {"train/param_count": 116424}
-{"train/step": 250, "train/loss": 0.8912956118583679}
-{"train/step": 500, "train/loss": 0.7121987342834473}
-{"train/step": 750, "train/loss": 0.7887115478515625}
-{"train/step": 1000, "train/loss": 0.7069732546806335}
-{"epoch": 10, "val/mean_return": -500.0, "val/std_return": 0.0, "val/spikes_per_inference": 0.15398871527777777}
-{"train/step": 1250, "train/loss": 0.8409216403961182}
-{"train/step": 1500, "train/loss": 0.7636632323265076}
-{"train/step": 1750, "train/loss": 0.7329227924346924}
-{"train/step": 2000, "train/loss": 0.5788941979408264}
-{"train/step": 2250, "train/loss": 0.6984605193138123}
-{"epoch": 20, "val/mean_return": -500.0, "val/std_return": 0.0, "val/spikes_per_inference": 0.15651475694444444}
+{"train/step": 250, "train/loss": 0.9888231158256531}
+{"train/step": 500, "train/loss": 0.8161671161651611}
+{"train/step": 750, "train/loss": 0.8652248382568359}
+{"train/step": 1000, "train/loss": 0.8117706775665283}
