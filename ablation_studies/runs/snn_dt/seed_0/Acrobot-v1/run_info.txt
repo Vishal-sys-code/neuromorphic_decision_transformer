@@ -1,0 +1,2 @@
+Command: ablation_studies/run_experiment.py --variant snn_dt --env Acrobot-v1 --seed 0 --contract experiment_contract_light.yaml
+Git Hash: 2743ccd0b6501acf8e7954e516b79bc84592251d
