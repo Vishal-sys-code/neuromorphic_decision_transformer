@@ -1,0 +1,23 @@
+epochs: 1
+batches_per_epoch: 10
+batch_size: 4
+hidden_dim: 32
+seq_len: 20
+n_heads: 2
+n_layers: 2
+eval_every: 1
+checkpoint_every: 1
+num_workers: 0
+eval_episodes: 2
+
+# SNN defaults
+snn:
+  lif_tau: 20.0
+  v_th: 1.0
+  use_plasticity: false
+
+# IQL defaults
+tau: 0.005
+temperature: 3.0
+expectile: 0.7
+hidden_size: 32
