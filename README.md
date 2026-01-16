@@ -18,7 +18,7 @@ This repository contains the official PyTorch implementation of the **Spiking De
 The SNN-DT architecture bridges the gap between the sequential modeling capabilities of Transformers and the energy efficiency of Spiking Neural Networks (SNNs). By embedding **Leaky Integrate-and-Fire (LIF)** neurons within the self-attention mechanism and utilizing accurate **STDP-inspired local plasticity**, this model achieves state-of-the-art performance on continuous control tasks while reducing energy consumption by orders of magnitude compared to traditional ANN-based Decision Transformers.
 
 <div align="center">
-  <img src="visualizations/model_architecture.png" alt="SNN-DT Architecture" width="800">
+  <img src="model_architecture.png" alt="SNN-DT Architecture" width="800">
 </div>
 *(Note: Visualizations available in the `visualizations/` directory)*
 
