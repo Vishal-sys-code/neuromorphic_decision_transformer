@@ -1,0 +1,24 @@
+# Protocol for Phase 1 Experiments
+protocol:
+  envs:
+    - hopper-medium-v2
+    - hopper-medium-expert-v2
+    - walker2d-medium-v2
+    - walker2d-medium-expert-v2
+    - halfcheetah-medium-v2
+    - halfcheetah-medium-expert-v2
+  
+  models:
+    - dt
+    - snn_dt
+    - dsformer
+    - iql
+
+  seeds: [0, 1, 2, 3, 4]
+
+  hyperparameters:
+    seq_len: 20
+    eval_episodes: 100
+    
+  snn_specifics:
+    spike_energy_pJ: 0.5  # Standard estimate for accumulated spike energy calculation
