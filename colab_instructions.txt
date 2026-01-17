@@ -1,31 +1,27 @@
 # Instructions for Running Phase 0 Experiments on Google Colab
 
-# Step 1: Mount Google Drive
-# Run this cell to access your files.
-from google.colab import drive
-drive.mount('/content/drive')
+# Step 1: Clone the Repository
+!git clone https://github.com/Vishal-sys-code/neuromorphic_decision_transformer.git
+%cd neuromorphic_decision_transformer
 
-# Step 2: Navigate to Project Directory
-# Change 'path/to/repo' to the actual location where you uploaded the code.
-%cd /content/drive/MyDrive/path/to/neuromorphic_decision_transformer
+# Step 2: Install Dependencies
+# We install from requirements.txt and add other necessary packages not yet in requirements.
+!pip install -r requirements.txt
+!pip install h5py einops
 
-# Step 3: Install Dependencies
-# We need 'norse' for the spiking models and standard ML libraries.
-!pip install numpy pandas torch pyyaml tqdm h5py gymnasium norse einops
-
-# Step 4: Download D4RL Datasets
+# Step 3: Download D4RL Datasets
 # As implemented, this downloads the specific HDF5 files needed.
 !python scripts/download_d4rl.py
 
-# Step 5: Convert Datasets to NPZ
+# Step 4: Convert Datasets to NPZ
 # This processes the HDF5 files into the format required by our training script.
 !python scripts/convert_d4rl.py
 
-# Step 6: Generate Experiment Configurations
+# Step 5: Generate Experiment Configurations
 # Creates the 30 YAML files for the "Contract & Scope" phase.
 !python scripts/generate_phase0_configs.py
 
-# Step 7: Run Experiments
+# Step 6: Run Experiments
 # This master script sequentially runs all experiments using the generated configs.
 # It skips experiments that are already complete (checked via metrics.csv).
 !python scripts/run_phase0_experiments.py
