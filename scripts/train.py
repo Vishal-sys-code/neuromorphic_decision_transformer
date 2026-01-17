@@ -13,6 +13,12 @@ from datetime import datetime
 # Add project root and snn-dt directory to sys.path
 snn_dt_root = Path(__file__).resolve().parent.parent
 project_root = snn_dt_root.parent
+
+# Prioritize snn-dt/src because it contains the complete source (cql.py, config.py) 
+# which are missing from root/src
+if (snn_dt_root / 'snn-dt').exists():
+    sys.path.insert(0, str(snn_dt_root / 'snn-dt'))
+
 sys.path.append(str(snn_dt_root))
 sys.path.append(str(project_root))
 
@@ -25,16 +31,39 @@ from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 
-from src.models.cql import CQL
-from src.models.dt import DecisionTransformer
-from src.models.dsformer import DsFormer
-from src.models.iql import IQL
-from src.models.snn_dt import SnnDt
 from src.utils.config import AttrDict
-from src.utils.models import get_model
+# from src.utils.models import get_model # Imported below now or verified
+# from src.utils.seed import seed_everything
 from src.utils.seed import seed_everything
 from src.utils.evaluation import create_env
 from scripts.eval import evaluate_policy
+
+# Lazy Imports for Models to avoid norse/tensorflow crash on Python 3.13
+def get_model_class(name):
+    if name == 'cql':
+        from src.models.cql import CQL
+        return CQL
+    elif name == 'dt':
+        from src.models.dt import DecisionTransformer
+        return DecisionTransformer
+    elif name == 'dsformer':
+        from src.models.dsformer import DsFormer
+        return DsFormer
+    elif name == 'iql':
+        from src.models.iql import IQL
+        return IQL
+    elif name == 'snn_dt':
+        from src.models.snn_dt import SnnDt
+        return SnnDt
+    else:
+        raise ValueError(f"Unknown model: {name}")
+
+# Re-implement get_model here
+def get_model(cfg):
+    model_class = get_model_class(cfg.model.name)
+    # All models (CQL, DT, SnnDt, etc.) accept cfg as the single argument
+    return model_class(cfg)
+
 
 
 class OfflineDataset(Dataset):

@@ -1,8 +1,0 @@
-2025-11-13 11:23:12,235 [INFO] Checking for dataset...
-2025-11-13 11:23:12,236 [INFO] Dataset found at D:\Github\neuromorphic_decision_transformer\data\Acrobot-v1\dataset.npz.
-2025-11-13 11:23:12,237 [INFO] --- Checkpoint: Starting training ---
-2025-11-13 11:23:12,249 [INFO] --- Checkpoint: Save directory created at results\all_runs\dsformer_Acrobot-v1 ---
-2025-11-13 11:23:12,741 [INFO] Dataset size: 1000 clips
-2025-11-13 11:23:12,778 [INFO] DataLoader created with num_workers=1, pin_memory=False, persistent_workers=False.
-2025-11-13 11:23:12,834 [INFO] --- Checkpoint: Model 'dsformer' initialized on device 'cpu' ---
-2025-11-13 11:23:24,174 [INFO] --- Checkpoint: Starting main training loop ---

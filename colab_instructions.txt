@@ -1,0 +1,40 @@
+# Instructions for Running Phase 0 Experiments on Google Colab
+
+# Step 1: Mount Google Drive
+# Run this cell to access your files.
+from google.colab import drive
+drive.mount('/content/drive')
+
+# Step 2: Navigate to Project Directory
+# Change 'path/to/repo' to the actual location where you uploaded the code.
+%cd /content/drive/MyDrive/path/to/neuromorphic_decision_transformer
+
+# Step 3: Install Dependencies
+# We need 'norse' for the spiking models and standard ML libraries.
+!pip install numpy pandas torch pyyaml tqdm h5py gymnasium norse einops
+
+# Step 4: Download D4RL Datasets
+# As implemented, this downloads the specific HDF5 files needed.
+!python scripts/download_d4rl.py
+
+# Step 5: Convert Datasets to NPZ
+# This processes the HDF5 files into the format required by our training script.
+!python scripts/convert_d4rl.py
+
+# Step 6: Generate Experiment Configurations
+# Creates the 30 YAML files for the "Contract & Scope" phase.
+!python scripts/generate_phase0_configs.py
+
+# Step 7: Run Experiments
+# This master script sequentially runs all experiments using the generated configs.
+# It skips experiments that are already complete (checked via metrics.csv).
+!python scripts/run_phase0_experiments.py
+
+# --- Optional: Monitor Progress ---
+# You can check the logs of a specific running experiment:
+# !cat results/phase0/cql/halfcheetah-medium-v2/42/training.log
+
+# --- Note on Evaluation ---
+# These experiments run with `simulator_available=False`, using recorded data for validation.
+# This ensures training runs robustly on Colab without complex Mujoco installation.
+# For final paper-ready evaluation scores, we will need to enable the simulator later.

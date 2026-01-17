@@ -1,67 +1,52 @@
 import os
 import argparse
-import requests
+import urllib.request
 from tqdm import tqdm
 
-DATASET_URLS = {}
+# D4RL Dataset URLs (v2 for Mujoco)
+# Source: https://github.com/Farama-Foundation/D4RL/blob/master/d4rl/gym_mujoco/env_dict.py or similar
+DATASET_URLS = {
+    "hopper-medium-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/hopper_medium-v2.hdf5",
+    "hopper-medium-expert-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/hopper_medium_expert-v2.hdf5",
+    "walker2d-medium-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/walker2d_medium-v2.hdf5",
+    "walker2d-medium-expert-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/walker2d_medium_expert-v2.hdf5",
+    "halfcheetah-medium-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/halfcheetah_medium-v2.hdf5",
+    "halfcheetah-medium-expert-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/halfcheetah_medium_expert-v2.hdf5",
+}
 
-# Replicate D4RL URL construction logic
-envs = ['halfcheetah', 'hopper', 'walker2d']
-datasets = ['medium', 'medium-expert']
+def download_file(url, out_path):
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    
+    if os.path.exists(out_path):
+        print(f"File already exists: {out_path}")
+        return
 
-for env in envs:
-    for dset in datasets:
-        dset_suffix = dset.replace('-', '_')
-        # dset_name is the filename stem on the server
-        filename = f"{env}_{dset_suffix}-v2.hdf5"
-        # env_name is the D4RL environment ID
-        env_name = f"{env}-{dset}-v2"
-        
-        url = f"http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/{filename}"
-        DATASET_URLS[env_name] = url
+    print(f"Downloading {url} to {out_path}...")
+    
+    class DownloadProgressBar(tqdm):
+        def update_to(self, b=1, bsize=1, tsize=None):
+            if tsize is not None:
+                self.total = tsize
+            self.update(b * bsize - self.n)
 
-def download_dataset(env_name, download_dir):
-    if env_name not in DATASET_URLS:
-        print(f"Error: Dataset {env_name} not found in supported list.")
-        return False
+    with DownloadProgressBar(unit='B', unit_scale=True, miniters=1, desc=url.split('/')[-1]) as t:
+        urllib.request.urlretrieve(url, filename=out_path, reporthook=t.update_to)
 
-    url = DATASET_URLS[env_name]
-    filename = url.split('/')[-1]
-    save_path = os.path.join(download_dir, filename)
-
-    if os.path.exists(save_path):
-        print(f"Dataset {env_name} already exists at {save_path}. Skipping.")
-        return True
-
-    print(f"Downloading {env_name} from {url}...")
-    try:
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
-        total_size = int(response.headers.get('content-length', 0))
-        
-        block_size = 1024 * 1024 # 1MB
-        with open(save_path, 'wb') as f, tqdm(total=total_size, unit='iB', unit_scale=True) as bar:
-            for data in response.iter_content(block_size):
-                bar.update(len(data))
-                f.write(data)
-        print(f"Downloaded to {save_path}")
-        return True
-    except Exception as e:
-        print(f"Failed to download {env_name}: {e}")
-        if os.path.exists(save_path):
-            os.remove(save_path)
-        return False
-
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env", type=str, help="Specific environment to download (e.g. hopper-medium-v2). If not provided, downloads all.")
-    parser.add_argument("--download-dir", type=str, default="data/d4rl_raw", help="Directory to save HDF5 files.")
+    parser.add_argument("--out-dir", type=str, default="data/d4rl_raw", help="Directory to save HDF5 files.")
     args = parser.parse_args()
 
-    os.makedirs(args.download_dir, exist_ok=True)
+    for name, url in DATASET_URLS.items():
+        # Filename construction: match what convert_d4rl.py expects
+        # convert logic: filename.replace('.hdf5', '') -> env_name
+        # If we save as 'hopper_medium-v2.hdf5', convert expects 'hopper_medium-v2'
+        # convert logic: name_stem.replace('_', '-')
+        # So 'hopper_medium-v2' -> 'hopper-medium-v2'. This works.
+        
+        filename = url.split('/')[-1]
+        out_path = os.path.join(args.out_dir, filename)
+        download_file(url, out_path)
 
-    if args.env:
-        download_dataset(args.env, args.download_dir)
-    else:
-        for env_name in DATASET_URLS.keys():
-            download_dataset(env_name, args.download_dir)
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,38 @@
+cql:
+  cql_weight: 1.0
+  hidden_size: 256
+  target_action_gap: 10.0
+  tau: 0.005
+  temperature: 1.0
+  with_lagrange: false
+env: walker2d-medium-expert-v2
+hyperparameters:
+  eval_episodes: 10
+iql:
+  expectile: 0.7
+  hidden_size: 256
+  tau: 0.005
+  temperature: 3.0
+model:
+  d_model: 256
+  n_heads: 4
+  n_layers: 3
+  name: iql
+  seq_len: 20
+snn:
+  current_scale: 0.2
+  lif_tau: 20.0
+  surrogate_k: 25.0
+  use_plasticity: false
+  v_th: 1.0
+training:
+  batch_size: 64
+  batches_per_epoch: 1000
+  checkpoint_every: 50
+  device: cuda
+  epochs: 50
+  eval_every: 5
+  lr: 0.0001
+  num_workers: 4
+  simulator_available: false
+  weight_decay: 0.0001

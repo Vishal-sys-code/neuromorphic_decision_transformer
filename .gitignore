@@ -2,5 +2,9 @@ venv/
 __pycache__/
 *.pyc
 # external/decision-transformer
-data/*.pkl
-data/*.h5
+*.pkl
+*.hdf5
+*.npz
+data/
+results/
+wandb/
