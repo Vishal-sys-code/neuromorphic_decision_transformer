@@ -2,6 +2,18 @@ import argparse
 import logging
 import os
 import sys
+
+# Workaround for broken TensorFlow installations on Windows (e.g. missing tf.io)
+# preventing torch.utils.tensorboard (and thus norse) from loading.
+try:
+    import tensorflow as tf
+    if not hasattr(tf, "io"):
+        # If tensorflow is broken, hide it so downstream imports (like tensorboard)
+        # fallback to not using it, rather than crashing on attribute access.
+        sys.modules["tensorflow"] = None
+except ImportError:
+    pass
+
 import time
 import tempfile
 import atexit
