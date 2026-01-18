@@ -7,7 +7,10 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-1.12+-ee4c2c.svg)](https://pytorch.org/)
 [![arXiv](https://img.shields.io/badge/arXiv-2508.21505-b31b1b.svg)](https://arxiv.org/abs/2508.21505)
 
+
 **Local Plasticity, Phase-Coding, and Dendritic Routing for Low-Power Sequence Control**
+
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://vishal-sys-code.github.io/neuromorphic_decision_transformer/)
 
 </div>
 
