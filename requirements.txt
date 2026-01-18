@@ -7,3 +7,10 @@ transformers
 bindsnet
 pytest
 tqdm
+
+# Documentation
+sphinx
+sphinx-book-theme
+myst-parser
+sphinx-copybutton
+sphinx-design
