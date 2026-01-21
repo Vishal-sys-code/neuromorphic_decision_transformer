@@ -37,6 +37,7 @@ from src.utils.config import AttrDict
 from src.utils.seed import seed_everything
 from src.utils.evaluation import create_env
 from scripts.eval import evaluate_policy
+from src.utils.d4rl_dataset import D4RLSequenceDataset, D4RLTransitionDataset
 
 # Lazy Imports for Models to avoid norse/tensorflow crash on Python 3.13
 def get_model_class(name):
@@ -225,24 +226,47 @@ def train(cfg, logger):
     logger.info(f"--- Checkpoint: Save directory created at {save_dir} ---")
 
     # Load data and metadata
-    if cfg.model.name in ['iql', 'cql']:
-        dataset = OfflineTransitionDataset(cfg.dataset.path)
+    state_mean = None
+    state_std = None
+
+    if cfg.dataset.mode == 'd4rl_direct':
+        if os.path.isfile(cfg.dataset.path):
+            data_dir = os.path.dirname(cfg.dataset.path)
+        else:
+            data_dir = cfg.dataset.path
+
+        if cfg.model.name in ['iql', 'cql']:
+            dataset = D4RLTransitionDataset(cfg.env, data_dir=data_dir)
+        else:
+            dataset = D4RLSequenceDataset(cfg.env, data_dir=data_dir, seq_len=cfg.model.seq_len)
+            
+        state_mean = dataset.state_mean
+        state_std = dataset.state_std
+        
+        cfg.dataset.state_dim = dataset.states.shape[1] if hasattr(dataset, 'states') else dataset.state_dim
+        cfg.dataset.act_dim = dataset.act_dim if hasattr(dataset, 'act_dim') else dataset.actions.shape[1]
+        cfg.dataset.max_timesteps = 1000 # Standard MuJoCo
+        
     else:
-        dataset = OfflineDataset(cfg.dataset.path)
+        # Legacy
+        if cfg.model.name in ['iql', 'cql']:
+            dataset = OfflineTransitionDataset(cfg.dataset.path)
+        else:
+            dataset = OfflineDataset(cfg.dataset.path)
+            
+        with np.load(cfg.dataset.path, allow_pickle=True) as data:
+            metadata = data["metadata"].item()
+            if isinstance(metadata, str):
+                metadata = yaml.safe_load(metadata)
+        
+        cfg.dataset.state_dim = metadata["state_dim"]
+        cfg.dataset.act_dim = metadata["act_dim"]
+        cfg.dataset.max_timesteps = metadata["max_timesteps"]
+
     if len(dataset) == 0:
         logger.error(f"Dataset at {cfg.dataset.path} is empty! Aborting training.")
         sys.exit(1)
-    logger.info(f"Dataset size: {len(dataset)} clips")
-
-    with np.load(cfg.dataset.path, allow_pickle=True) as data:
-        metadata = data["metadata"].item()
-        if isinstance(metadata, str):
-            metadata = yaml.safe_load(metadata)
-    
-    # Update config with dataset metadata
-    cfg.dataset.state_dim = metadata["state_dim"]
-    cfg.dataset.act_dim = metadata["act_dim"]
-    cfg.dataset.max_timesteps = metadata["max_timesteps"]
+    logger.info(f"Dataset size: {len(dataset)} items")
     
     # Lazily import gymnasium to avoid potential C-extension conflicts at startup
     import gymnasium as gym
@@ -349,7 +373,14 @@ def train(cfg, logger):
             if env is None:
                 env = create_env(cfg.env, simulator_available=cfg.training.simulator_available, dataset_path=cfg.dataset.path)
 
-            eval_results = evaluate_policy(model, env, cfg, episodes=cfg.hyperparameters.eval_episodes)
+            eval_results = evaluate_policy(
+                model, 
+                env, 
+                cfg, 
+                episodes=cfg.hyperparameters.eval_episodes,
+                state_mean=state_mean,
+                state_std=state_std
+            )
             epoch_time = time.time() - start_time
             avg_loss = np.mean(epoch_losses) if epoch_losses else 0.0
             
@@ -447,8 +478,9 @@ def main():
     parser.add_argument("--env", type=str, required=True, help="Environment name (e.g., CartPole-v1).")
     parser.add_argument("--save-dir", type=str, default="results/run", help="Directory to save results.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
-    parser.add_argument("--dataset-path", type=str, default=None, help="Explicit path to dataset file.")
+    parser.add_argument("--dataset-path", type=str, default=None, help="Explicit path to dataset file or directory.")
     parser.add_argument("--simulator-available", action="store_true", help="Set if a real simulator is available for eval.")
+    parser.add_argument("--dataset-mode", type=str, default="d4rl_direct", help="Dataset mode: 'legacy' (npz) or 'd4rl_direct' (hdf5).")
     args = parser.parse_args()
     
     # Configure logging
@@ -479,12 +511,12 @@ def main():
         
         if args.model in model_abbr and args.env in env_abbr:
             config_name = f"{model_abbr[args.model]}_{env_abbr[args.env]}.yaml"
-            args.config = str(project_root / "configs" / config_name)
+            args.config = str(snn_dt_root / "configs" / config_name)
         else:
              # Just try a generic name if above fails
             config_name = f"{args.model}_{args.env}.yaml"
-            if (project_root / "configs" / config_name).exists():
-                 args.config = str(project_root / "configs" / config_name)
+            if (snn_dt_root / "configs" / config_name).exists():
+                 args.config = str(snn_dt_root / "configs" / config_name)
             else:
                  # Last resort: use a default?
                  pass
@@ -522,7 +554,7 @@ def main():
             "simulator_available": args.simulator_available,
         },
         "dataset": {
-            "path": cfg_raw.get("dataset", None),
+            "path": cfg_raw.get("dataset", {}).get("path") if isinstance(cfg_raw.get("dataset"), dict) else cfg_raw.get("dataset", None),
             "state_dim": None,  # Will be set from metadata
             "act_dim": None,    # Will be set from metadata
             "max_timesteps": None  # Will be set from metadata
@@ -563,12 +595,18 @@ def main():
         logger.info(f"SNN Config: {cfg.snn}")
 
     # Dataset path priority: Args > Config > Default
+    # Config for dataset mode
+    cfg.dataset.mode = args.dataset_mode
+    
     if args.dataset_path:
         cfg.dataset.path = args.dataset_path
     elif cfg.dataset.path is None:
-        cfg.dataset.path = str(project_root / f"data/{args.env}/dataset.npz")
+        if args.dataset_mode == 'd4rl_direct':
+             cfg.dataset.path = str(snn_dt_root / "data/d4rl_raw")
+        else:
+             cfg.dataset.path = str(snn_dt_root / f"data/{args.env}/dataset.npz")
     
-    # Check if dataset exists
+    # Check if dataset exists (folder or file)
     if not os.path.exists(cfg.dataset.path):
          logger.warning(f"Dataset not found at {cfg.dataset.path}. Training will likely fail if data isn't generated.")
     else:
