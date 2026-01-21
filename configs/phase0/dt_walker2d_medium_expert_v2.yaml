@@ -7,7 +7,7 @@ cql:
   with_lagrange: false
 env: walker2d-medium-expert-v2
 hyperparameters:
-  eval_episodes: 10
+  eval_episodes: 20
 iql:
   expectile: 0.7
   hidden_size: 256
@@ -18,7 +18,7 @@ model:
   n_heads: 4
   n_layers: 3
   name: dt
-  seq_len: 20
+  seq_len: 50
 snn:
   current_scale: 0.2
   lif_tau: 20.0
