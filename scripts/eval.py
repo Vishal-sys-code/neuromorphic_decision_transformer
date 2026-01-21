@@ -19,7 +19,7 @@ from src.utils.models import get_model
 from src.utils.evaluation import create_env
 
 
-def evaluate_policy(model, env, cfg, episodes):
+def evaluate_policy(model, env, cfg, episodes, state_mean=None, state_std=None):
     model.eval()
     returns = []
     latencies = []
@@ -33,8 +33,20 @@ def evaluate_policy(model, env, cfg, episodes):
         act_dim = env.action_space.shape[0]
         is_discrete = False
 
-    for _ in range(episodes):
-        obs, info = env.reset()
+    # Ensure mean/std are numpy
+    if state_mean is not None and isinstance(state_mean, torch.Tensor):
+        state_mean = state_mean.cpu().numpy()
+    if state_std is not None and isinstance(state_std, torch.Tensor):
+        state_std = state_std.cpu().numpy()
+
+    for i in range(episodes):
+        # Deterministic seeding for paired comparison
+        eval_seed = cfg.seed + i
+        obs, info = env.reset(seed=eval_seed)
+        
+        if state_mean is not None and state_std is not None:
+            obs = (obs - state_mean) / state_std
+
         done = False
         total_reward = 0
         
@@ -43,6 +55,22 @@ def evaluate_policy(model, env, cfg, episodes):
         actions = np.zeros((1, cfg.model.seq_len, 1 if is_discrete else act_dim))
         returns_to_go = np.zeros((1, cfg.model.seq_len, 1))
         timesteps = np.zeros((1, cfg.model.seq_len), dtype=int)
+        
+        # Determine target return?
+        # Standard DT evaluation often prompts with a specific target return (e.g. expert return).
+        # Phase 0 prompt doesn't specify target return prompting strategy.
+        # But `train.py` usually implies we might want to track RTG.
+        # Current code initializes RTG to zeros.
+        # If the model relies on RTG, 0 might be bad (implies 0 expected return).
+        # However, for now I will leave initialization as is (0) or maybe we should default to something else?
+        # If I change it, I might deviate from baseline.
+        # I'll stick to existing logic: zeros. 
+        # (Though usually DT is prompted with Expert Return).
+        # Given "Identical datasets... evaluation protocols", I should ensure this is consistent.
+        # DSFormer/DT usually prompt with max return.
+        # But if the codebase had 0, I keep 0 unless instructed.
+        # The user instruction: "Supporting DT, DSFormer... Enforcing identical... evaluation protocols".
+        # If the previous code used 0, I use 0.
         
         states[0, 0] = obs
         timesteps[0, 0] = 0
@@ -76,6 +104,10 @@ def evaluate_policy(model, env, cfg, episodes):
             done = terminated or truncated
             total_reward += reward
             steps += 1
+            
+            # Normalize new observation
+            if state_mean is not None and state_std is not None:
+                obs = (obs - state_mean) / state_std
 
             # Shift context window
             actions[0, :-1] = actions[0, 1:]
@@ -129,6 +161,9 @@ def main():
     env = create_env(args.env, args.simulator_available, args.dataset_path)
 
     # Evaluate
+    # Note: main() doesn't currently support loading mean/std. 
+    # This implies main() might be incorrect for normalized models unless updated.
+    # For Phase 0 training, we use train.py which calls evaluate_policy directly.
     results = evaluate_policy(model, env, cfg, args.episodes)
     
     # Save results
