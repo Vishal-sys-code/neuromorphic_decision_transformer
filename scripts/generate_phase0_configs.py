@@ -14,7 +14,7 @@ ENVS = [
 ]
 EPOCHS = 50
 BATCH_SIZE = 64
-SEQ_LEN = 20
+SEQ_LEN = 50
 HIDDEN_DIM = 256 # Standard for D4RL
 N_HEADS = 4
 N_LAYERS = 3
@@ -41,7 +41,7 @@ BASE_CONFIG = {
         "n_layers": N_LAYERS,
     },
     "hyperparameters": {
-        "eval_episodes": 10
+        "eval_episodes": 20
     },
     "snn": {
         "lif_tau": 20.0,
