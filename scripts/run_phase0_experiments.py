@@ -14,7 +14,7 @@ logger = logging.getLogger()
 
 CONFIG_DIR = Path("configs/phase0")
 RESULTS_DIR = Path("results/phase0")
-DATA_DIR = Path("data/d4rl")
+DATA_DIR = Path("data/d4rl_raw")
 
 def get_configs():
     return sorted(list(CONFIG_DIR.glob("*.yaml")))
@@ -31,41 +31,43 @@ def run_experiment(config_path, worker_id=0):
         model = cfg['model']['name']
         env = cfg['env']
         
-        # Construct Save Directory
-        # Structure: results/phase0/{model}/{env}/{seed}
-        # Using default seed 42
-        seed = 42
-        save_dir = RESULTS_DIR / model / env / str(seed)
+        # Loop over seeds
+        seeds = [0, 1, 2, 3, 4]
         
-        if is_run_complete(save_dir):
-            logger.info(f"Skipping {model} on {env} (Run Complete)")
-            return
+        for seed in seeds:
+            save_dir = RESULTS_DIR / model / env / str(seed)
             
-        logger.info(f"Worker {worker_id}: Starting {model} on {env}...")
-        
-        # Construct Command
-        cmd = [
-            "python", "scripts/train.py",
-            "--config", str(config_path),
-            "--save-dir", str(save_dir),
-            "--env", env,
-            "--model", model,
-            "--seed", str(seed),
-            "--dataset-path", str(DATA_DIR / env / "dataset_v1.npz")
-        ]
-        
-        # Set environment variables for this process to limit CPU usage
-        env_vars = os.environ.copy()
-        # Limit threads per process to avoid thrashing
-        # Assuming 3 workers on a typical 12+ core machine, 4 threads each is safe.
-        # If user has fewer cores, they should reduce max-workers.
-        env_vars["OMP_NUM_THREADS"] = "4"
-        env_vars["MKL_NUM_THREADS"] = "4"
-        env_vars["TORCH_NUM_THREADS"] = "4"
-        
-        # Run Synchronously (within the worker thread)
-        subprocess.run(cmd, check=True, env=env_vars)
-        logger.info(f"Worker {worker_id}: Finished {model} on {env}")
+            if is_run_complete(save_dir):
+                logger.info(f"Skipping {model} on {env} seed {seed} (Run Complete)")
+                continue
+                
+            logger.info(f"Worker {worker_id}: Starting {model} on {env} seed {seed}...")
+            
+            # Construct Command
+            cmd = [
+                "python", "scripts/train.py",
+                "--config", str(config_path),
+                "--save-dir", str(save_dir),
+                "--env", env,
+                "--model", model,
+                "--seed", str(seed),
+                "--dataset-mode", "d4rl_direct",
+                "--dataset-path", str(DATA_DIR),
+                "--simulator-available"
+            ]
+            
+            # Set environment variables for this process to limit CPU usage
+            env_vars = os.environ.copy()
+            # Limit threads per process to avoid thrashing
+            # Assuming 3 workers on a typical 12+ core machine, 4 threads each is safe.
+            # If user has fewer cores, they should reduce max-workers.
+            env_vars["OMP_NUM_THREADS"] = "4"
+            env_vars["MKL_NUM_THREADS"] = "4"
+            env_vars["TORCH_NUM_THREADS"] = "4"
+            
+            # Run Synchronously (within the worker thread)
+            subprocess.run(cmd, check=True, env=env_vars)
+            logger.info(f"Worker {worker_id}: Finished {model} on {env} seed {seed}")
         
     except subprocess.CalledProcessError as e:
         logger.error(f"Worker {worker_id}: Failed {model} on {env}: {e}")
@@ -81,7 +83,7 @@ def main():
     logger.info(f"Found {len(configs)} experiments to run.")
     
     if not DATA_DIR.exists():
-        logger.error(f"Data directory {DATA_DIR} does not exist. Please run convert_d4rl.py first.")
+        logger.error(f"Data directory {DATA_DIR} does not exist. Please run scripts/download_d4rl.py first.")
         return
 
     # Use ThreadPoolExecutor to run experiments in parallel
