@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Methodology &#8212; Spiking Decision Transformer</title>
+    <title>Training Methodology &amp; Dynamics &#8212; Spiking Decision Transformer</title>
   
   
   
@@ -50,8 +50,8 @@
     <script>DOCUMENTATION_OPTIONS.pagename = 'methodology';</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Experiments &amp; Results" href="experiments.html" />
-    <link rel="prev" title="Spiking Decision Transformer (SNN-DT)" href="index.html" />
+    <link rel="next" title="Empirical Evaluation &amp; Neuromorphic Viability" href="experiments.html" />
+    <link rel="prev" title="Architectural Foundations" href="architecture.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -164,11 +164,11 @@
             </li>
         </ul>
         <ul class="current nav bd-sidenav">
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Methodology</a></li>
-<li class="toctree-l1"><a class="reference internal" href="experiments.html">Experiments &amp; Results</a></li>
-<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture &amp; Theory</a></li>
-<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architectural Foundations</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Training Methodology &amp; Dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiments.html">Empirical Evaluation &amp; Neuromorphic Viability</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Experimental Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Target Environment</a></li>
 </ul>
 
     </div>
@@ -371,7 +371,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Methodology</h1>
+    <h1>Training Methodology & Dynamics</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -381,9 +381,9 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture-overview">Architecture Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-plasticity">Local Plasticity</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training">Training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#offline-dataset-curation">1. Offline Dataset Curation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#leaky-integrate-and-fire-lif-discretization">2. Leaky Integrate-and-Fire (LIF) Discretization</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#surrogate-gradient-learning">3. Surrogate Gradient Learning</a></li>
 </ul>
             </nav>
         </div>
@@ -395,53 +395,29 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="methodology">
-<h1>Methodology<a class="headerlink" href="#methodology" title="Link to this heading">#</a></h1>
-<p>The <strong>Spiking Decision Transformer (SNN-DT)</strong> bridges the gap between the high-level planning capabilities of Transformers and the energy efficiency of Spiking Neural Networks (SNNs).</p>
-<section id="architecture-overview">
-<h2>Architecture Overview<a class="headerlink" href="#architecture-overview" title="Link to this heading">#</a></h2>
-<p>The SNN-DT architecture replaces the standard Multi-Head Attention (MHA) mechanism with a <strong>Spiking Self-Attention (SSA)</strong> block. Key components include:</p>
-<ol class="arabic">
-<li><p><strong>Leaky Integrate-and-Fire (LIF) Neurons</strong>:
-We employ non-leaky and leaky integrate-and-fire dynamics. The membrane potential <span class="math notranslate nohighlight">\(u_t\)</span> evolves as:</p>
-<div class="math notranslate nohighlight">
-\[
-    u_t = \beta u_{t-1} + W x_t
-    \]</div>
-<div class="math notranslate nohighlight">
-\[
-    s_t = \Theta(u_t - V_{th})
-    \]</div>
-<p>where <span class="math notranslate nohighlight">\(\beta\)</span> is the decay factor, <span class="math notranslate nohighlight">\(V_{th}\)</span> is the threshold, and <span class="math notranslate nohighlight">\(s_t\)</span> is the spike output.</p>
-</li>
-<li><p><strong>Phase-Coding</strong>:
-To preserve temporal information without high-precision floating point values, we utilize phase-shifted spike-based positional encodings.</p></li>
-<li><p><strong>Dendritic Routing</strong>:
-A lightweight routing module that dynamically sparsifies the attention matrix, ensuring that only relevant tokens trigger synaptic operations.</p></li>
-</ol>
+  <section class="tex2jax_ignore mathjax_ignore" id="training-methodology-dynamics">
+<h1>Training Methodology &amp; Dynamics<a class="headerlink" href="#training-methodology-dynamics" title="Link to this heading">#</a></h1>
+<p>The convergence of biologically-plausible Spiking Neural Networks (SNNs) and offline reinforcement learning presents unique optimization challenges. The SNN-DT achieves end-to-end learnability via Surrogate Gradients combined with structured dataset preparation.</p>
+<section id="offline-dataset-curation">
+<h2>1. Offline Dataset Curation<a class="headerlink" href="#offline-dataset-curation" title="Link to this heading">#</a></h2>
+<p>Following the foundation of the Decision Transformer framework, we define a trajectory sequence parameterized by step returns, states, and action constraints:
+<span class="math notranslate nohighlight">\(\tau = \{(s_t, a_t, r_t)\}^T_{t=1}\)</span>.</p>
+<p>The temporal context is unrolled into autoregressive sequence intervals padded as required. Specifically, a return-to-go scalar <span class="math notranslate nohighlight">\(G_t = \sum_{k=t}^{T} r_k\)</span> fundamentally binds the sequence optimization trajectory, explicitly directing the modeled distribution towards highest-return outcomes by enforcing sequence prediction across <span class="math notranslate nohighlight">\((G_1, s_1, a_1, \dots, G_N, s_N, a_N)\)</span>.</p>
 </section>
-<section id="local-plasticity">
-<h2>Local Plasticity<a class="headerlink" href="#local-plasticity" title="Link to this heading">#</a></h2>
-<p>We incorporate biological three-factor plasticity rules to enable online adaptation:</p>
+<section id="leaky-integrate-and-fire-lif-discretization">
+<h2>2. Leaky Integrate-and-Fire (LIF) Discretization<a class="headerlink" href="#leaky-integrate-and-fire-lif-discretization" title="Link to this heading">#</a></h2>
+<p>The SNN-DT relies physically on the simulation of membrane charges. In discrete time frames dictated by integration parameter <span class="math notranslate nohighlight">\(\Delta t\)</span>, a forward-Euler step gives the membrane potential:</p>
 <div class="math notranslate nohighlight">
-\[
-\Delta w_{ij} = \eta \cdot \text{Pre}_j \cdot \text{Post}_i \cdot \text{Modulator}
-\]</div>
-<p>This allows the network to adapt to distribution shifts in the environment without full backpropagation through time (BPTT).</p>
+\[ V[t+1] = V[t] + \frac{\Delta t}{\tau_m} (V_{\text{rest}} - V[t]) + \Delta t C_m I[t] \]</div>
+<p>When <span class="math notranslate nohighlight">\(V[t+1] \geq V_{\text{th}}\)</span>, the neuron immediately broadcasts an absolute binary signal <span class="math notranslate nohighlight">\(S_{t+1}=1\)</span> and the internal potential is hard-reset towards <span class="math notranslate nohighlight">\(V_{\text{rest}}\)</span>.</p>
 </section>
-<section id="training">
-<h2>Training<a class="headerlink" href="#training" title="Link to this heading">#</a></h2>
-<p>The model is trained end-to-end using <strong>Surrogate Gradients</strong>. Since the spiking function <span class="math notranslate nohighlight">\(\Theta(\cdot)\)</span> is non-differentiable, we approximate its derivative during the backward pass using a fast sigmoid function:</p>
+<section id="surrogate-gradient-learning">
+<h2>3. Surrogate Gradient Learning<a class="headerlink" href="#surrogate-gradient-learning" title="Link to this heading">#</a></h2>
+<p>Due to the intrinsic, mathematically discontinuous constraint of the Heaviside step <span class="math notranslate nohighlight">\(S = \{V \geq V_{\text{th}} \}\)</span>, standard computational graphs normally suffer vanishing gradients immediately.</p>
+<p>SNN-DT utilizes a <strong>Fast-Sigmoid Surrogate Gradient</strong> to bypass the non-differentiable threshold. During the backward pass, we replace the Heaviside step’s derivative over the potential offset <span class="math notranslate nohighlight">\(u = V - V_{\text{th}}\)</span>:</p>
 <div class="math notranslate nohighlight">
-\[
-\frac{\partial s}{\partial u} \approx \frac{1}{(1 + k|u|)^2}
-\]</div>
-<p>This enables us to optimize the decision control objective:</p>
-<div class="math notranslate nohighlight">
-\[
-\mathcal{L} = \sum_{t} (a_t - \hat{a}_t)^2
-\]</div>
-<p>where <span class="math notranslate nohighlight">\(\hat{a}_t\)</span> is the predicted action and <span class="math notranslate nohighlight">\(a_t\)</span> is the ground truth action from the expert demonstration.</p>
+\[ \tilde{\sigma}'(u) = \frac{1}{(1 + |k \cdot u|)^2} \]</div>
+<p>With <span class="math notranslate nohighlight">\(k=10\)</span>, this enables a defined gradient flow backward through the dense attention channels all the way into the phase-shifted positional sine representations, supporting full end-to-end regression to target distribution values.</p>
 </section>
 </section>
 
@@ -457,12 +433,12 @@ A lightweight routing module that dynamically sparsifies the attention matrix, e
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="index.html"
+       href="architecture.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Spiking Decision Transformer (SNN-DT)</p>
+        <p class="prev-next-title">Architectural Foundations</p>
       </div>
     </a>
     <a class="right-next"
@@ -470,7 +446,7 @@ A lightweight routing module that dynamically sparsifies the attention matrix, e
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Experiments &amp; Results</p>
+        <p class="prev-next-title">Empirical Evaluation &amp; Neuromorphic Viability</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -490,9 +466,9 @@ A lightweight routing module that dynamically sparsifies the attention matrix, e
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#architecture-overview">Architecture Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-plasticity">Local Plasticity</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training">Training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#offline-dataset-curation">1. Offline Dataset Curation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#leaky-integrate-and-fire-lif-discretization">2. Leaky Integrate-and-Fire (LIF) Discretization</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#surrogate-gradient-learning">3. Surrogate Gradient Learning</a></li>
 </ul>
   </nav></div>
 
