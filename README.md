@@ -10,7 +10,7 @@
 
 **Local Plasticity, Phase-Coding, and Dendritic Routing for Low-Power Sequence Control**
 
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://vishal-sys-code.github.io/neuromorphic_decision_transformer/)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://neuromorphic-decision-transformer.vercel.app/)
 
 </div>
 
