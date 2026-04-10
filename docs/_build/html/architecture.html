@@ -399,20 +399,8 @@ document.write(`
 <h1>Architectural Foundations<a class="headerlink" href="#architectural-foundations" title="Link to this heading">#</a></h1>
 <p>The <strong>Spiking Decision Transformer (SNN-DT)</strong> is a novel integration of biologically-inspired computation with sequence-based offline reinforcement learning. By recasting offline RL as an autoregressive next-token prediction problem, the Decision Transformer (DT) established a powerful paradigm. However, the energy and memory demands of traditional Transformers severely limit edge deployment.</p>
 <p>SNN-DT addresses this fundamental limitation by introducing three foundational neuromorphic innovations into the return-conditioned Transformer pipeline.</p>
-<div class="highlight-mermaid notranslate"><div class="highlight"><pre><span></span>graph TD
-    classDef main fill:#1e1e1e,stroke:#4a90e2,stroke-width:2px,color:#fff;
-    classDef module fill:#2d2d2d,stroke:#f5a623,stroke-width:2px,color:#fff;
-    
-    subgraph &quot;SNN-DT Pipeline&quot;
-    A[Offline Trajectory Data] --&gt; B[Phase-Shifted Positional Spikes]:::module
-    B --&gt; C[Spiking Self-Attention Blocks]
-    C --&gt; D[Dendritic-Style Routing MLP]:::module
-    D --&gt; E[LIF Feed-Forward Network]
-    E --&gt; F[Action Prediction Head]
-    F --&gt; G[Three-Factor Local Plasticity]:::module
-    end
-</pre></div>
-</div>
+<p><img alt="SNN-DT Architecture Overview" src="_images/model_architecture.png" /></p>
+<p><em>Figure 1: Overall architecture of the Spiking Decision Transformer. The offline trajectory embeddings (return, state, action) pass into the Phase-Shifted Positional Encoder. Spiking Self-Attention blocks interact dynamically with a Dendritic Routing MLP, culminating in a sparse action projection governed by Three-Factor Plasticity.</em></p>
 <section id="phase-shifted-positional-spiking">
 <h2>1. Phase-Shifted Positional Spiking<a class="headerlink" href="#phase-shifted-positional-spiking" title="Link to this heading">#</a></h2>
 <p>In traditional Transformers, temporal order is preserved via floating-point scalar positional embeddings. SNN-DT entirely discards analog coordinate embeddings in favor of <strong>phase-shifted, spike-based encoders</strong>.</p>
@@ -424,6 +412,8 @@ document.write(`
 <section id="spiking-self-attention-dendritic-routing">
 <h2>2. Spiking Self-Attention &amp; Dendritic Routing<a class="headerlink" href="#spiking-self-attention-dendritic-routing" title="Link to this heading">#</a></h2>
 <p>SNN-DT maps continuous embeddings into sparse spike rates via Leaky Integrate-and-Fire (LIF) dynamics. To adaptively combine parallel attention head outputs without uniform averaging, we leverage a lightweight <strong>Dendritic-Style Routing MLP</strong>.</p>
+<p><img alt="Dendritic Routing Coefficients" src="_images/routing_coefficients_heatmap.png" /></p>
+<p><em>Figure 2: Heatmap illustrating dynamic, context-dependent routing gating coefficients <span class="math notranslate nohighlight">\(\alpha^{(h)}_i(t)\)</span> per head across a sequence. Darker cells indicate effectively pruned or suppressed head outputs, securing computational sparsity.</em></p>
 <p>Inspired by biological dendritic arborization, this routing mechanism computes context-dependent gating coefficients <span class="math notranslate nohighlight">\(\alpha^{(h)}_i(t) \in (0,1)\)</span> across all head outputs <span class="math notranslate nohighlight">\(y^{(h)}_i(t)\)</span> at a given timestep.</p>
 <p>The globally routed representation for token <span class="math notranslate nohighlight">\(i\)</span> becomes a sparse, gated sum:</p>
 <div class="math notranslate nohighlight">
