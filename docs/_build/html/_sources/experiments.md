@@ -8,6 +8,10 @@ Our evaluation specifically tracks (1) algorithmic performance and (2) proxy met
 
 We isolate the impact of Phase-Shifted Positional Spiking (Pos-Only) and Dendritic-Style Routing MLP (Route-Only) against a unified configuration (Full) and the base non-augmented LIF formulation (Baseline).
 
+![Offline Loss Validation Curves](../visualizations/offline_loss_curves.png)
+
+*Figure 1: Ablation validation loss trajectories. The Full model natively achieves the fastest convergence towards the error floor by exploiting highly diverse temporal encoding and responsive gating.*
+
 | Environment | Baseline | Pos-Only | Route-Only | Full (SNN-DT) |
 | :--- | :--- | :--- | :--- | :--- |
 | **CartPole-v1** | $452.3 \pm 11.7$ | $474.1 \pm 7.9$ | $479.2 \pm 6.2$ | $\mathbf{492.3 \pm 6.8}$ |
@@ -15,11 +19,19 @@ We isolate the impact of Phase-Shifted Positional Spiking (Pos-Only) and Dendrit
 | **Acrobot-v1** | $-87.1 \pm 3.2$ | $-72.0 \pm 3.6$ | $-68.3 \pm 3.9$ | $\mathbf{-59.7 \pm 2.7}$ |
 | **Pendulum-v1** | $-155.3 \pm 5.1$ | $-140.0 \pm 4.7$ | $-135.4 \pm 4.4$ | $\mathbf{-130.5 \pm 4.2}$ |
 
+![RL Performance plot](../visualizations/rl_performance_plot.png)
+
+*Figure 2: Performance distributions evaluated over the target environments tracking downstream RL validation. The density directly reflects tighter policy resilience in continuous evaluations.*
+
 > **Note:** SNN-DT matches the expressivity capabilities of state-of-the-art dense Decision Transformers while stabilizing sequence variance observed physically out-of-distribution across seeds.
 
 ## Energy Profiling & CPU Overhead
 
 On advanced neuromorphic substrates like Intel Loihi or IBM TrueNorth, algorithmic energy scales linearly with spike activity emissions. We compute absolute spike counts during test batches as an energy proxy.
+
+![Spike Emission Distribution](../visualizations/spike_histogram.png)
+
+*Figure 3: Histograms of localized sparse spike activity. SNN-DT networks suppress superfluous event spikes effectively limiting output variance beneath the 10-spike barrier compared to unrestricted formulations.*
 
 | Ablation Mode | Spikes / Inference | CPU Latency (ms) |
 | :--- | :--- | :--- |
