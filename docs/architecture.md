@@ -4,20 +4,9 @@ The **Spiking Decision Transformer (SNN-DT)** is a novel integration of biologic
 
 SNN-DT addresses this fundamental limitation by introducing three foundational neuromorphic innovations into the return-conditioned Transformer pipeline.
 
-```mermaid
-graph TD
-    classDef main fill:#1e1e1e,stroke:#4a90e2,stroke-width:2px,color:#fff;
-    classDef module fill:#2d2d2d,stroke:#f5a623,stroke-width:2px,color:#fff;
-    
-    subgraph "SNN-DT Pipeline"
-    A[Offline Trajectory Data] --> B[Phase-Shifted Positional Spikes]:::module
-    B --> C[Spiking Self-Attention Blocks]
-    C --> D[Dendritic-Style Routing MLP]:::module
-    D --> E[LIF Feed-Forward Network]
-    E --> F[Action Prediction Head]
-    F --> G[Three-Factor Local Plasticity]:::module
-    end
-```
+![SNN-DT Architecture Overview](../model_architecture.png)
+
+*Figure 1: Overall architecture of the Spiking Decision Transformer. The offline trajectory embeddings (return, state, action) pass into the Phase-Shifted Positional Encoder. Spiking Self-Attention blocks interact dynamically with a Dendritic Routing MLP, culminating in a sparse action projection governed by Three-Factor Plasticity.*
 
 ## 1. Phase-Shifted Positional Spiking
 
@@ -32,6 +21,10 @@ This mechanism endows each attention head with a distinct rhythmic code, providi
 ## 2. Spiking Self-Attention & Dendritic Routing
 
 SNN-DT maps continuous embeddings into sparse spike rates via Leaky Integrate-and-Fire (LIF) dynamics. To adaptively combine parallel attention head outputs without uniform averaging, we leverage a lightweight **Dendritic-Style Routing MLP**.
+
+![Dendritic Routing Coefficients](../visualizations/routing_coefficients_heatmap.png)
+
+*Figure 2: Heatmap illustrating dynamic, context-dependent routing gating coefficients $\alpha^{(h)}_i(t)$ per head across a sequence. Darker cells indicate effectively pruned or suppressed head outputs, securing computational sparsity.*
 
 Inspired by biological dendritic arborization, this routing mechanism computes context-dependent gating coefficients $\alpha^{(h)}_i(t) \in (0,1)$ across all head outputs $y^{(h)}_i(t)$ at a given timestep. 
 
