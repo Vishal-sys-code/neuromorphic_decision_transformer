@@ -48,7 +48,7 @@
     <script>DOCUMENTATION_OPTIONS.pagename = 'index';</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Methodology" href="methodology.html" />
+    <link rel="next" title="Architectural Foundations" href="architecture.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -163,11 +163,11 @@
             </li>
         </ul>
         <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="methodology.html">Methodology</a></li>
-<li class="toctree-l1"><a class="reference internal" href="experiments.html">Experiments &amp; Results</a></li>
-<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture &amp; Theory</a></li>
-<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architectural Foundations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="methodology.html">Training Methodology &amp; Dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiments.html">Empirical Evaluation &amp; Neuromorphic Viability</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Experimental Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Target Environment</a></li>
 </ul>
 
     </div>
@@ -396,48 +396,46 @@ document.write(`
   <section class="tex2jax_ignore mathjax_ignore" id="spiking-decision-transformer-snn-dt">
 <h1>Spiking Decision Transformer (SNN-DT)<a class="headerlink" href="#spiking-decision-transformer-snn-dt" title="Link to this heading">#</a></h1>
 <blockquote>
-<div><p><strong>Abstract</strong>: Reinforcement learning agents based on Transformer architectures have achieved impressive performance on sequential decision-making tasks, but their reliance on dense matrix operations makes them ill-suited for energy-constrained, edge-oriented platforms. We present the <strong>Spiking Decision Transformer (SNN-DT)</strong>, which embeds Leaky Integrate-and-Fire neurons into each self-attention block, trains end-to-end via surrogate gradients, and incorporates biologically inspired three-factor plasticity, phase-shifted spike-based positional encodings, and a lightweight dendritic routing module. Our implementation matches or exceeds standard Decision Transformer performance on classic control benchmarks (CartPole-v1, MountainCar-v0, Acrobot-v1, Pendulum-v1) while emitting fewer than ten spikes per decision—an energy proxy suggesting over four orders-of-magnitude reduction in per-inference energy.</p>
+<div><p><strong>Abstract:</strong> Reinforcement learning agents based on Transformer architectures have achieved impressive performance on sequential decision-making tasks, but their reliance on dense matrix operations makes them ill-suited for energy-constrained, edge-oriented platforms. Spiking neural networks promise ultra-low-power, event-driven inference, yet no prior work has seamlessly merged spiking dynamics with return-conditioned sequence modeling. We present the <strong>Spiking Decision Transformer (SNN-DT)</strong>, which embeds Leaky Integrate-and-Fire neurons into each self-attention block, trains end-to-end via surrogate gradients, and incorporates biologically inspired three-factor plasticity, phase-shifted spike-based positional encodings, and a lightweight dendritic routing module.</p>
+<p>Our implementation matches or exceeds standard Decision Transformer performance on classic control benchmarks (CartPole-v1, MountainCar-v0, Acrobot-v1, Pendulum-v1) while emitting fewer than ten spikes per decision—an energy proxy suggesting over four orders-of-magnitude reduction in per-inference energy. By marrying sequence modeling with neuromorphic efficiency, SNN-DT opens a pathway toward real-time, low-power control on embedded and wearable devices.</p>
 </div></blockquote>
-<div class="highlight-model notranslate"><div class="highlight"><pre><span></span>Spiking Decision Transformer
-├── Core: Transformer Architecture
+<div class="highlight-model notranslate"><div class="highlight"><pre><span></span>Spiking Decision Transformer Architecture
 ├── Spiking Dynamics: Leaky Integrate-and-Fire (LIF)
-├── Plasticity: STDP-inspired 3-factor rule
-└── Efficiency: Dendritic Routing &amp; Event-Driven
+├── Core Module 1: Three-Factor Local Plasticity
+├── Core Module 2: Phase-Shifted Positional Spiking
+└── Core Module 3: Dendritic-Style Routing MLP
 </pre></div>
 </div>
 <section id="documentation-contents">
 <h2>Documentation Contents<a class="headerlink" href="#documentation-contents" title="Link to this heading">#</a></h2>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="methodology.html">Methodology</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="methodology.html#architecture-overview">Architecture Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="methodology.html#local-plasticity">Local Plasticity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="methodology.html#training">Training</a></li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architectural Foundations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#phase-shifted-positional-spiking">1. Phase-Shifted Positional Spiking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#spiking-self-attention-dendritic-routing">2. Spiking Self-Attention &amp; Dendritic Routing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#local-three-factor-plasticity">3. Local Three-Factor Plasticity</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="experiments.html">Experiments &amp; Results</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="experiments.html#performance-comparison">Performance Comparison</a></li>
-<li class="toctree-l2"><a class="reference internal" href="experiments.html#energy-efficiency">Energy Efficiency</a></li>
-<li class="toctree-l2"><a class="reference internal" href="experiments.html#ablation-studies">Ablation Studies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="methodology.html">Training Methodology &amp; Dynamics</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="methodology.html#offline-dataset-curation">1. Offline Dataset Curation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="methodology.html#leaky-integrate-and-fire-lif-discretization">2. Leaky Integrate-and-Fire (LIF) Discretization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="methodology.html#surrogate-gradient-learning">3. Surrogate Gradient Learning</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture &amp; Theory</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="architecture.html#system-overview">System Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture.html#spiking-self-attention-ssa">Spiking Self-Attention (SSA)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture.html#dendritic-routing-and-sparsity">Dendritic Routing and Sparsity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture.html#learning-with-plasticity">Learning with Plasticity</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiments.html">Empirical Evaluation &amp; Neuromorphic Viability</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="experiments.html#downstream-validation-accuracy">Downstream Validation Accuracy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiments.html#energy-profiling-cpu-overhead">Energy Profiling &amp; CPU Overhead</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#training">Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#evaluation-metrics">Evaluation &amp; Metrics</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#comparison-baselines">Comparison Baselines</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Experimental Workflows</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#offline-dataset-instantiation">1. Offline Dataset Instantiation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#model-initialization">2. Model Initialization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#training-paradigm">3. Training Paradigm</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#prerequisites">Prerequisites</a></li>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#setup">Setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="installation.html#d4rl-datasets">D4RL Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Target Environment</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#dependencies">Dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html#recommended-setup-conda-platform">Recommended Setup (Conda Platform)</a></li>
 </ul>
 </li>
 </ul>
@@ -445,11 +443,11 @@ document.write(`
 </section>
 <section id="citation">
 <h2>Citation<a class="headerlink" href="#citation" title="Link to this heading">#</a></h2>
-<p>If you use this code in your research, please cite the associated paper:</p>
-<div class="highlight-bibtex notranslate"><div class="highlight"><pre><span></span><span class="nc">@article</span><span class="p">{</span><span class="nl">pandey2025snn</span><span class="p">,</span>
+<p>If you utilize this framework or build upon the SNN-DT codebase in your research, please cite the associated paper:</p>
+<div class="highlight-bibtex notranslate"><div class="highlight"><pre><span></span><span class="nc">@article</span><span class="p">{</span><span class="nl">pandey2025snndt</span><span class="p">,</span>
 <span class="w">  </span><span class="na">title</span><span class="p">=</span><span class="s">{Spiking Decision Transformers: Local Plasticity, Phase-Coding, and Dendritic Routing for Low-Power Sequence Control}</span><span class="p">,</span>
 <span class="w">  </span><span class="na">author</span><span class="p">=</span><span class="s">{Pandey, Vishal and Biswas, Debasmita}</span><span class="p">,</span>
-<span class="w">  </span><span class="na">journal</span><span class="p">=</span><span class="s">{arXiv preprint arXiv:2508.21505}</span><span class="p">,</span>
+<span class="w">  </span><span class="na">journal</span><span class="p">=</span><span class="s">{arXiv preprint arXiv:2508.21505v1}</span><span class="p">,</span>
 <span class="w">  </span><span class="na">year</span><span class="p">=</span><span class="s">{2025}</span>
 <span class="p">}</span>
 </pre></div>
@@ -469,11 +467,11 @@ document.write(`
                   
 <div class="prev-next-area">
     <a class="right-next"
-       href="methodology.html"
+       href="architecture.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Methodology</p>
+        <p class="prev-next-title">Architectural Foundations</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
