@@ -4,7 +4,7 @@ The **Spiking Decision Transformer (SNN-DT)** is a novel integration of biologic
 
 SNN-DT addresses this fundamental limitation by introducing three foundational neuromorphic innovations into the return-conditioned Transformer pipeline.
 
-![SNN-DT Architecture Overview](../model_architecture.png)
+![SNN-DT Architecture Overview](images/model_architecture.png)
 
 *Figure 1: Overall architecture of the Spiking Decision Transformer. The offline trajectory embeddings (return, state, action) pass into the Phase-Shifted Positional Encoder. Spiking Self-Attention blocks interact dynamically with a Dendritic Routing MLP, culminating in a sparse action projection governed by Three-Factor Plasticity.*
 
@@ -22,7 +22,7 @@ This mechanism endows each attention head with a distinct rhythmic code, providi
 
 SNN-DT maps continuous embeddings into sparse spike rates via Leaky Integrate-and-Fire (LIF) dynamics. To adaptively combine parallel attention head outputs without uniform averaging, we leverage a lightweight **Dendritic-Style Routing MLP**.
 
-![Dendritic Routing Coefficients](../visualizations/routing_coefficients_heatmap.png)
+![Dendritic Routing Coefficients](images/routing_coefficients_heatmap.png)
 
 *Figure 2: Heatmap illustrating dynamic, context-dependent routing gating coefficients $\alpha^{(h)}_i(t)$ per head across a sequence. Darker cells indicate effectively pruned or suppressed head outputs, securing computational sparsity.*
 
