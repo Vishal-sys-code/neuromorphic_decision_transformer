@@ -1,6 +1,10 @@
 <div align="center">
 
+<<<<<<< HEAD
 # 🧠 Neuromorphic Decision Transformer (SNN-DT)
+=======
+# Spiking Decision Transformer (SNN-DT)
+>>>>>>> 631ccfaf032021291bf79dcf9b8aab028e5f4bd1
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
@@ -9,6 +13,12 @@
 [![Documentation](https://img.shields.io/badge/docs-Vercel%20Deployed-black?style=flat-square&logo=vercel)](https://vishal-sys-code.github.io/neuromorphic_decision_transformer/)
 
 **Local Plasticity, Phase-Coding, and Dendritic Routing for Low-Power Sequence Control**
+<<<<<<< HEAD
+=======
+
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://neuromorphic-decision-transformer.vercel.app/)
+
+>>>>>>> 631ccfaf032021291bf79dcf9b8aab028e5f4bd1
 </div>
 
 ---
