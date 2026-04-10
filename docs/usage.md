@@ -1,55 +1,51 @@
-# Usage Guide
+# Experimental Workflows
 
-This framework is designed to facilitate research into spiking decision transformers. It supports training, evaluation, and ablation studies across standard OpenAI Gym control tasks.
+The framework partitions naturally into offline preprocessing, gradient-optimized spiking transformer training, and neuromorphic deployment environments.
 
-## Training
+## 1. Offline Dataset Instantiation
 
-To train the SNN-DT model, use the `train.py` script. The pipeline handles data generation, offline trajectory preprocessing, and surrogate gradient training.
+Before initializing SNN-DT surrogate algorithms, offline trajectories require sequencing structurally padded with corresponding reward-to-go scalars.
 
-### Single Experiment
+```python
+from snn_dt.data import get_mixed_trajectory_loader
 
-```bash
-python snn-dt/scripts/train.py \
-    --model snn_dt \
-    --env "Pendulum-v1" \
-    --save-dir "results/snn_dt_pendulum" \
-    --max_iters 10000
+# Pre-compile the structured Return/State/Action inputs (50% Expert / 50% Random)
+train_loader = get_mixed_trajectory_loader(
+    env_name="Acrobot-v1",
+    num_steps=10000, 
+    seq_length=20
+)
 ```
 
-| Argument | Description | Default |
-| :--- | :--- | :--- |
-| `--model` | architecture variant (`snn_dt` or `dt`) | `snn_dt` |
-| `--env` | Gym environment ID | `Hopper-v3` |
-| `--context_len` | Sequence length $K$ | `20` |
+## 2. Model Initialization
 
-### Batch Reproduction
+```python
+from snn_dt.models import SpikingDecisionTransformer
 
-To reproduce the paper's results across all environments:
-
-```bash
-./run_all_experiments.sh
+model = SpikingDecisionTransformer(
+    env_dim=6, 
+    action_dim=1, 
+    d_model=128, 
+    n_heads=4,
+    n_layers=2, 
+    lif_tau=20.0
+)
 ```
 
-## Evaluation & Metrics
+## 3. Training Paradigm
 
-We provide tools to evaluate checkpoints for both reward performance and energy metrics (spike counts).
+During optimization, the localized Three-Factor eligibility updates happen simultaneously while Surrogate Gradients optimize dense representations.
 
-```bash
-python snn-dt/scripts/eval_snn_dt.py \
-    --env "Pendulum-v1" \
-    --checkpoint_path "results/snn_dt_pendulum/best_model.pt" \
-    --target_return -200
-```
+```python
+from snn_dt.trainer import train_offline_snn_dt
 
-The script reports:
--   **Normalized Return**: Performance relative to expert.
--   **Spike Rate**: Average spikes per time step.
--   **Energy Estimate**: Total energy consumption based on AC/MAC counts.
-
-## Comparison Baselines
-
-To run the vanilla Decision Transformer (ANN) baseline:
-
-```bash
-python snn-dt/scripts/train.py --model dt --env "CartPole-v1"
+# Launches hybrid backpropagation with localized trace tracking.
+train_offline_snn_dt(
+    model, 
+    train_loader, 
+    epochs=50, 
+    batch_size=64, 
+    lr=3e-4, 
+    eta_local=0.05
+)
 ```
