@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Installation &#8212; Spiking Decision Transformer</title>
+    <title>Target Environment &#8212; Spiking Decision Transformer</title>
   
   
   
@@ -48,7 +48,7 @@
     <script>DOCUMENTATION_OPTIONS.pagename = 'installation';</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="prev" title="Usage Guide" href="usage.html" />
+    <link rel="prev" title="Experimental Workflows" href="usage.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -161,11 +161,11 @@
             </li>
         </ul>
         <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="methodology.html">Methodology</a></li>
-<li class="toctree-l1"><a class="reference internal" href="experiments.html">Experiments &amp; Results</a></li>
-<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture &amp; Theory</a></li>
-<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage Guide</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architectural Foundations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="methodology.html">Training Methodology &amp; Dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiments.html">Empirical Evaluation &amp; Neuromorphic Viability</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Experimental Workflows</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Target Environment</a></li>
 </ul>
 
     </div>
@@ -368,7 +368,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Installation</h1>
+    <h1>Target Environment</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -378,9 +378,8 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#d4rl-datasets">D4RL Datasets</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dependencies">Dependencies</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-setup-conda-platform">Recommended Setup (Conda Platform)</a></li>
 </ul>
             </nav>
         </div>
@@ -392,48 +391,29 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="installation">
-<h1>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h1>
-<p>The code is built on PyTorch and requires a CUDA-enabled GPU for efficient training, although CPU execution is supported.</p>
-<section id="prerequisites">
-<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
-<ul class="simple">
-<li><p>OS: Linux (Ubuntu 20.04+) or Windows 10/11 (WSL2 recommended)</p></li>
-<li><p>Python: 3.8+</p></li>
-<li><p>CUDA: 11.8+ (for GPU acceleration)</p></li>
-</ul>
-</section>
-<section id="setup">
-<h2>Setup<a class="headerlink" href="#setup" title="Link to this heading">#</a></h2>
-<ol class="arabic">
-<li><p><strong>Clone the repository</strong>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Vishal-sys-code/neuromorphic_decision_transformer.git
-<span class="nb">cd</span><span class="w"> </span>neuromorphic_decision_transformer
+  <section class="tex2jax_ignore mathjax_ignore" id="target-environment">
+<h1>Target Environment<a class="headerlink" href="#target-environment" title="Link to this heading">#</a></h1>
+<p>We design SNN-DT targeting research-layer reproducibility integrated natively via standard ML toolings (PyTorch).</p>
+<section id="dependencies">
+<h2>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Core Machine Learning Frameworks</span>
+pip<span class="w"> </span>install<span class="w"> </span>torch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio
+
+<span class="c1"># Neuromorphic / Spiking Simulators</span>
+pip<span class="w"> </span>install<span class="w"> </span>norse
+
+<span class="c1"># Environmental Support </span>
+pip<span class="w"> </span>install<span class="w"> </span>gym<span class="w"> </span>mujoco-py
 </pre></div>
 </div>
-</li>
-<li><p><strong>Create an environment</strong>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>snn-dt<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.9
+</section>
+<section id="recommended-setup-conda-platform">
+<h2>Recommended Setup (Conda Platform)<a class="headerlink" href="#recommended-setup-conda-platform" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>snn-dt<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.10
 conda<span class="w"> </span>activate<span class="w"> </span>snn-dt
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
 </pre></div>
 </div>
-</li>
-<li><p><strong>Install dependencies</strong>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
-</pre></div>
-</div>
-</li>
-</ol>
-</section>
-<section id="d4rl-datasets">
-<h2>D4RL Datasets<a class="headerlink" href="#d4rl-datasets" title="Link to this heading">#</a></h2>
-<p>For Mujoco environments, you will need to install the D4RL library and download the datasets.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/Farama-Foundation/d4rl@master#egg<span class="o">=</span>d4rl
-</pre></div>
-</div>
-<blockquote>
-<div><p><strong>Note</strong>: For <code class="docutils literal notranslate"><span class="pre">CartPole</span></code>, <code class="docutils literal notranslate"><span class="pre">MountainCar</span></code>, etc., the scripts will automatically generate expert trajectories if datasets are not found.</p>
-</div></blockquote>
 </section>
 </section>
 
@@ -454,7 +434,7 @@ conda<span class="w"> </span>activate<span class="w"> </span>snn-dt
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Usage Guide</p>
+        <p class="prev-next-title">Experimental Workflows</p>
       </div>
     </a>
 </div>
@@ -473,9 +453,8 @@ conda<span class="w"> </span>activate<span class="w"> </span>snn-dt
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#d4rl-datasets">D4RL Datasets</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dependencies">Dependencies</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-setup-conda-platform">Recommended Setup (Conda Platform)</a></li>
 </ul>
   </nav></div>
 
