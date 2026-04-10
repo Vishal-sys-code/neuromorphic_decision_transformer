@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Architecture &amp; Theory &#8212; Spiking Decision Transformer</title>
+    <title>Architectural Foundations &#8212; Spiking Decision Transformer</title>
   
   
   
@@ -50,8 +50,8 @@
     <script>DOCUMENTATION_OPTIONS.pagename = 'architecture';</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Usage Guide" href="usage.html" />
-    <link rel="prev" title="Experiments &amp; Results" href="experiments.html" />
+    <link rel="next" title="Training Methodology &amp; Dynamics" href="methodology.html" />
+    <link rel="prev" title="Spiking Decision Transformer (SNN-DT)" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -164,11 +164,11 @@
             </li>
         </ul>
         <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="methodology.html">Methodology</a></li>
-<li class="toctree-l1"><a class="reference internal" href="experiments.html">Experiments &amp; Results</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Architecture &amp; Theory</a></li>
-<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Architectural Foundations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="methodology.html">Training Methodology &amp; Dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiments.html">Empirical Evaluation &amp; Neuromorphic Viability</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Experimental Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Target Environment</a></li>
 </ul>
 
     </div>
@@ -371,7 +371,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Architecture & Theory</h1>
+    <h1>Architectural Foundations</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -381,13 +381,9 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-overview">System Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spiking-self-attention-ssa">Spiking Self-Attention (SSA)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lif-neuron-dynamics">LIF Neuron Dynamics</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dendritic-routing-and-sparsity">Dendritic Routing and Sparsity</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#learning-with-plasticity">Learning with Plasticity</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phase-shifted-positional-spiking">1. Phase-Shifted Positional Spiking</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spiking-self-attention-dendritic-routing">2. Spiking Self-Attention &amp; Dendritic Routing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-three-factor-plasticity">3. Local Three-Factor Plasticity</a></li>
 </ul>
             </nav>
         </div>
@@ -399,63 +395,51 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="architecture-theory">
-<h1>Architecture &amp; Theory<a class="headerlink" href="#architecture-theory" title="Link to this heading">#</a></h1>
-<p>The <strong>Spiking Decision Transformer (SNN-DT)</strong> represents a paradigm shift from dense, matrix-multiplication-heavy Transformers to sparse, event-driven Spiking Neural Networks.</p>
-<section id="system-overview">
-<h2>System Overview<a class="headerlink" href="#system-overview" title="Link to this heading">#</a></h2>
-<p>Traditional Decision Transformers (DTs) model trajectories <span class="math notranslate nohighlight">\(\tau\)</span> using causal masking and dense attention. SNN-DT preserves this sequence modeling capability but executes it in the spiking domain.</p>
+  <section class="tex2jax_ignore mathjax_ignore" id="architectural-foundations">
+<h1>Architectural Foundations<a class="headerlink" href="#architectural-foundations" title="Link to this heading">#</a></h1>
+<p>The <strong>Spiking Decision Transformer (SNN-DT)</strong> is a novel integration of biologically-inspired computation with sequence-based offline reinforcement learning. By recasting offline RL as an autoregressive next-token prediction problem, the Decision Transformer (DT) established a powerful paradigm. However, the energy and memory demands of traditional Transformers severely limit edge deployment.</p>
+<p>SNN-DT addresses this fundamental limitation by introducing three foundational neuromorphic innovations into the return-conditioned Transformer pipeline.</p>
 <div class="highlight-mermaid notranslate"><div class="highlight"><pre><span></span>graph TD
-    subgraph &quot;SNN-DT Block&quot;
-    A[Spike Input] --&gt; B[LIF Projection Q/K/V]
-    B --&gt; C[Spiking Self-Attention]
-    C --&gt; D[Dendritic Routing]
-    D --&gt; E[LIF Feed-Forward]
-    E --&gt; F[Output Spikes]
-    end
+    classDef main fill:#1e1e1e,stroke:#4a90e2,stroke-width:2px,color:#fff;
+    classDef module fill:#2d2d2d,stroke:#f5a623,stroke-width:2px,color:#fff;
     
-    subgraph &quot;Plasticity&quot;
-    G[Local 3-Factor Rule] -.-&gt; B
-    G -.-&gt; E
+    subgraph &quot;SNN-DT Pipeline&quot;
+    A[Offline Trajectory Data] --&gt; B[Phase-Shifted Positional Spikes]:::module
+    B --&gt; C[Spiking Self-Attention Blocks]
+    C --&gt; D[Dendritic-Style Routing MLP]:::module
+    D --&gt; E[LIF Feed-Forward Network]
+    E --&gt; F[Action Prediction Head]
+    F --&gt; G[Three-Factor Local Plasticity]:::module
     end
 </pre></div>
 </div>
-</section>
-<section id="spiking-self-attention-ssa">
-<h2>Spiking Self-Attention (SSA)<a class="headerlink" href="#spiking-self-attention-ssa" title="Link to this heading">#</a></h2>
-<p>We replace the dot-product attention with a spike-based operation.</p>
-<ol class="arabic simple">
-<li><p><strong>LIF Projections</strong>: Input spikes are projected via learnable weights into Query (<span class="math notranslate nohighlight">\(Q\)</span>), Key (<span class="math notranslate nohighlight">\(K\)</span>), and Value (<span class="math notranslate nohighlight">\(V\)</span>) spike trains.</p></li>
-<li><p><strong>Attention formulation</strong>:
-Instead of <span class="math notranslate nohighlight">\(softmax(\frac{QK^T}{\sqrt{d}})\)</span>, we use an accumulation of coincidence detections regulated by the firing thresholds of the postsynaptic neurons.</p></li>
-</ol>
-<section id="lif-neuron-dynamics">
-<h3>LIF Neuron Dynamics<a class="headerlink" href="#lif-neuron-dynamics" title="Link to this heading">#</a></h3>
-<p>The membrane potential <span class="math notranslate nohighlight">\(u_t\)</span> evolves according to:</p>
+<section id="phase-shifted-positional-spiking">
+<h2>1. Phase-Shifted Positional Spiking<a class="headerlink" href="#phase-shifted-positional-spiking" title="Link to this heading">#</a></h2>
+<p>In traditional Transformers, temporal order is preserved via floating-point scalar positional embeddings. SNN-DT entirely discards analog coordinate embeddings in favor of <strong>phase-shifted, spike-based encoders</strong>.</p>
+<p>For each of the <span class="math notranslate nohighlight">\(H\)</span> attention heads, the model learns a distinct frequency <span class="math notranslate nohighlight">\(\omega_k\)</span> and a phase offset <span class="math notranslate nohighlight">\(\phi_k\)</span>. At token position timestep <span class="math notranslate nohighlight">\(t\)</span>, head <span class="math notranslate nohighlight">\(k\)</span> emits a binary spike train derived from a sine-threshold generator:</p>
 <div class="math notranslate nohighlight">
-\[ u_t = \beta u_{t-1} + (1-\beta) W x_t - S_{t-1} V_{th} \]</div>
-<p>where:</p>
-<ul class="simple">
-<li><p><span class="math notranslate nohighlight">\(u_t\)</span>: Membrane potential at time <span class="math notranslate nohighlight">\(t\)</span>.</p></li>
-<li><p><span class="math notranslate nohighlight">\(\beta\)</span>: Decay factor (<span class="math notranslate nohighlight">\(e^{-dt/\tau}\)</span>).</p></li>
-<li><p><span class="math notranslate nohighlight">\(S_t\)</span>: Discrete spike output (<span class="math notranslate nohighlight">\(S_t \in \{0, 1\}\)</span>).</p></li>
-</ul>
+\[ s_k(t) = 1 \left[ \sin(\omega_k t + \phi_k) &gt; 0 \right] \in \{0,1\} \]</div>
+<p>This mechanism endows each attention head with a distinct rhythmic code, providing a set of orthogonal temporal basis functions natively in the event domain.</p>
 </section>
-</section>
-<section id="dendritic-routing-and-sparsity">
-<h2>Dendritic Routing and Sparsity<a class="headerlink" href="#dendritic-routing-and-sparsity" title="Link to this heading">#</a></h2>
-<p>To minimize energy, SNN-DT employs specific mechanisms to induce sparsity:</p>
-<ul class="simple">
-<li><p><strong>Phase-Coding</strong>: Encodes values in the timing of spikes, reducing the total number of spikes needed to represent continuous values.</p></li>
-<li><p><strong>Dendritic Routing</strong>: A gating mechanism that dynamically prevents activity propagation to irrelevant heads or tokens, effectively “pruning” the computation graph on-the-fly.</p></li>
-</ul>
-</section>
-<section id="learning-with-plasticity">
-<h2>Learning with Plasticity<a class="headerlink" href="#learning-with-plasticity" title="Link to this heading">#</a></h2>
-<p>We use a surrogate gradient method for end-to-end training, augmented by local plasticity:</p>
+<section id="spiking-self-attention-dendritic-routing">
+<h2>2. Spiking Self-Attention &amp; Dendritic Routing<a class="headerlink" href="#spiking-self-attention-dendritic-routing" title="Link to this heading">#</a></h2>
+<p>SNN-DT maps continuous embeddings into sparse spike rates via Leaky Integrate-and-Fire (LIF) dynamics. To adaptively combine parallel attention head outputs without uniform averaging, we leverage a lightweight <strong>Dendritic-Style Routing MLP</strong>.</p>
+<p>Inspired by biological dendritic arborization, this routing mechanism computes context-dependent gating coefficients <span class="math notranslate nohighlight">\(\alpha^{(h)}_i(t) \in (0,1)\)</span> across all head outputs <span class="math notranslate nohighlight">\(y^{(h)}_i(t)\)</span> at a given timestep.</p>
+<p>The globally routed representation for token <span class="math notranslate nohighlight">\(i\)</span> becomes a sparse, gated sum:</p>
 <div class="math notranslate nohighlight">
-\[ \nabla W_{total} = \nabla W_{BPTT} + \lambda \cdot \Delta W_{STDP} \]</div>
-<p>This hybrid approach stabilizes training and improves generalization to unseen tasks (e.g., changes in gravity or friction in Gym environments).</p>
+\[ \hat{y}_i(t) = \sum_{h=1}^{H} \alpha^{(h)}_i(t) y^{(h)}_i(t) \]</div>
+<p>This token-specific recombination extracts complementary computational properties (e.g., short vs. long-range dependencies) with negligible parameter overhead.</p>
+</section>
+<section id="local-three-factor-plasticity">
+<h2>3. Local Three-Factor Plasticity<a class="headerlink" href="#local-three-factor-plasticity" title="Link to this heading">#</a></h2>
+<p>Replacing dense global gradient signals during online fine-tuning, the SNN-DT employs a biologically-grounded three-factor plasticity rule directly inside the action-head. Credit assignment is securely localized into an eligibility trace bounded by a generic temporal decay rule.</p>
+<p>For pre-synaptic vector <span class="math notranslate nohighlight">\(x_t\)</span> and post-synaptic activity <span class="math notranslate nohighlight">\(y_t\)</span>, the eligibility trace <span class="math notranslate nohighlight">\(E_{ij}(t)\)</span> maintains Hebbian co-activations:</p>
+<div class="math notranslate nohighlight">
+\[ E_{ij}(t) = \lambda E_{ij}(t-1) + x_j(t) y_i(t) \]</div>
+<p>Given a scalar modulatory signal derived from the offline return-to-go <span class="math notranslate nohighlight">\(\delta_t = f(G_t)\)</span>, the localized weight update effectively becomes:</p>
+<div class="math notranslate nohighlight">
+\[ \Delta W_{ij}(t) = \eta_{\text{local}} \cdot \delta_t \cdot E_{ij}(t) \]</div>
+<p>This restricts catastrophic forgetting and reduces computational footprint by avoiding full backpropagation through time across earlier Attention/LIF layers blocks.</p>
 </section>
 </section>
 
@@ -471,20 +455,20 @@ Instead of <span class="math notranslate nohighlight">\(softmax(\frac{QK^T}{\sqr
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="experiments.html"
+       href="index.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Experiments &amp; Results</p>
+        <p class="prev-next-title">Spiking Decision Transformer (SNN-DT)</p>
       </div>
     </a>
     <a class="right-next"
-       href="usage.html"
+       href="methodology.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Usage Guide</p>
+        <p class="prev-next-title">Training Methodology &amp; Dynamics</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -504,13 +488,9 @@ Instead of <span class="math notranslate nohighlight">\(softmax(\frac{QK^T}{\sqr
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-overview">System Overview</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spiking-self-attention-ssa">Spiking Self-Attention (SSA)</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#lif-neuron-dynamics">LIF Neuron Dynamics</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dendritic-routing-and-sparsity">Dendritic Routing and Sparsity</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#learning-with-plasticity">Learning with Plasticity</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#phase-shifted-positional-spiking">1. Phase-Shifted Positional Spiking</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spiking-self-attention-dendritic-routing">2. Spiking Self-Attention &amp; Dendritic Routing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#local-three-factor-plasticity">3. Local Three-Factor Plasticity</a></li>
 </ul>
   </nav></div>
 
