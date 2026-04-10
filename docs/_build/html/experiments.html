@@ -404,6 +404,8 @@ document.write(`
 <section id="downstream-validation-accuracy">
 <h2>Downstream Validation Accuracy<a class="headerlink" href="#downstream-validation-accuracy" title="Link to this heading">#</a></h2>
 <p>We isolate the impact of Phase-Shifted Positional Spiking (Pos-Only) and Dendritic-Style Routing MLP (Route-Only) against a unified configuration (Full) and the base non-augmented LIF formulation (Baseline).</p>
+<p><img alt="Offline Loss Validation Curves" src="_images/offline_loss_curves.png" /></p>
+<p><em>Figure 1: Ablation validation loss trajectories. The Full model natively achieves the fastest convergence towards the error floor by exploiting highly diverse temporal encoding and responsive gating.</em></p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head text-left"><p>Environment</p></th>
@@ -441,6 +443,8 @@ document.write(`
 </tbody>
 </table>
 </div>
+<p><img alt="RL Performance plot" src="_images/rl_performance_plot.png" /></p>
+<p><em>Figure 2: Performance distributions evaluated over the target environments tracking downstream RL validation. The density directly reflects tighter policy resilience in continuous evaluations.</em></p>
 <blockquote>
 <div><p><strong>Note:</strong> SNN-DT matches the expressivity capabilities of state-of-the-art dense Decision Transformers while stabilizing sequence variance observed physically out-of-distribution across seeds.</p>
 </div></blockquote>
@@ -448,6 +452,8 @@ document.write(`
 <section id="energy-profiling-cpu-overhead">
 <h2>Energy Profiling &amp; CPU Overhead<a class="headerlink" href="#energy-profiling-cpu-overhead" title="Link to this heading">#</a></h2>
 <p>On advanced neuromorphic substrates like Intel Loihi or IBM TrueNorth, algorithmic energy scales linearly with spike activity emissions. We compute absolute spike counts during test batches as an energy proxy.</p>
+<p><img alt="Spike Emission Distribution" src="_images/spike_histogram.png" /></p>
+<p><em>Figure 3: Histograms of localized sparse spike activity. SNN-DT networks suppress superfluous event spikes effectively limiting output variance beneath the 10-spike barrier compared to unrestricted formulations.</em></p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head text-left"><p>Ablation Mode</p></th>
