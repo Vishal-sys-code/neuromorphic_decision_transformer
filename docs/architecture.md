@@ -1,57 +1,56 @@
-# Architecture & Theory
+# Architectural Foundations
 
-The **Spiking Decision Transformer (SNN-DT)** represents a paradigm shift from dense, matrix-multiplication-heavy Transformers to sparse, event-driven Spiking Neural Networks.
+The **Spiking Decision Transformer (SNN-DT)** is a novel integration of biologically-inspired computation with sequence-based offline reinforcement learning. By recasting offline RL as an autoregressive next-token prediction problem, the Decision Transformer (DT) established a powerful paradigm. However, the energy and memory demands of traditional Transformers severely limit edge deployment.
 
-## System Overview
-
-Traditional Decision Transformers (DTs) model trajectories $\tau$ using causal masking and dense attention. SNN-DT preserves this sequence modeling capability but executes it in the spiking domain.
+SNN-DT addresses this fundamental limitation by introducing three foundational neuromorphic innovations into the return-conditioned Transformer pipeline.
 
 ```mermaid
 graph TD
-    subgraph "SNN-DT Block"
-    A[Spike Input] --> B[LIF Projection Q/K/V]
-    B --> C[Spiking Self-Attention]
-    C --> D[Dendritic Routing]
-    D --> E[LIF Feed-Forward]
-    E --> F[Output Spikes]
-    end
+    classDef main fill:#1e1e1e,stroke:#4a90e2,stroke-width:2px,color:#fff;
+    classDef module fill:#2d2d2d,stroke:#f5a623,stroke-width:2px,color:#fff;
     
-    subgraph "Plasticity"
-    G[Local 3-Factor Rule] -.-> B
-    G -.-> E
+    subgraph "SNN-DT Pipeline"
+    A[Offline Trajectory Data] --> B[Phase-Shifted Positional Spikes]:::module
+    B --> C[Spiking Self-Attention Blocks]
+    C --> D[Dendritic-Style Routing MLP]:::module
+    D --> E[LIF Feed-Forward Network]
+    E --> F[Action Prediction Head]
+    F --> G[Three-Factor Local Plasticity]:::module
     end
 ```
 
-## Spiking Self-Attention (SSA)
+## 1. Phase-Shifted Positional Spiking
 
-We replace the dot-product attention with a spike-based operation.
+In traditional Transformers, temporal order is preserved via floating-point scalar positional embeddings. SNN-DT entirely discards analog coordinate embeddings in favor of **phase-shifted, spike-based encoders**.
 
-1.  **LIF Projections**: Input spikes are projected via learnable weights into Query ($Q$), Key ($K$), and Value ($V$) spike trains.
-2.  **Attention formulation**:
-    Instead of $softmax(\frac{QK^T}{\sqrt{d}})$, we use an accumulation of coincidence detections regulated by the firing thresholds of the postsynaptic neurons.
+For each of the $H$ attention heads, the model learns a distinct frequency $\omega_k$ and a phase offset $\phi_k$. At token position timestep $t$, head $k$ emits a binary spike train derived from a sine-threshold generator:
 
-### LIF Neuron Dynamics
+$$ s_k(t) = 1 \left[ \sin(\omega_k t + \phi_k) > 0 \right] \in \{0,1\} $$
 
-The membrane potential $u_t$ evolves according to:
+This mechanism endows each attention head with a distinct rhythmic code, providing a set of orthogonal temporal basis functions natively in the event domain.
 
-$$ u_t = \beta u_{t-1} + (1-\beta) W x_t - S_{t-1} V_{th} $$
+## 2. Spiking Self-Attention & Dendritic Routing
 
-where:
-*   $u_t$: Membrane potential at time $t$.
-*   $\beta$: Decay factor ($e^{-dt/\tau}$).
-*   $S_t$: Discrete spike output ($S_t \in \{0, 1\}$).
+SNN-DT maps continuous embeddings into sparse spike rates via Leaky Integrate-and-Fire (LIF) dynamics. To adaptively combine parallel attention head outputs without uniform averaging, we leverage a lightweight **Dendritic-Style Routing MLP**.
 
-## Dendritic Routing and Sparsity
+Inspired by biological dendritic arborization, this routing mechanism computes context-dependent gating coefficients $\alpha^{(h)}_i(t) \in (0,1)$ across all head outputs $y^{(h)}_i(t)$ at a given timestep. 
 
-To minimize energy, SNN-DT employs specific mechanisms to induce sparsity:
+The globally routed representation for token $i$ becomes a sparse, gated sum:
 
-*   **Phase-Coding**: Encodes values in the timing of spikes, reducing the total number of spikes needed to represent continuous values.
-*   **Dendritic Routing**: A gating mechanism that dynamically prevents activity propagation to irrelevant heads or tokens, effectively "pruning" the computation graph on-the-fly.
+$$ \hat{y}_i(t) = \sum_{h=1}^{H} \alpha^{(h)}_i(t) y^{(h)}_i(t) $$
 
-## Learning with Plasticity
+This token-specific recombination extracts complementary computational properties (e.g., short vs. long-range dependencies) with negligible parameter overhead.
 
-We use a surrogate gradient method for end-to-end training, augmented by local plasticity:
+## 3. Local Three-Factor Plasticity
 
-$$ \nabla W_{total} = \nabla W_{BPTT} + \lambda \cdot \Delta W_{STDP} $$
+Replacing dense global gradient signals during online fine-tuning, the SNN-DT employs a biologically-grounded three-factor plasticity rule directly inside the action-head. Credit assignment is securely localized into an eligibility trace bounded by a generic temporal decay rule.
 
-This hybrid approach stabilizes training and improves generalization to unseen tasks (e.g., changes in gravity or friction in Gym environments).
+For pre-synaptic vector $x_t$ and post-synaptic activity $y_t$, the eligibility trace $E_{ij}(t)$ maintains Hebbian co-activations:
+
+$$ E_{ij}(t) = \lambda E_{ij}(t-1) + x_j(t) y_i(t) $$
+
+Given a scalar modulatory signal derived from the offline return-to-go $\delta_t = f(G_t)$, the localized weight update effectively becomes:
+
+$$ \Delta W_{ij}(t) = \eta_{\text{local}} \cdot \delta_t \cdot E_{ij}(t) $$
+
+This restricts catastrophic forgetting and reduces computational footprint by avoiding full backpropagation through time across earlier Attention/LIF layers blocks.
