@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Usage Guide &#8212; Spiking Decision Transformer</title>
+    <title>Experimental Workflows &#8212; Spiking Decision Transformer</title>
   
   
   
@@ -45,13 +45,11 @@
     <script src="_static/copybutton.js?v=f281be69"></script>
     <script src="_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
     <script src="_static/design-tabs.js?v=f930bc37"></script>
-    <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'usage';</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Installation" href="installation.html" />
-    <link rel="prev" title="Architecture &amp; Theory" href="architecture.html" />
+    <link rel="next" title="Target Environment" href="installation.html" />
+    <link rel="prev" title="Empirical Evaluation &amp; Neuromorphic Viability" href="experiments.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -164,11 +162,11 @@
             </li>
         </ul>
         <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="methodology.html">Methodology</a></li>
-<li class="toctree-l1"><a class="reference internal" href="experiments.html">Experiments &amp; Results</a></li>
-<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture &amp; Theory</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Usage Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architectural Foundations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="methodology.html">Training Methodology &amp; Dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiments.html">Empirical Evaluation &amp; Neuromorphic Viability</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Experimental Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Target Environment</a></li>
 </ul>
 
     </div>
@@ -371,7 +369,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Usage Guide</h1>
+    <h1>Experimental Workflows</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -381,13 +379,9 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training">Training</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#single-experiment">Single Experiment</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-reproduction">Batch Reproduction</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluation-metrics">Evaluation &amp; Metrics</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#comparison-baselines">Comparison Baselines</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#offline-dataset-instantiation">1. Offline Dataset Instantiation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#model-initialization">2. Model Initialization</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training-paradigm">3. Training Paradigm</a></li>
 </ul>
             </nav>
         </div>
@@ -399,73 +393,52 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section class="tex2jax_ignore mathjax_ignore" id="usage-guide">
-<h1>Usage Guide<a class="headerlink" href="#usage-guide" title="Link to this heading">#</a></h1>
-<p>This framework is designed to facilitate research into spiking decision transformers. It supports training, evaluation, and ablation studies across standard OpenAI Gym control tasks.</p>
-<section id="training">
-<h2>Training<a class="headerlink" href="#training" title="Link to this heading">#</a></h2>
-<p>To train the SNN-DT model, use the <code class="docutils literal notranslate"><span class="pre">train.py</span></code> script. The pipeline handles data generation, offline trajectory preprocessing, and surrogate gradient training.</p>
-<section id="single-experiment">
-<h3>Single Experiment<a class="headerlink" href="#single-experiment" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>snn-dt/scripts/train.py<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--model<span class="w"> </span>snn_dt<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--env<span class="w"> </span><span class="s2">&quot;Pendulum-v1&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--save-dir<span class="w"> </span><span class="s2">&quot;results/snn_dt_pendulum&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--max_iters<span class="w"> </span><span class="m">10000</span>
-</pre></div>
-</div>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head text-left"><p>Argument</p></th>
-<th class="head text-left"><p>Description</p></th>
-<th class="head text-left"><p>Default</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">--model</span></code></p></td>
-<td class="text-left"><p>architecture variant (<code class="docutils literal notranslate"><span class="pre">snn_dt</span></code> or <code class="docutils literal notranslate"><span class="pre">dt</span></code>)</p></td>
-<td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">snn_dt</span></code></p></td>
-</tr>
-<tr class="row-odd"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">--env</span></code></p></td>
-<td class="text-left"><p>Gym environment ID</p></td>
-<td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">Hopper-v3</span></code></p></td>
-</tr>
-<tr class="row-even"><td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">--context_len</span></code></p></td>
-<td class="text-left"><p>Sequence length <span class="math notranslate nohighlight">\(K\)</span></p></td>
-<td class="text-left"><p><code class="docutils literal notranslate"><span class="pre">20</span></code></p></td>
-</tr>
-</tbody>
-</table>
-</div>
-</section>
-<section id="batch-reproduction">
-<h3>Batch Reproduction<a class="headerlink" href="#batch-reproduction" title="Link to this heading">#</a></h3>
-<p>To reproduce the paper’s results across all environments:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./run_all_experiments.sh
+  <section class="tex2jax_ignore mathjax_ignore" id="experimental-workflows">
+<h1>Experimental Workflows<a class="headerlink" href="#experimental-workflows" title="Link to this heading">#</a></h1>
+<p>The framework partitions naturally into offline preprocessing, gradient-optimized spiking transformer training, and neuromorphic deployment environments.</p>
+<section id="offline-dataset-instantiation">
+<h2>1. Offline Dataset Instantiation<a class="headerlink" href="#offline-dataset-instantiation" title="Link to this heading">#</a></h2>
+<p>Before initializing SNN-DT surrogate algorithms, offline trajectories require sequencing structurally padded with corresponding reward-to-go scalars.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">snn_dt.data</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_mixed_trajectory_loader</span>
+
+<span class="c1"># Pre-compile the structured Return/State/Action inputs (50% Expert / 50% Random)</span>
+<span class="n">train_loader</span> <span class="o">=</span> <span class="n">get_mixed_trajectory_loader</span><span class="p">(</span>
+    <span class="n">env_name</span><span class="o">=</span><span class="s2">&quot;Acrobot-v1&quot;</span><span class="p">,</span>
+    <span class="n">num_steps</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> 
+    <span class="n">seq_length</span><span class="o">=</span><span class="mi">20</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 </section>
-</section>
-<section id="evaluation-metrics">
-<h2>Evaluation &amp; Metrics<a class="headerlink" href="#evaluation-metrics" title="Link to this heading">#</a></h2>
-<p>We provide tools to evaluate checkpoints for both reward performance and energy metrics (spike counts).</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>snn-dt/scripts/eval_snn_dt.py<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--env<span class="w"> </span><span class="s2">&quot;Pendulum-v1&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--checkpoint_path<span class="w"> </span><span class="s2">&quot;results/snn_dt_pendulum/best_model.pt&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--target_return<span class="w"> </span>-200
+<section id="model-initialization">
+<h2>2. Model Initialization<a class="headerlink" href="#model-initialization" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">snn_dt.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpikingDecisionTransformer</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">SpikingDecisionTransformer</span><span class="p">(</span>
+    <span class="n">env_dim</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> 
+    <span class="n">action_dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> 
+    <span class="n">d_model</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> 
+    <span class="n">n_heads</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+    <span class="n">n_layers</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> 
+    <span class="n">lif_tau</span><span class="o">=</span><span class="mf">20.0</span>
+<span class="p">)</span>
 </pre></div>
 </div>
-<p>The script reports:</p>
-<ul class="simple">
-<li><p><strong>Normalized Return</strong>: Performance relative to expert.</p></li>
-<li><p><strong>Spike Rate</strong>: Average spikes per time step.</p></li>
-<li><p><strong>Energy Estimate</strong>: Total energy consumption based on AC/MAC counts.</p></li>
-</ul>
 </section>
-<section id="comparison-baselines">
-<h2>Comparison Baselines<a class="headerlink" href="#comparison-baselines" title="Link to this heading">#</a></h2>
-<p>To run the vanilla Decision Transformer (ANN) baseline:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>snn-dt/scripts/train.py<span class="w"> </span>--model<span class="w"> </span>dt<span class="w"> </span>--env<span class="w"> </span><span class="s2">&quot;CartPole-v1&quot;</span>
+<section id="training-paradigm">
+<h2>3. Training Paradigm<a class="headerlink" href="#training-paradigm" title="Link to this heading">#</a></h2>
+<p>During optimization, the localized Three-Factor eligibility updates happen simultaneously while Surrogate Gradients optimize dense representations.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">snn_dt.trainer</span><span class="w"> </span><span class="kn">import</span> <span class="n">train_offline_snn_dt</span>
+
+<span class="c1"># Launches hybrid backpropagation with localized trace tracking.</span>
+<span class="n">train_offline_snn_dt</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">,</span> 
+    <span class="n">train_loader</span><span class="p">,</span> 
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> 
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> 
+    <span class="n">lr</span><span class="o">=</span><span class="mf">3e-4</span><span class="p">,</span> 
+    <span class="n">eta_local</span><span class="o">=</span><span class="mf">0.05</span>
+<span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -483,12 +456,12 @@ document.write(`
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="architecture.html"
+       href="experiments.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Architecture &amp; Theory</p>
+        <p class="prev-next-title">Empirical Evaluation &amp; Neuromorphic Viability</p>
       </div>
     </a>
     <a class="right-next"
@@ -496,7 +469,7 @@ document.write(`
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Installation</p>
+        <p class="prev-next-title">Target Environment</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -516,13 +489,9 @@ document.write(`
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training">Training</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#single-experiment">Single Experiment</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-reproduction">Batch Reproduction</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluation-metrics">Evaluation &amp; Metrics</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#comparison-baselines">Comparison Baselines</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#offline-dataset-instantiation">1. Offline Dataset Instantiation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#model-initialization">2. Model Initialization</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training-paradigm">3. Training Paradigm</a></li>
 </ul>
   </nav></div>
 
