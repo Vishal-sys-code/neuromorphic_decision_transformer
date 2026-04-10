@@ -1,102 +1,91 @@
 <div align="center">
 
-# Neuromorphic Decision Transformer (SNN-DT)
+# 🧠 Neuromorphic Decision Transformer (SNN-DT)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-1.12+-ee4c2c.svg)](https://pytorch.org/)
 [![arXiv](https://img.shields.io/badge/arXiv-2508.21505-b31b1b.svg)](https://arxiv.org/abs/2508.21505)
-
+[![Documentation](https://img.shields.io/badge/docs-Vercel%20Deployed-black?style=flat-square&logo=vercel)](https://vishal-sys-code.github.io/neuromorphic_decision_transformer/)
 
 **Local Plasticity, Phase-Coding, and Dendritic Routing for Low-Power Sequence Control**
-
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://vishal-sys-code.github.io/neuromorphic_decision_transformer/)
-
 </div>
 
-## Abstract
+---
 
-This repository contains the official PyTorch implementation of the **Spiking Decision Transformer (SNN-DT)**, as presented in the paper *"Spiking Decision Transformers: Local Plasticity, Phase-Coding, and Dendritic Routing for Low-Power Sequence Control"* (Pandey & Biswas, 2025).
+## 🌟 Overview
 
-The SNN-DT architecture bridges the gap between the sequential modeling capabilities of Transformers and the energy efficiency of Spiking Neural Networks (SNNs). By embedding **Leaky Integrate-and-Fire (LIF)** neurons within the self-attention mechanism and utilizing accurate **STDP-inspired local plasticity**, this model achieves state-of-the-art performance on continuous control tasks while reducing energy consumption by orders of magnitude compared to traditional ANN-based Decision Transformers.
+This repository contains the official PyTorch implementation of the **Spiking Decision Transformer (SNN-DT)**, as presented in our flagship research paper:
+> *"Spiking Decision Transformers: Local Plasticity, Phase-Coding, and Dendritic Routing for Low-Power Sequence Control"* (Pandey & Biswas, 2025).
+
+The SNN-DT architecture bridges the gap between the sequential modeling capabilities of dense Transformers and the extreme energy efficiency of Spiking Neural Networks (SNNs). By embedding **Leaky Integrate-and-Fire (LIF)** neurons within the block components, we secure state-of-the-art performance on continuous control tasks while reducing energy consumption by over four orders of magnitude ($\approx 40$ nJ).
 
 <div align="center">
-  <img src="model_architecture.png" alt="SNN-DT Architecture" width="800">
+  <img src="model_architecture.png" alt="SNN-DT Architecture" width="850">
 </div>
-*(Note: Visualizations available in the `visualizations/` directory)*
 
-## Key Features
+---
 
--   **Neuromorphic Efficiency**: Replaces standard activation functions with temporal spike-based logic, significantly reducing computational overhead suitable for edge deployment.
--   **Phase-Coded Positional Encoding**: A biologically plausible method for encoding sequence order using spike timing phases.
--   **Dendritic Routing**: Efficient information routing mechanism mimicking biological dendritic trees.
--   **Three-Factor Local Plasticity**: Implements STDP-like learning rules for robust weight updates without heavy backpropagation costs during inference-time adaptation.
--   **Standard Gym Benchmarks**: Evaluated on classic control tasks: `CartPole-v1`, `Pendulum-v1`, `MountainCar-v0`, and `Acrobot-v1`.
+## ✨ Core Neuromorphic Innovations
 
-## Installation
+- 🕒 **Phase-Coded Positional Encoding:** Replaces generic float embeddings with rhythmic, spike phase-shifted encodings.
+- 🌳 **Dendritic-Style Routing MLP:** Context-dependent gating coefficients dynamically prune attention heads without uniform averaging.
+- 🧬 **Three-Factor Local Plasticity:** Elegantly implements STDP-like localized credit assignment rules, circumventing catastrophic unrolling.
 
-System requirements: Linux/Windows, Python 3.8+, CUDA-enabled GPU (recommended).
+<div align="center">
+  <img src="visualizations/routing_coefficients_heatmap.png" alt="Routing Heatmap" width="600">
+  <p><em>Dynamic Dendritic Gating Coefficients</em></p>
+</div>
+
+---
+
+## 🚀 Quickstart & Installation
+
+**System Requirements:** Linux/Windows, Python 3.8+, CUDA-enabled GPU (Recommended).
 
 ```bash
 # Clone the repository
 git clone https://github.com/Vishal-sys-code/neuromorphic_decision_transformer.git
 cd neuromorphic_decision_transformer
 
-# Create a virtual environment (optional but recommended)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
+# Install core dependencies natively
 pip install -r requirements.txt
 ```
 
-## Usage
+> [!TIP]
+> For deploying the documentation locally via Sphinx, execute `make html` inside the `/docs` directory!
 
-### Training
-To train the SNN-DT model on a specific environment (e.g., `Pendulum-v1`), use the provided training script. The training pipeline handles data generation, preprocessing, and model optimization.
+---
+
+## 💻 Experimental Workflows
+
+### 1. Training the Architecture
+Run the SNN-DT training pipeline, handling automated data orchestration and surrogate gradient optimization.
 
 ```bash
-# Run training for Pendulum-v1
 python snn-dt/scripts/train.py --model snn_dt --env "Pendulum-v1" --save-dir "results/snn_dt_pendulum"
 ```
-
-To run the full suite of experiments across all environments:
+Or execute the entire benchmarking suite across **CartPole-v1**, **MountainCar-v0**, and **Acrobot-v1**:
 ```bash
 ./run_all_experiments.sh
 ```
 
-### Evaluation
-Evaluate a pre-trained checkpoint to measure return, spike counts, latency, and estimated energy consumption.
-
+### 2. Neuromorphic Evaluation & Profiling
+Evaluate checkpoint inference trajectories and monitor strict event-driven metrics (absolute spike outputs).
 ```bash
 python eval_snn_dt.py \
     --env "Pendulum-v1" \
     --checkpoint_path "results/snn_dt_pendulum/best_model.pt" \
-    --target_return -200 \
-    --episodes 50
+    --target_return -200
 ```
+> [!NOTE]
+> The runtime reports normalized return against the expert policy baseline alongside the average hardware energy proxies (Spikes / timestep).
 
-**Key Arguments:**
--   `--context_len`: Context length ($K$) for the transformer (default: 20).
--   `--per_spike_energy`: Estimated energy per spike in Joules (default: 4.6pJ for 45nm process).
+---
 
-## Project Structure
+## 📖 Citation
 
-```
-neuromorphic_decision_transformer/
-├── configs/            # YAML configuration files for experiments
-├── snn-dt/             # Core SNN-DT source code
-│   ├── src/            # Model definitions and extensive util libraries
-│   └── scripts/        # Training and utility scripts
-├── demos/              # Demonstration notebooks and videos
-├── eval_snn_dt.py      # Standalone evaluation script
-├── requirements.txt    # Python dependencies
-└── run_all_experiments.sh # Batch experiment runner
-```
-
-## Citation
-
-If you use this code or find our work helpful, please cite our paper:
+If you build upon this architecture or framework, please consider citing our underlying research:
 
 ```bibtex
 @article{pandey2025spiking,
@@ -107,6 +96,6 @@ If you use this code or find our work helpful, please cite our paper:
 }
 ```
 
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+<div align="center">
+  <i>Maintained with ❤️ by the SNN-DT Research Team. Licensed under <a href="LICENSE">MIT</a>.</i>
+</div>
