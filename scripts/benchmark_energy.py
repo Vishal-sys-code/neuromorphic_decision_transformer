@@ -7,6 +7,11 @@ import numpy as np
 import torch
 from pathlib import Path
 from tqdm import tqdm
+import gym
+try:
+    import d4rl
+except ImportError:
+    print("Warning: d4rl not found. MuJoCo environments won't be registered.")
 
 # Setup paths
 repo_root = Path(__file__).resolve().parent.parent
