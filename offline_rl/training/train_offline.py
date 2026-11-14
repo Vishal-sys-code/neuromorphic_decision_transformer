@@ -111,7 +111,14 @@ def load_config(config_path: str) -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
-def train_offline(config_path: str, data_path: Optional[str] = None, output_dir: str = "checkpoints/offline_rl"):
+def train_offline(
+    config_path: str,
+    data_path: Optional[str] = None,
+    output_dir: str = "checkpoints/offline_rl",
+    override_iters: Optional[int] = None,
+    override_steps: Optional[int] = None,
+    do_eval: bool = False,
+):
     config = load_config(config_path)
     os.makedirs(output_dir, exist_ok=True)
 
@@ -120,11 +127,13 @@ def train_offline(config_path: str, data_path: Optional[str] = None, output_dir:
 
     # Load or generate trajectories
     loader = D4RLLoader(gamma=config.get("gamma", 1.0))
-    if data_path and os.path.exists(data_path):
-        print(f"[OfflineRL] Loading trajectories from {data_path}")
-        trajectories = loader.load_from_hdf5(data_path)
+    resolved_data_path = data_path or loader.resolve_or_download_dataset(config.get("env_name", ""))
+
+    if resolved_data_path and os.path.exists(resolved_data_path):
+        print(f"[OfflineRL] Loading trajectories from {resolved_data_path}")
+        trajectories = loader.load_from_hdf5(resolved_data_path)
     else:
-        print("[OfflineRL] No local dataset path provided or file not found. Generating synthetic dataset for initialization.")
+        print("[OfflineRL] No local HDF5 dataset found. Generating synthetic dataset for initialization.")
         trajectories = loader.create_synthetic_dataset(
             num_trajectories=50,
             traj_len=100,
@@ -176,8 +185,16 @@ def train_offline(config_path: str, data_path: Optional[str] = None, output_dir:
         grad_norm_clip=config["training"].get("grad_norm_clip", 0.25),
     )
 
-    max_iters = config["training"].get("max_iters", 5)
-    steps_per_iter = config["training"].get("num_steps_per_iter", 100)
+    # Allow CLI overrides
+    if override_iters is not None:
+        max_iters = override_iters
+    else:
+        max_iters = config["training"].get("max_iters", 5)
+
+    if override_steps is not None:
+        steps_per_iter = override_steps
+    else:
+        steps_per_iter = config["training"].get("num_steps_per_iter", 100)
 
     for iteration in range(1, max_iters + 1):
         t0 = time.time()
@@ -200,14 +217,74 @@ def train_offline(config_path: str, data_path: Optional[str] = None, output_dir:
         ckpt_path,
     )
     print(f"[OfflineRL] Saved checkpoint to {ckpt_path}")
-    return model, dataset
+
+    eval_results = None
+    if do_eval:
+        from offline_rl.evaluation.evaluate_mujoco import evaluate_mujoco
+        print(f"[OfflineRL] Running evaluation on {config.get('gym_env', 'Hopper-v4')}...")
+        eval_cfg = config.get("evaluation", {})
+        eval_results = evaluate_mujoco(
+            env_name=config.get("gym_env", "Hopper-v4"),
+            model=model,
+            state_mean=dataset.state_mean,
+            state_std=dataset.state_std,
+            num_episodes=eval_cfg.get("num_episodes", 10),
+            target_return=eval_cfg.get("target_return", config.get("target_return", 3600.0)),
+            scale=config.get("scale", 1000.0),
+            max_ep_len=config.get("max_ep_len", 1000),
+            device=device,
+            d4rl_env_name=config.get("env_name"),
+        )
+        for k, v in eval_results.items():
+            print(f"  {k}: {v:.2f}")
+
+    return model, dataset, eval_results
+
+
+ENV_CONFIG_MAP = {
+    "hopper-medium": "offline_rl/configs/hopper_medium.yaml",
+    "hopper-medium-v2": "offline_rl/configs/hopper_medium.yaml",
+    "hopper-medium-replay": "offline_rl/configs/hopper_medium_replay.yaml",
+    "hopper-medium-replay-v2": "offline_rl/configs/hopper_medium_replay.yaml",
+    "hopper-medium-expert": "offline_rl/configs/hopper_medium_expert.yaml",
+    "hopper-medium-expert-v2": "offline_rl/configs/hopper_medium_expert.yaml",
+    "halfcheetah-medium": "offline_rl/configs/halfcheetah_medium.yaml",
+    "halfcheetah-medium-v2": "offline_rl/configs/halfcheetah_medium.yaml",
+    "halfcheetah-medium-expert": "offline_rl/configs/halfcheetah_medium_expert.yaml",
+    "halfcheetah-medium-expert-v2": "offline_rl/configs/halfcheetah_medium_expert.yaml",
+    "walker2d-medium": "offline_rl/configs/walker2d_medium.yaml",
+    "walker2d-medium-v2": "offline_rl/configs/walker2d_medium.yaml",
+    "walker2d-medium-expert": "offline_rl/configs/walker2d_medium_expert.yaml",
+    "walker2d-medium-expert-v2": "offline_rl/configs/walker2d_medium_expert.yaml",
+    "ant-medium": "offline_rl/configs/ant_medium.yaml",
+    "ant-medium-v2": "offline_rl/configs/ant_medium.yaml",
+}
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train SNN-DT on MuJoCo offline data")
-    parser.add_argument("--config", type=str, default="offline_rl/configs/hopper_medium.yaml")
-    parser.add_argument("--data", type=str, default=None)
+    parser.add_argument("--config", type=str, default=None, help="Path to YAML config file")
+    parser.add_argument("--env", type=str, default="hopper-medium-v2", help="Environment shorthand name")
+    parser.add_argument("--data", type=str, default=None, help="Path to HDF5 dataset file")
     parser.add_argument("--output_dir", type=str, default="checkpoints/offline_rl")
+    parser.add_argument("--max_iters", type=int, default=None, help="Override number of training iterations")
+    parser.add_argument("--steps_per_iter", type=int, default=None, help="Override steps per iteration")
+    parser.add_argument("--eval", action="store_true", help="Run evaluation after training")
     args = parser.parse_args()
 
-    train_offline(args.config, args.data, args.output_dir)
+    config_path = args.config
+    if config_path is None:
+        env_key = args.env.lower().replace("_", "-")
+        if env_key in ENV_CONFIG_MAP:
+            config_path = ENV_CONFIG_MAP[env_key]
+        else:
+            config_path = f"offline_rl/configs/{args.env}.yaml"
+
+    train_offline(
+        config_path=config_path,
+        data_path=args.data,
+        output_dir=args.output_dir,
+        override_iters=args.max_iters,
+        override_steps=args.steps_per_iter,
+        do_eval=args.eval,
+    )

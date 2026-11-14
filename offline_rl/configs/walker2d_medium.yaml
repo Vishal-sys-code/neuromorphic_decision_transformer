@@ -1,0 +1,35 @@
+# Offline RL Configuration: Walker2d Medium with SNN-DT
+# Research Benchmark Configuration (Continuous Control MuJoCo)
+
+env_name: "walker2d-medium-v2"
+gym_env: "Walker2d-v4"
+state_dim: 17
+act_dim: 6
+max_ep_len: 1000
+context_len: 20
+target_return: 4000.0
+scale: 1000.0
+gamma: 1.0
+
+model:
+  embed_dim: 128
+  n_layer: 3
+  n_head: 4
+  snn_timesteps: 4
+  tau: 20.0
+  v_th: 0.5
+  dropout: 0.1
+  action_tanh: true
+
+training:
+  batch_size: 64
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-4
+  warmup_steps: 1000
+  grad_norm_clip: 0.25
+  max_iters: 10
+  num_steps_per_iter: 1000
+
+evaluation:
+  num_episodes: 10
+  target_return: 4000.0
