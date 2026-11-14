@@ -7,11 +7,23 @@ and compute state normalization parameters.
 """
 
 import os
+import urllib.request
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 import h5py
 import numpy as np
+
+D4RL_URL_MAP = {
+    "hopper-medium-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/hopper_medium-v2.hdf5",
+    "hopper-medium-replay-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/hopper_medium_replay-v2.hdf5",
+    "hopper-medium-expert-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/hopper_medium_expert-v2.hdf5",
+    "halfcheetah-medium-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/halfcheetah_medium-v2.hdf5",
+    "halfcheetah-medium-expert-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/halfcheetah_medium_expert-v2.hdf5",
+    "walker2d-medium-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/walker2d_medium-v2.hdf5",
+    "walker2d-medium-expert-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/walker2d_medium_expert-v2.hdf5",
+    "ant-medium-v2": "http://rail.eecs.berkeley.edu/datasets/offline_rl/gym_mujoco_v2/ant_medium-v2.hdf5",
+}
 
 
 @dataclass
@@ -73,6 +85,67 @@ class D4RLLoader:
                 )
             )
         return trajectories
+
+    @staticmethod
+    def resolve_or_download_dataset(
+        env_name: str,
+        data_dir: str = "data/d4rl_raw",
+        auto_download: bool = True,
+    ) -> Optional[str]:
+        """
+        Locate existing HDF5 dataset file or download it from D4RL repository.
+        Returns the resolved file path or None if not available.
+        """
+        env_key = env_name.lower().replace("_", "-")
+        # Generate candidate filenames
+        candidates = [
+            f"{env_key}.hdf5",
+            f"{env_key.replace('-', '_')}.hdf5",
+            # Common D4RL convention: hopper_medium-v2.hdf5
+            f"{env_key.split('-')[0]}_{'_'.join(env_key.split('-')[1:])}.hdf5" if '-' in env_key else f"{env_key}.hdf5",
+        ]
+        # Specific overrides for standard v2 filenames
+        if env_key == "hopper-medium-v2":
+            candidates.insert(0, "hopper_medium-v2.hdf5")
+        elif env_key == "hopper-medium-replay-v2":
+            candidates.insert(0, "hopper_medium_replay-v2.hdf5")
+        elif env_key == "hopper-medium-expert-v2":
+            candidates.insert(0, "hopper_medium_expert-v2.hdf5")
+        elif env_key == "halfcheetah-medium-v2":
+            candidates.insert(0, "halfcheetah_medium-v2.hdf5")
+        elif env_key == "halfcheetah-medium-expert-v2":
+            candidates.insert(0, "halfcheetah_medium_expert-v2.hdf5")
+        elif env_key == "walker2d-medium-v2":
+            candidates.insert(0, "walker2d_medium-v2.hdf5")
+        elif env_key == "walker2d-medium-expert-v2":
+            candidates.insert(0, "walker2d_medium_expert-v2.hdf5")
+        elif env_key == "ant-medium-v2":
+            candidates.insert(0, "ant_medium-v2.hdf5")
+
+        search_dirs = [data_dir, "data/d4rl", "data"]
+        for d in search_dirs:
+            if not os.path.exists(d):
+                continue
+            for cand in candidates:
+                p = os.path.join(d, cand)
+                if os.path.exists(p) and os.path.getsize(p) > 0:
+                    return p
+
+        # Attempt download if URL is recognized
+        if auto_download and env_key in D4RL_URL_MAP:
+            url = D4RL_URL_MAP[env_key]
+            out_filename = url.split("/")[-1]
+            out_path = os.path.join(data_dir, out_filename)
+            os.makedirs(data_dir, exist_ok=True)
+            print(f"[D4RLLoader] Downloading {env_key} from {url} to {out_path}...")
+            try:
+                urllib.request.urlretrieve(url, out_path)
+                if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+                    return out_path
+            except Exception as e:
+                print(f"[D4RLLoader] Download failed ({e}). Falling back to synthetic dataset.")
+
+        return None
 
     def load_from_hdf5(self, file_path: str) -> List[Trajectory]:
         """

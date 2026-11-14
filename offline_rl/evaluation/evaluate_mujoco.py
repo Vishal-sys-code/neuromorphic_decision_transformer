@@ -17,10 +17,13 @@ from offline_rl.models.snn_dt_mujoco import ContinuousSnnDecisionTransformer
 # D4RL reference score bounds for score normalization: 100 * (score - random) / (expert - random)
 D4RL_REF_SCORES = {
     "hopper-medium-v2": {"random": -20.272305, "expert": 3234.3},
-    "hopper-expert-v2": {"random": -20.272305, "expert": 3234.3},
     "hopper-medium-replay-v2": {"random": -20.272305, "expert": 3234.3},
+    "hopper-medium-expert-v2": {"random": -20.272305, "expert": 3234.3},
     "halfcheetah-medium-v2": {"random": -280.178953, "expert": 12135.0},
+    "halfcheetah-medium-expert-v2": {"random": -280.178953, "expert": 12135.0},
     "walker2d-medium-v2": {"random": 1.629008, "expert": 4592.3},
+    "walker2d-medium-expert-v2": {"random": 1.629008, "expert": 4592.3},
+    "ant-medium-v2": {"random": -325.6, "expert": 3880.0},
 }
 
 
