@@ -5,12 +5,17 @@ Gate 2: Dataset integrity verification.
 
 import numpy as np
 import pytest
+import torch
 
 from offline_rl.datasets.d4rl_loader import (
     D4RLLoader,
     Trajectory,
     split_d4rl_episodes,
     validate_episodes,
+)
+from offline_rl.datasets.trajectory_dataset import (
+    TrajectoryDataset,
+    TrajectorySequenceDataset,
 )
 
 
@@ -176,6 +181,153 @@ def test_trajectory_sequence_dataset_batching():
     assert batch["attention_mask"].shape == (4, context_len)
 
 
+def test_gate3_trajectory_dataset_batch_shapes():
+    """
+    Phase 3 / Gate 3: Batch shapes are correct.
+    Expected:
+        states: (8, 20, 11)
+        actions: (8, 20, 3)
+        returns_to_go: (8, 20, 1)
+        timesteps: (8, 20)
+        attention_mask: (8, 20)
+    Pass condition:
+        All five tensors have correct shapes, no NaNs, and padded timesteps are masked.
+    """
+    import torch
+    from torch.utils.data import DataLoader
+
+    np.random.seed(42)
+    torch.manual_seed(42)
+
+    flat_dataset = {
+        "observations": np.random.randn(300, 11).astype(np.float32),
+        "actions": np.random.uniform(-1, 1, size=(300, 3)).astype(np.float32),
+        "rewards": np.random.uniform(0, 5, size=(300,)).astype(np.float32),
+        "terminals": np.zeros(300, dtype=bool),
+        "timeouts": np.zeros(300, dtype=bool),
+    }
+    flat_dataset["terminals"][45] = True
+    flat_dataset["terminals"][110] = True
+    flat_dataset["terminals"][175] = True
+    flat_dataset["terminals"][220] = True
+    flat_dataset["terminals"][299] = True
+
+    episodes = split_d4rl_episodes(flat_dataset)
+    assert len(episodes) >= 4
+
+    dataset = TrajectoryDataset(
+        episodes,
+        context_length=20,
+    )
+    loader = DataLoader(
+        dataset,
+        batch_size=8,
+        num_workers=0,
+    )
+    batch = next(iter(loader))
+
+    expected_shapes = {
+        "states": (8, 20, 11),
+        "actions": (8, 20, 3),
+        "returns_to_go": (8, 20, 1),
+        "timesteps": (8, 20),
+        "attention_mask": (8, 20),
+    }
+
+    # 1. Shape checks
+    for key, shape in expected_shapes.items():
+        assert key in batch, f"Missing key {key} in batch"
+        assert batch[key].shape == shape, f"Shape mismatch for {key}: expected {shape}, got {batch[key].shape}"
+
+    # 2. No NaNs or Infs
+    for key in expected_shapes:
+        tensor = batch[key]
+        assert not torch.isnan(tensor).any(), f"NaN detected in {key}"
+        assert not torch.isinf(tensor).any(), f"Inf detected in {key}"
+
+    # 3. Padded timesteps are masked
+    mask = batch["attention_mask"]
+    assert torch.all((mask == 0.0) | (mask == 1.0))
+
+    for b in range(8):
+        for t in range(20):
+            if mask[b, t] == 0.0:
+                assert torch.all(batch["states"][b, t] == 0.0), f"Unzeroed state at masked timestep ({b}, {t})"
+                assert torch.all(batch["actions"][b, t] == 0.0), f"Unzeroed action at masked timestep ({b}, {t})"
+                assert torch.all(batch["returns_to_go"][b, t] == 0.0), f"Unzeroed rtg at masked timestep ({b}, {t})"
+                assert batch["timesteps"][b, t] == 0, f"Unzeroed timestep at masked timestep ({b}, {t})"
+
+
+def test_sampling_proportional_to_length():
+    """Verify episode sampling probability P(tau_i) = T_i / sum_j T_j."""
+    episodes = [
+        {
+            "observations": np.zeros((10, 11), dtype=np.float32),
+            "actions": np.zeros((10, 3), dtype=np.float32),
+            "rewards": np.zeros(10, dtype=np.float32),
+            "returns_to_go": np.zeros(10, dtype=np.float32),
+            "timesteps": np.arange(10, dtype=np.int64),
+        },
+        {
+            "observations": np.zeros((30, 11), dtype=np.float32),
+            "actions": np.zeros((30, 3), dtype=np.float32),
+            "rewards": np.zeros(30, dtype=np.float32),
+            "returns_to_go": np.zeros(30, dtype=np.float32),
+            "timesteps": np.arange(30, dtype=np.int64),
+        },
+        {
+            "observations": np.zeros((60, 11), dtype=np.float32),
+            "actions": np.zeros((60, 3), dtype=np.float32),
+            "rewards": np.zeros(60, dtype=np.float32),
+            "returns_to_go": np.zeros(60, dtype=np.float32),
+            "timesteps": np.arange(60, dtype=np.int64),
+        },
+    ]
+    dataset = TrajectoryDataset(episodes, context_length=20)
+    expected_probs = np.array([10 / 100.0, 30 / 100.0, 60 / 100.0])
+    np.testing.assert_allclose(dataset.sampling_probs, expected_probs, rtol=1e-5)
+
+
+def test_left_padding_for_short_episode():
+    """Verify an episode shorter than context_length is correctly left-padded and masked."""
+    short_ep = [
+        {
+            "observations": np.ones((5, 11), dtype=np.float32) * 3.0,
+            "actions": np.ones((5, 3), dtype=np.float32) * 0.5,
+            "rewards": np.ones(5, dtype=np.float32),
+            "returns_to_go": np.array([5.0, 4.0, 3.0, 2.0, 1.0], dtype=np.float32),
+            "timesteps": np.arange(5, dtype=np.int64),
+        }
+    ]
+    dataset = TrajectoryDataset(short_ep, context_length=20)
+    sample = dataset[0]
+
+    assert sample["states"].shape == (20, 11)
+    assert sample["actions"].shape == (20, 3)
+    assert sample["returns_to_go"].shape == (20, 1)
+    assert sample["timesteps"].shape == (20,)
+    assert sample["attention_mask"].shape == (20,)
+
+    mask = sample["attention_mask"]
+    num_valid = int(mask.sum().item())
+    assert 1 <= num_valid <= 5
+    pad_len = 20 - num_valid
+
+    # All padded steps must have mask=0 and zeroed state, action, rtg, timestep
+    if pad_len > 0:
+        assert torch.all(mask[:pad_len] == 0.0)
+        assert torch.all(sample["states"][:pad_len] == 0.0)
+        assert torch.all(sample["actions"][:pad_len] == 0.0)
+        assert torch.all(sample["returns_to_go"][:pad_len] == 0.0)
+        assert torch.all(sample["timesteps"][:pad_len] == 0)
+
+    # All valid steps must have mask=1
+    assert torch.all(mask[pad_len:] == 1.0)
+
+
 if __name__ == "__main__":
     test_episode_split()
-    print("Dataset test passed.")
+    test_gate3_trajectory_dataset_batch_shapes()
+    test_sampling_proportional_to_length()
+    test_left_padding_for_short_episode()
+    print("Gate 3 tests passed.")

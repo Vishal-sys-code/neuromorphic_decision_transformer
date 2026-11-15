@@ -14,12 +14,15 @@ __all__ = [
     "Trajectory",
     "split_d4rl_episodes",
     "validate_episodes",
+    "TrajectoryDataset",
     "TrajectorySequenceDataset",
 ]
 
 
 def __getattr__(name: str):
-    if name == "TrajectorySequenceDataset":
-        from offline_rl.datasets.trajectory_dataset import TrajectorySequenceDataset
+    if name in ("TrajectoryDataset", "TrajectorySequenceDataset"):
+        from offline_rl.datasets.trajectory_dataset import TrajectoryDataset, TrajectorySequenceDataset
+        if name == "TrajectoryDataset":
+            return TrajectoryDataset
         return TrajectorySequenceDataset
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

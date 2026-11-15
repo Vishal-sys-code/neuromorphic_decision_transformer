@@ -198,6 +198,16 @@ class Trajectory:
     timeouts: Optional[np.ndarray] = None
     next_observations: Optional[np.ndarray] = None
 
+    def __getitem__(self, key: str) -> Any:
+        if hasattr(self, key):
+            return getattr(self, key)
+        if key == "terminals":
+            return self.dones
+        raise KeyError(key)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key) or (key == "terminals" and hasattr(self, "dones"))
+
     @classmethod
     def from_dict(cls, episode: Dict[str, np.ndarray]) -> "Trajectory":
         return cls(
