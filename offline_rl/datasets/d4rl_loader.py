@@ -1,15 +1,16 @@
 """
-D4RL Dataset Loader for MuJoCo environments.
+D4RL Dataset Loader for Offline Reinforcement Learning and Decision Transformers.
 
-Provides utilities to ingest offline trajectory datasets from HDF5 files or
-legacy D4RL format, extract continuous trajectories, compute returns-to-go (RTG),
-and compute state normalization parameters.
+Phase 2 / Gate 2: Dataset Integrity.
+Provides utilities to ingest flat D4RL datasets, reconstruct episode boundaries
+from termination/timeout metadata and max episode lengths, compute returns-to-go (RTG),
+and validate dataset integrity.
 """
 
 import os
 import urllib.request
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import h5py
 import numpy as np
@@ -26,6 +27,164 @@ D4RL_URL_MAP = {
 }
 
 
+def split_d4rl_episodes(
+    dataset: Dict[str, Any],
+    max_episode_length: int = 1000,
+    gamma: float = 1.0,
+) -> List[Dict[str, np.ndarray]]:
+    """
+    Convert a flat D4RL dataset into episode dictionaries.
+    Supports the usual D4RL keys:
+        observations
+        actions
+        rewards
+        terminals
+        timeouts (optional)
+        next_observations (optional)
+
+    Returns complete episodes containing:
+        tau_i = {s_t, a_t, r_t, d_t, R_t, t}
+        where R_t = sum_{k=t}^{T_i-1} gamma^{k-t} r_k (gamma=1.0 by default).
+    """
+    observations = np.asarray(dataset["observations"], dtype=np.float32)
+    actions = np.asarray(dataset["actions"], dtype=np.float32)
+    rewards = np.asarray(dataset["rewards"], dtype=np.float32)
+    terminals = np.asarray(dataset["terminals"], dtype=bool)
+
+    timeouts = dataset.get("timeouts")
+    if timeouts is not None:
+        timeouts = np.asarray(timeouts, dtype=bool)
+    else:
+        timeouts = np.zeros_like(terminals)
+
+    next_observations = dataset.get("next_observations")
+    if next_observations is not None:
+        next_observations = np.asarray(next_observations, dtype=np.float32)
+
+    episodes = []
+    start = 0
+    n = len(observations)
+
+    for t in range(n):
+        final_step = (
+            terminals[t]
+            or timeouts[t]
+            or (t - start + 1 >= max_episode_length)
+            or (t == n - 1)
+        )
+        if final_step:
+            end = t + 1
+            episode: Dict[str, np.ndarray] = {
+                "observations": observations[start:end],
+                "actions": actions[start:end],
+                "rewards": rewards[start:end],
+                "terminals": terminals[start:end],
+                "timeouts": timeouts[start:end],
+            }
+            if next_observations is not None:
+                episode["next_observations"] = next_observations[start:end]
+
+            # Returns-to-go (undiscounted gamma=1.0 by default)
+            if gamma == 1.0:
+                episode["returns_to_go"] = np.flip(
+                    np.cumsum(np.flip(episode["rewards"]))
+                ).copy()
+            else:
+                rtg = np.zeros_like(episode["rewards"], dtype=np.float32)
+                running_return = 0.0
+                for k in reversed(range(len(episode["rewards"]))):
+                    running_return = float(episode["rewards"][k]) + gamma * running_return
+                    rtg[k] = running_return
+                episode["returns_to_go"] = rtg
+
+            # Episode-local timestep
+            episode["timesteps"] = np.arange(
+                len(episode["observations"]),
+                dtype=np.int64,
+            )
+            episodes.append(episode)
+            start = end
+
+    return episodes
+
+
+def validate_episodes(episodes: List[Dict[str, np.ndarray]]) -> bool:
+    """
+    Validate the dataset integrity of segmented episodes (Gate 2 check).
+
+    Verifies:
+      1. Non-empty sequence of valid episode dictionaries.
+      2. Required fields exist: observations, actions, rewards, terminals, timeouts,
+         returns_to_go, timesteps.
+      3. Length consistency across all per-step arrays within every episode.
+      4. Episode timesteps strictly form contiguous 0-indexed ranges [0, T_i - 1].
+      5. Returns-to-go match backwards cumulative sums of rewards without drift.
+      6. No NaNs or infinities in numerical arrays.
+      7. Terminal and timeout masks are strictly boolean.
+
+    Returns:
+        bool: True if dataset integrity checks pass, False otherwise.
+    """
+    if not isinstance(episodes, (list, tuple)) or len(episodes) == 0:
+        return False
+
+    required_keys = {
+        "observations",
+        "actions",
+        "rewards",
+        "terminals",
+        "timeouts",
+        "returns_to_go",
+        "timesteps",
+    }
+
+    for ep in episodes:
+        if not isinstance(ep, dict):
+            return False
+
+        if not required_keys.issubset(ep.keys()):
+            return False
+
+        ep_len = len(ep["observations"])
+        if ep_len == 0:
+            return False
+
+        for k in required_keys:
+            if not isinstance(ep[k], np.ndarray):
+                return False
+            if len(ep[k]) != ep_len:
+                return False
+
+        if "next_observations" in ep:
+            if not isinstance(ep["next_observations"], np.ndarray):
+                return False
+            if len(ep["next_observations"]) != ep_len:
+                return False
+
+        # Timesteps check: [0, 1, ..., T_i - 1]
+        expected_timesteps = np.arange(ep_len, dtype=np.int64)
+        if not np.array_equal(ep["timesteps"], expected_timesteps):
+            return False
+
+        # Returns-to-go check (undiscounted check with numerical tolerance)
+        expected_rtg = np.flip(np.cumsum(np.flip(ep["rewards"])))
+        if not np.allclose(ep["returns_to_go"], expected_rtg, atol=1e-5):
+            return False
+
+        # Numerical integrity: no NaNs / infs
+        for num_key in ["observations", "actions", "rewards", "returns_to_go"]:
+            if not np.isfinite(ep[num_key]).all():
+                return False
+
+        # Boolean check
+        if ep["terminals"].dtype != bool and ep["terminals"].dtype != np.bool_:
+            return False
+        if ep["timeouts"].dtype != bool and ep["timeouts"].dtype != np.bool_:
+            return False
+
+    return True
+
+
 @dataclass
 class Trajectory:
     """Represents a single episodic trajectory in offline RL."""
@@ -36,6 +195,22 @@ class Trajectory:
     returns_to_go: np.ndarray # (L,)
     timesteps: np.ndarray     # (L,)
     length: int
+    timeouts: Optional[np.ndarray] = None
+    next_observations: Optional[np.ndarray] = None
+
+    @classmethod
+    def from_dict(cls, episode: Dict[str, np.ndarray]) -> "Trajectory":
+        return cls(
+            observations=episode["observations"],
+            actions=episode["actions"],
+            rewards=episode["rewards"],
+            dones=episode["terminals"].astype(np.float32),
+            returns_to_go=episode["returns_to_go"],
+            timesteps=episode["timesteps"],
+            length=len(episode["observations"]),
+            timeouts=episode.get("timeouts"),
+            next_observations=episode.get("next_observations"),
+        )
 
 
 class D4RLLoader:
@@ -43,8 +218,9 @@ class D4RLLoader:
     Loader for D4RL MuJoCo datasets (e.g. hopper-medium-v2, halfcheetah-medium-v2).
     """
 
-    def __init__(self, gamma: float = 1.0):
+    def __init__(self, gamma: float = 1.0, max_episode_length: int = 1000):
         self.gamma = gamma
+        self.max_episode_length = max_episode_length
 
     @staticmethod
     def create_synthetic_dataset(
@@ -97,14 +273,11 @@ class D4RLLoader:
         Returns the resolved file path or None if not available.
         """
         env_key = env_name.lower().replace("_", "-")
-        # Generate candidate filenames
         candidates = [
             f"{env_key}.hdf5",
             f"{env_key.replace('-', '_')}.hdf5",
-            # Common D4RL convention: hopper_medium-v2.hdf5
             f"{env_key.split('-')[0]}_{'_'.join(env_key.split('-')[1:])}.hdf5" if '-' in env_key else f"{env_key}.hdf5",
         ]
-        # Specific overrides for standard v2 filenames
         if env_key == "hopper-medium-v2":
             candidates.insert(0, "hopper_medium-v2.hdf5")
         elif env_key == "hopper-medium-replay-v2":
@@ -131,7 +304,6 @@ class D4RLLoader:
                 if os.path.exists(p) and os.path.getsize(p) > 0:
                     return p
 
-        # Attempt download if URL is recognized
         if auto_download and env_key in D4RL_URL_MAP:
             url = D4RL_URL_MAP[env_key]
             out_filename = url.split("/")[-1]
@@ -156,82 +328,23 @@ class D4RLLoader:
             raise FileNotFoundError(f"D4RL dataset file not found: {file_path}")
 
         with h5py.File(file_path, "r") as f:
-            observations = f["observations"][:].astype(np.float32)
-            actions = f["actions"][:].astype(np.float32)
-            rewards = f["rewards"][:].astype(np.float32)
-            terminals = f["terminals"][:].astype(np.bool_)
+            dataset: Dict[str, Any] = {
+                "observations": f["observations"][:].astype(np.float32),
+                "actions": f["actions"][:].astype(np.float32),
+                "rewards": f["rewards"][:].astype(np.float32),
+                "terminals": f["terminals"][:].astype(bool),
+            }
             if "timeouts" in f:
-                timeouts = f["timeouts"][:].astype(np.bool_)
-            else:
-                timeouts = np.zeros_like(terminals)
+                dataset["timeouts"] = f["timeouts"][:].astype(bool)
+            if "next_observations" in f:
+                dataset["next_observations"] = f["next_observations"][:].astype(np.float32)
 
-        return self._process_raw_arrays(observations, actions, rewards, terminals, timeouts)
-
-    def _process_raw_arrays(
-        self,
-        observations: np.ndarray,
-        actions: np.ndarray,
-        rewards: np.ndarray,
-        terminals: np.ndarray,
-        timeouts: np.ndarray,
-    ) -> List[Trajectory]:
-        """Convert flat D4RL arrays into segmented Trajectory objects with returns-to-go."""
-        total_steps = observations.shape[0]
-        trajectories = []
-        start_idx = 0
-
-        for i in range(total_steps):
-            is_done = bool(terminals[i])
-            is_timeout = bool(timeouts[i])
-
-            if is_done or is_timeout:
-                end_idx = i + 1
-                traj = self._build_trajectory(
-                    observations[start_idx:end_idx],
-                    actions[start_idx:end_idx],
-                    rewards[start_idx:end_idx],
-                    terminals[start_idx:end_idx].astype(np.float32),
-                )
-                trajectories.append(traj)
-                start_idx = end_idx
-
-        # Handle trailing segment if not explicitly terminated
-        if start_idx < total_steps:
-            traj = self._build_trajectory(
-                observations[start_idx:],
-                actions[start_idx:],
-                rewards[start_idx:],
-                terminals[start_idx:].astype(np.float32),
-            )
-            trajectories.append(traj)
-
-        return trajectories
-
-    def _build_trajectory(
-        self,
-        obs: np.ndarray,
-        act: np.ndarray,
-        rew: np.ndarray,
-        dones: np.ndarray,
-    ) -> Trajectory:
-        length = obs.shape[0]
-        rtg = np.zeros_like(rew, dtype=np.float32)
-        running_ret = 0.0
-        for t in reversed(range(length)):
-            running_ret = rew[t] + self.gamma * running_ret
-            rtg[t] = running_ret
-
-        timesteps = np.arange(length, dtype=np.int64)
-
-        return Trajectory(
-            observations=obs,
-            actions=act,
-            rewards=rew,
-            dones=dones,
-            returns_to_go=rtg,
-            timesteps=timesteps,
-            length=length,
+        episodes = split_d4rl_episodes(
+            dataset=dataset,
+            max_episode_length=self.max_episode_length,
+            gamma=self.gamma,
         )
+        return [Trajectory.from_dict(ep) for ep in episodes]
 
     @staticmethod
     def compute_state_statistics(trajectories: List[Trajectory]) -> Tuple[np.ndarray, np.ndarray]:
