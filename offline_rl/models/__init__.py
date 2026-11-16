@@ -12,12 +12,14 @@ from offline_rl.models.snn_dt_mujoco import (
     SurrogateSpike,
     ThreeFactorPlasticity,
     VectorizedLIF,
+    create_ablation_model,
     surrogate_spike,
 )
 
 __all__ = [
     "SNNDTMuJoCo",
     "ContinuousSnnDecisionTransformer",
+    "create_ablation_model",
     "SnnDtBackbone",
     "VectorizedLIF",
     "PhaseSpikeEncoder",

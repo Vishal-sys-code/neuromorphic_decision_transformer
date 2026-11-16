@@ -1,0 +1,3 @@
+Notification to user: Please check the terms of use at https://info.arxiv.org/help/api/index.html and always check the license of the papers retrieved by the arXiv skill for any restrictions.
+Timestamp: 2026-11-16T18:11:05+09:00
+arXiv paper: 2504.03800 ("Decision SpikeFormer: Spike-Driven Transformer for Decision Making")

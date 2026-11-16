@@ -300,11 +300,13 @@ class SpikingTransformerBlock(nn.Module):
         eta_local: Optional[float] = None,
         lambda_decay: Optional[float] = None,
         dropout: float = 0.1,
+        use_dendritic_routing: bool = True,
     ):
         super().__init__()
         self.cfg = cfg
         self.d_model = d_model
         self.n_heads = n_heads
+        self.use_dendritic_routing = use_dendritic_routing
         assert d_model % n_heads == 0
         self.head_dim = d_model // n_heads
 
@@ -472,8 +474,14 @@ class SpikingTransformerBlock(nn.Module):
         y_heads = y_heads.permute(0, 2, 1, 3)
 
         # Dendritic routing (per-head gating)
-        y_routed, alpha = self.router(y_heads)  # (B, L, Dh), (B,L,H)
-        self.last_alpha = alpha.detach()
+        if self.use_dendritic_routing:
+            y_routed, alpha = self.router(y_heads)  # (B, L, Dh), (B,L,H)
+            self.last_alpha = alpha.detach()
+        else:
+            # Uniform averaging across heads (disabling dendritic router)
+            alpha = torch.full((B, L, self.n_heads), 1.0 / self.n_heads, device=device)
+            self.last_alpha = alpha.detach()
+            y_routed = y_heads.mean(dim=2)  # (B, L, Dh)
 
         # project back to d_model
         out = self.out_proj(y_routed)  # (B, L, D)
@@ -515,6 +523,8 @@ class SnnDtBackbone(nn.Module):
         current_scale: float = 1.0,
         use_plasticity: bool = False,
         dropout: float = 0.1,
+        use_phase_coding: bool = True,
+        use_dendritic_routing: bool = True,
         cfg=None,
     ):
         super().__init__()
@@ -525,6 +535,8 @@ class SnnDtBackbone(nn.Module):
         self.snn_timesteps = snn_timesteps
         self.T = snn_timesteps
         self.use_plasticity = use_plasticity
+        self.use_phase_coding = use_phase_coding
+        self.use_dendritic_routing = use_dendritic_routing
 
         # Global PhaseSpikeEncoder for phase modulation across biological time
         self.phase_encoder = PhaseSpikeEncoder(d_model=hidden_dim, T=snn_timesteps)
@@ -540,6 +552,7 @@ class SnnDtBackbone(nn.Module):
                 alpha=alpha,
                 current_scale=current_scale,
                 use_plasticity=use_plasticity,
+                use_dendritic_routing=use_dendritic_routing,
                 dropout=dropout,
             )
             for _ in range(n_layers)
@@ -576,8 +589,12 @@ class SnnDtBackbone(nn.Module):
             self.total_spike_count_tensor = torch.tensor(0.0, device=device)
 
         # 1. Biological phase modulation across biological time T
-        rate_emb = returns_embeddings + state_embeddings + action_embeddings
-        phase_mod = self.phase_encoder(rate_emb)  # (T, B, K, 1)
+        if self.use_phase_coding:
+            rate_emb = returns_embeddings + state_embeddings + action_embeddings
+            phase_mod = self.phase_encoder(rate_emb)  # (T, B, K, 1)
+        else:
+            # Constant rate modulation without phase modulation across biological time
+            phase_mod = torch.ones((self.snn_timesteps, B, K, 1), device=device, dtype=state_embeddings.dtype)
         phase_mod = phase_mod.repeat(1, 1, 3, 1)   # (T, B, 3K, 1)
 
         # 2. Interleave tokens in DT convention: (R_1, s_1, a_1, R_2, s_2, a_2, ..., R_K, s_K, a_K)

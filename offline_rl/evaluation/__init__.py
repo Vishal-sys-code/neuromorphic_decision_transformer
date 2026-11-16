@@ -1,6 +1,8 @@
 """
 Evaluation modules for MuJoCo environments.
 Phase 6: MuJoCo Evaluation & Gate 6: Policy produces valid trajectories.
+Phase 7: Compare with Decision Transformer and Decision SpikeFormer & Gate 7: Research comparison.
+Phase 7.1: Ablation study.
 """
 
 from offline_rl.evaluation.evaluate_mujoco import (
@@ -15,6 +17,23 @@ from offline_rl.evaluation.evaluate_mujoco import (
     tune_target_returns,
     validate_gate6_policy,
 )
+from offline_rl.evaluation.research_comparison import (
+    OFFICIAL_BENCHMARK_BASELINES,
+    BenchmarkComparisonEntry,
+    ResearchComparisonReport,
+    build_efficiency_comparison_table,
+    build_final_comparison_table,
+    evaluate_snndt_benchmark,
+    get_official_baselines,
+    run_gate7_research_comparison,
+)
+from offline_rl.evaluation.run_ablations import (
+    AblationMetrics,
+    AblationStudyReport,
+    load_ablation_dataset,
+    run_full_ablation_study,
+    run_single_ablation_experiment,
+)
 
 __all__ = [
     "D4RL_REF_SCORES",
@@ -27,4 +46,20 @@ __all__ = [
     "load_trained_model",
     "tune_target_returns",
     "validate_gate6_policy",
+    # Gate 7: Research Comparison
+    "OFFICIAL_BENCHMARK_BASELINES",
+    "BenchmarkComparisonEntry",
+    "ResearchComparisonReport",
+    "get_official_baselines",
+    "evaluate_snndt_benchmark",
+    "build_final_comparison_table",
+    "build_efficiency_comparison_table",
+    "run_gate7_research_comparison",
+    # Phase 7.1: Ablations
+    "AblationMetrics",
+    "AblationStudyReport",
+    "load_ablation_dataset",
+    "run_single_ablation_experiment",
+    "run_full_ablation_study",
 ]
+

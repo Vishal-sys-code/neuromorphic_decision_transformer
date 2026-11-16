@@ -61,6 +61,8 @@ class SNNDTMuJoCo(nn.Module):
         current_scale: float = 1.0,
         use_plasticity: bool = False,
         dropout: float = 0.1,
+        use_phase_coding: bool = True,
+        use_dendritic_routing: bool = True,
         **kwargs,
     ):
         super().__init__()
@@ -79,6 +81,9 @@ class SNNDTMuJoCo(nn.Module):
         self.context_len = context_len
         self.action_tanh = action_tanh
         self.snn_timesteps = snn_timesteps
+        self.use_phase_coding = use_phase_coding
+        self.use_dendritic_routing = use_dendritic_routing
+        self.use_plasticity = use_plasticity
 
         # SNN-DT research backbone preserving LIF, phase coding, dendritic routing, plasticity
         if backbone is None:
@@ -92,6 +97,8 @@ class SNNDTMuJoCo(nn.Module):
                 alpha=alpha,
                 current_scale=current_scale,
                 use_plasticity=use_plasticity,
+                use_phase_coding=use_phase_coding,
+                use_dendritic_routing=use_dendritic_routing,
                 dropout=dropout,
             )
         else:
@@ -272,3 +279,50 @@ class ContinuousSnnDecisionTransformer(SNNDTMuJoCo):
             attention_mask=attention_mask,
             return_diagnostics=return_diagnostics,
         )
+
+
+def create_ablation_model(
+    ablation_type: str = "full",
+    state_dim: int = 11,
+    act_dim: int = 3,
+    **kwargs,
+) -> ContinuousSnnDecisionTransformer:
+    """
+    Factory function for Phase 7.1 Ablation Study models:
+    - "full" (SNN-DT Full): Phase coding=✓, Dendritic routing=✓, Local plasticity=✓
+    - "ablation_a": Phase coding=✗, Dendritic routing=✓, Local plasticity=✓
+    - "ablation_b": Phase coding=✓, Dendritic routing=✗, Local plasticity=✓
+    - "ablation_c": Phase coding=✓, Dendritic routing=✓, Local plasticity=✗
+    """
+    ablation_norm = ablation_type.lower().replace("-", "_").replace(" ", "_")
+    if ablation_norm in ("full", "snn_dt_full", "snndt_full"):
+        phase_coding = True
+        dendritic_routing = True
+        plasticity = True
+    elif ablation_norm in ("ablation_a", "a", "no_phase_coding"):
+        phase_coding = False
+        dendritic_routing = True
+        plasticity = True
+    elif ablation_norm in ("ablation_b", "b", "no_dendritic_routing"):
+        phase_coding = True
+        dendritic_routing = False
+        plasticity = True
+    elif ablation_norm in ("ablation_c", "c", "no_local_plasticity"):
+        phase_coding = True
+        dendritic_routing = True
+        plasticity = False
+    else:
+        raise ValueError(
+            f"Unknown ablation_type: '{ablation_type}'. "
+            f"Must be one of: 'full', 'ablation_a', 'ablation_b', 'ablation_c'."
+        )
+
+    return ContinuousSnnDecisionTransformer(
+        state_dim=state_dim,
+        act_dim=act_dim,
+        use_phase_coding=phase_coding,
+        use_dendritic_routing=dendritic_routing,
+        use_plasticity=plasticity,
+        **kwargs,
+    )
+
