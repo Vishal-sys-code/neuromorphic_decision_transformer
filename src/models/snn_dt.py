@@ -33,6 +33,8 @@ class SurrogateSpike(torch.autograd.Function):
     """
     @staticmethod
     def forward(ctx, membrane_potential, v_th, alpha):
+        if not isinstance(v_th, torch.Tensor):
+            v_th = torch.tensor(float(v_th), dtype=membrane_potential.dtype, device=membrane_potential.device)
         ctx.save_for_backward(membrane_potential, v_th)
         ctx.alpha = float(alpha)
         out = (membrane_potential >= v_th).to(membrane_potential.dtype)
@@ -197,7 +199,7 @@ class DendriticRouter(nn.Module):
         self.mlp = nn.Sequential(
             nn.Linear(head_dim, hidden),
             nn.ReLU(),
-            nn.Linear(hidden, 1)
+            nn.Linear(hidden, 1, bias=False)
         )
 
     def forward(self, y_heads: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -285,7 +287,20 @@ class SpikingTransformerBlock(nn.Module):
     - Spike counting accumulated per-block
     """
 
-    def __init__(self, cfg, d_model: int, n_heads: int):
+    def __init__(
+        self,
+        cfg=None,
+        d_model: int = 128,
+        n_heads: int = 4,
+        tau: Optional[float] = None,
+        v_th: Optional[float] = None,
+        alpha: Optional[float] = None,
+        current_scale: Optional[float] = None,
+        use_plasticity: Optional[bool] = None,
+        eta_local: Optional[float] = None,
+        lambda_decay: Optional[float] = None,
+        dropout: float = 0.1,
+    ):
         super().__init__()
         self.cfg = cfg
         self.d_model = d_model
@@ -298,9 +313,18 @@ class SpikingTransformerBlock(nn.Module):
         self.k_proj = nn.Linear(d_model, d_model)
         self.v_proj = nn.Linear(d_model, d_model)
         
-        current_scale = float(getattr(self.cfg.snn, "current_scale", 1.0))
+        # Safely extract snn config parameters from cfg or defaults
+        snn_cfg = getattr(cfg, "snn", None) if cfg is not None else None
+        def _get_snn_val(name, fallback):
+            if snn_cfg is None:
+                return fallback
+            if isinstance(snn_cfg, dict):
+                return snn_cfg.get(name, fallback)
+            return getattr(snn_cfg, name, fallback)
+
+        curr_scale = current_scale if current_scale is not None else float(_get_snn_val("current_scale", 1.0))
         # add a small learnable gain so we can ramp input current easily
-        self.register_parameter("input_gain", torch.nn.Parameter(torch.tensor(float(current_scale), dtype=torch.float32)))
+        self.register_parameter("input_gain", torch.nn.Parameter(torch.tensor(float(curr_scale), dtype=torch.float32)))
 
         import torch.nn.init as init
 
@@ -311,26 +335,29 @@ class SpikingTransformerBlock(nn.Module):
                 lin.bias.data.zero_()
 
         # Vectorized LIF for full d_model
-        lif_tau = float(getattr(cfg.snn, "lif_tau", 20.0))
-        v_th = float(getattr(cfg.snn, "v_th", 0.5))
-        surrogate_k = float(getattr(cfg.snn, "surrogate_k", 25.0))
-        self.lif_q = VectorizedLIF(tau=lif_tau, v_th=v_th, alpha=surrogate_k)
-        self.lif_k = VectorizedLIF(tau=lif_tau, v_th=v_th, alpha=surrogate_k)
-        self.lif_v = VectorizedLIF(tau=lif_tau, v_th=v_th, alpha=surrogate_k)
+        lif_tau = tau if tau is not None else float(_get_snn_val("lif_tau", 20.0))
+        lif_v_th = v_th if v_th is not None else float(_get_snn_val("v_th", 0.5))
+        surrogate_k = alpha if alpha is not None else float(_get_snn_val("surrogate_k", 25.0))
+        self.lif_q = VectorizedLIF(tau=lif_tau, v_th=lif_v_th, alpha=surrogate_k)
+        self.lif_k = VectorizedLIF(tau=lif_tau, v_th=lif_v_th, alpha=surrogate_k)
+        self.lif_v = VectorizedLIF(tau=lif_tau, v_th=lif_v_th, alpha=surrogate_k)
 
         # Phase encoder (we will create one globally in SnnDt and pass modulation into block)
         # Dendritic router works on head-dim
         self.router = DendriticRouter(head_dim=self.head_dim, n_heads=n_heads)
         self.out_proj = nn.Linear(self.head_dim, d_model)
+        self.dropout = nn.Dropout(dropout)
 
         # Plasticity parameters
-        self.use_plasticity = bool(getattr(cfg.snn, "use_plasticity", False))
+        self.use_plasticity = use_plasticity if use_plasticity is not None else bool(_get_snn_val("use_plasticity", False))
         self.plasticity_rule = None
         if self.use_plasticity:
             # eligibility trace shape for v_proj weight: (out, in) = (d_model, d_model)
+            eta = eta_local if eta_local is not None else float(_get_snn_val("eta_local", 1e-4))
+            l_decay = lambda_decay if lambda_decay is not None else float(_get_snn_val("lambda_decay", 0.99))
             self.plasticity_rule = ThreeFactorPlasticity(weight_shape=(d_model, d_model),
-                                                         eta=getattr(cfg.snn, "eta_local", 1e-4),
-                                                         lambda_decay=getattr(cfg.snn, "lambda_decay", 0.99),
+                                                         eta=eta,
+                                                         lambda_decay=l_decay,
                                                          device=None)
 
         # diagnostics
@@ -346,7 +373,13 @@ class SpikingTransformerBlock(nn.Module):
         if self.plasticity_rule is not None and hasattr(self.plasticity_rule, 'reset'):
             self.plasticity_rule.reset()
 
-    def forward(self, x: torch.Tensor, phase_mod: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self,
+        x: torch.Tensor,
+        phase_mod: torch.Tensor,
+        causal_mask: Optional[torch.Tensor] = None,
+        key_padding_mask: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.training:
             self.reset_state()
             
@@ -416,10 +449,22 @@ class SpikingTransformerBlock(nn.Module):
         k_trans = k_perm.transpose(-1, -2)  # (B,H, Dh, L)
         attn_scores = torch.matmul(q_perm, k_trans) / math.sqrt(self.head_dim)  # (B,H,L,L)
 
+        # Apply causal mask and key padding mask if provided
+        if causal_mask is not None:
+            if causal_mask.dtype == torch.bool:
+                attn_scores = attn_scores.masked_fill(causal_mask, float("-inf"))
+            else:
+                attn_scores = attn_scores + causal_mask
+
+        if key_padding_mask is not None:
+            attn_scores = attn_scores.masked_fill(
+                key_padding_mask.unsqueeze(1).unsqueeze(2), float("-inf")
+            )
+
         self.last_attn_scores = attn_scores.detach()
-        # convert to (B, L, H, L) by permuting so we can mask per token if needed -> router expects (B,L,H,D)
-        # We will compute attention weights now (softmax over last dim)
+        # Compute attention weights with softmax over last dim
         attn_weights = torch.softmax(attn_scores, dim=-1)  # (B,H,L,L)
+        attn_weights = torch.nan_to_num(attn_weights, nan=0.0)
 
         # compute weighted sum of values: (B,H,L,L) @ (B,H,L,Dh) => (B,H,L,Dh)
         y_heads = torch.matmul(attn_weights, v_perm)  # (B,H,L,Dh)
@@ -432,6 +477,7 @@ class SpikingTransformerBlock(nn.Module):
 
         # project back to d_model
         out = self.out_proj(y_routed)  # (B, L, D)
+        out = self.dropout(out)
 
         # plasticity: update eligibility using flattened pre/post if configured
         if self.use_plasticity and self.plasticity_rule is not None:
@@ -441,6 +487,188 @@ class SpikingTransformerBlock(nn.Module):
             self.plasticity_rule.update_trace(pre, post)
 
         return out, alpha
+
+
+# -------------------------
+# SnnDtBackbone
+# -------------------------
+class SnnDtBackbone(nn.Module):
+    """
+    SNN-DT Backbone preserving core neuromorphic research contributions:
+    - Biological time axis T (configurable, default 4 or 8)
+    - PhaseSpikeEncoder modulating currents across biological time T
+    - VectorizedLIF neurons with surrogate gradient autograd
+    - Per-head DendriticRouter with learned gating alpha_h
+    - Three-factor plasticity skeleton (eligibility traces + weight update)
+    - SpikingTransformerBlock layers with causal self-attention
+    """
+
+    def __init__(
+        self,
+        hidden_dim: int = 128,
+        n_heads: int = 4,
+        n_layers: int = 3,
+        snn_timesteps: int = 4,
+        tau: float = 20.0,
+        v_th: float = 0.5,
+        alpha: float = 25.0,
+        current_scale: float = 1.0,
+        use_plasticity: bool = False,
+        dropout: float = 0.1,
+        cfg=None,
+    ):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.d_model = hidden_dim
+        self.n_heads = n_heads
+        self.n_layers = n_layers
+        self.snn_timesteps = snn_timesteps
+        self.T = snn_timesteps
+        self.use_plasticity = use_plasticity
+
+        # Global PhaseSpikeEncoder for phase modulation across biological time
+        self.phase_encoder = PhaseSpikeEncoder(d_model=hidden_dim, T=snn_timesteps)
+
+        # Spiking transformer blocks
+        self.blocks = nn.ModuleList([
+            SpikingTransformerBlock(
+                cfg=cfg,
+                d_model=hidden_dim,
+                n_heads=n_heads,
+                tau=tau,
+                v_th=v_th,
+                alpha=alpha,
+                current_scale=current_scale,
+                use_plasticity=use_plasticity,
+                dropout=dropout,
+            )
+            for _ in range(n_layers)
+        ])
+
+        # Layer norms after blocks (preserving original SNN-DT architecture)
+        self.layer_norms = nn.ModuleList([
+            nn.LayerNorm(hidden_dim) for _ in range(n_layers)
+        ])
+
+        # Diagnostics state
+        self.total_spike_count_tensor = None
+        self.total_spike_opportunities = 0.0
+        self.diagnostics = {}
+
+    def forward(
+        self,
+        returns_embeddings: torch.Tensor,
+        state_embeddings: torch.Tensor,
+        action_embeddings: torch.Tensor,
+        timesteps: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Processes modality embeddings through SNN-DT backbone:
+        z_t = SNNDT(e_t^R, e_t^s, e_t^a, t)
+        Returns:
+            z_t: (B, K, hidden_dim) state representations at state token positions
+        """
+        B, K, D = state_embeddings.shape
+        device = state_embeddings.device
+
+        if self.total_spike_count_tensor is None or self.total_spike_count_tensor.device != device:
+            self.total_spike_count_tensor = torch.tensor(0.0, device=device)
+
+        # 1. Biological phase modulation across biological time T
+        rate_emb = returns_embeddings + state_embeddings + action_embeddings
+        phase_mod = self.phase_encoder(rate_emb)  # (T, B, K, 1)
+        phase_mod = phase_mod.repeat(1, 1, 3, 1)   # (T, B, 3K, 1)
+
+        # 2. Interleave tokens in DT convention: (R_1, s_1, a_1, R_2, s_2, a_2, ..., R_K, s_K, a_K)
+        stacked = (
+            torch.stack([returns_embeddings, state_embeddings, action_embeddings], dim=1)
+            .permute(0, 2, 1, 3)
+            .contiguous()
+            .view(B, 3 * K, D)
+        )
+        x = stacked
+
+        # 3. Construct causal attention mask for 3*K tokens
+        total_tokens = 3 * K
+        causal_mask = torch.triu(
+            torch.ones((total_tokens, total_tokens), device=device, dtype=torch.bool),
+            diagonal=1,
+        )
+
+        # Construct key_padding_mask if attention_mask provided
+        key_padding_mask = None
+        if attention_mask is not None:
+            interleaved_mask = (
+                attention_mask.unsqueeze(2)
+                .repeat(1, 1, 3)
+                .reshape(B, total_tokens)
+            )
+            key_padding_mask = interleaved_mask == 0
+
+        # Reset block spike counts for this pass
+        for b in self.blocks:
+            b.spike_count_tensor = torch.tensor(0.0, device=device)
+
+        self.total_spike_count_tensor = torch.tensor(0.0, device=device)
+        self.total_spike_opportunities = 0.0
+
+        # 4. Forward through Spiking Transformer Blocks + LayerNorms
+        for i, block in enumerate(self.blocks):
+            out, alpha = block(
+                x,
+                phase_mod,
+                causal_mask=causal_mask,
+                key_padding_mask=key_padding_mask,
+            )
+            x = x + out
+            x = self.layer_norms[i](x)
+
+            if block.spike_count_tensor is not None:
+                self.total_spike_count_tensor = self.total_spike_count_tensor + block.spike_count_tensor
+            self.total_spike_opportunities += float(B * total_tokens * (3 * D) * self.snn_timesteps)
+
+        total_spikes = self.total_spike_count_tensor.item()
+        mean_spike_rate = total_spikes / max(self.total_spike_opportunities, 1.0)
+        self.diagnostics = {
+            "mean_spike_rate": mean_spike_rate,
+            "total_spikes": total_spikes,
+        }
+
+        # 5. Extract state representations z_t at indices 1, 4, 7, ... (1::3)
+        z = x[:, 1::3, :]  # (B, K, D)
+        return z
+
+    def reset_state(self):
+        for block in self.blocks:
+            block.reset_state()
+
+    def reset_spike_counts(self):
+        device = next(self.parameters()).device
+        for b in self.blocks:
+            b.spike_count_tensor = torch.tensor(0.0, device=device)
+        self.total_spike_count_tensor = torch.tensor(0.0, device=device)
+        self.total_spike_opportunities = 0.0
+        self.diagnostics = {}
+
+    def count_spikes(self) -> float:
+        if self.total_spike_opportunities <= 0.0:
+            if isinstance(self.total_spike_count_tensor, torch.Tensor):
+                return self.total_spike_count_tensor.item()
+            return 0.0
+        val = 0.0
+        if isinstance(self.total_spike_count_tensor, torch.Tensor):
+            val = self.total_spike_count_tensor.item()
+        else:
+            val = self.total_spike_count_tensor
+        return float(val / max(1.0, self.total_spike_opportunities))
+
+    def apply_plasticity(self, reward: float):
+        if not self.use_plasticity:
+            return
+        for block in self.blocks:
+            if block.use_plasticity and block.plasticity_rule is not None:
+                block.plasticity_rule.apply(block.v_proj.weight, reward)
 
 
 # -------------------------

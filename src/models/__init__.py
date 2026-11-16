@@ -4,7 +4,8 @@
 # from .simple_decision_transformer import SimpleDecisionTransformer
 
 # __all__ = [] # Removed SimpleDecisionTransformer from __all__ 
-from .spiking_layers import SpikingSelfAttention
+# Lazy load to avoid norse/Python 3.13 hang on package import
+# from .spiking_layers import SpikingSelfAttention
 
 # This file makes 'models' a Python sub-package.
 # You can also use it to control what is imported when someone does 'from .models import *'

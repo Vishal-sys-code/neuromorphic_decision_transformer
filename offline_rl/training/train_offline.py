@@ -51,13 +51,18 @@ class OfflineTrainer:
         timesteps = batch["timesteps"].to(self.device)
         attention_mask = batch["attention_mask"].to(self.device)
 
-        action_preds, diagnostics = self.model(
+        out = self.model(
             states=states,
             actions=actions,
             returns_to_go=returns_to_go,
             timesteps=timesteps,
             attention_mask=attention_mask,
         )
+        if isinstance(out, tuple):
+            action_preds, diagnostics = out
+        else:
+            action_preds = out
+            diagnostics = getattr(self.model, "diagnostics", {})
 
         # Compute MSE loss masked by attention_mask (B, K)
         act_dim = actions.shape[-1]

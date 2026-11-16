@@ -73,12 +73,17 @@ def evaluate_episode(
         t_ctx = timesteps[:, start_idx : t + 1]
 
         with torch.no_grad():
-            preds, diag = model(
+            out = model(
                 states=s_ctx,
                 actions=a_ctx,
                 returns_to_go=r_ctx,
                 timesteps=t_ctx,
             )
+            if isinstance(out, tuple):
+                preds, diag = out
+            else:
+                preds = out
+                diag = getattr(model, "diagnostics", {})
             # Action corresponding to state token at timestep t
             action_pred = preds[0, -1].cpu().numpy()
             spike_rates.append(diag.get("mean_spike_rate", 0.0))
