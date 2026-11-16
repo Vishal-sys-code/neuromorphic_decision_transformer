@@ -11,7 +11,7 @@ Adapts and wraps the core neuromorphic SNN-DT research backbone:
 - Continuous action prediction head with Tanh bounding for MuJoCo control
 """
 
-from typing import Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -27,6 +27,72 @@ from src.models.snn_dt import (
     VectorizedLIF,
     surrogate_spike,
 )
+
+# Canonical MuJoCo Environment Dimension Mapping (Section 8 Automatic Ingestion)
+ENV_DIM_MAP: Dict[str, Tuple[int, int]] = {
+    "hopper": (11, 3),
+    "hopper-v2": (11, 3),
+    "hopper-v3": (11, 3),
+    "hopper-v4": (11, 3),
+    "hopper-medium-v2": (11, 3),
+    "hopper-medium-replay-v2": (11, 3),
+    "hopper-medium-expert-v2": (11, 3),
+    "halfcheetah": (17, 6),
+    "halfcheetah-v2": (17, 6),
+    "halfcheetah-v3": (17, 6),
+    "halfcheetah-v4": (17, 6),
+    "halfcheetah-medium-v2": (17, 6),
+    "halfcheetah-medium-replay-v2": (17, 6),
+    "halfcheetah-medium-expert-v2": (17, 6),
+    "walker2d": (17, 6),
+    "walker2d-v2": (17, 6),
+    "walker2d-v3": (17, 6),
+    "walker2d-v4": (17, 6),
+    "walker2d-medium-v2": (17, 6),
+    "walker2d-medium-replay-v2": (17, 6),
+    "walker2d-medium-expert-v2": (17, 6),
+    "ant": (27, 8),
+    "ant-v2": (27, 8),
+    "ant-v3": (27, 8),
+    "ant-v4": (27, 8),
+    "ant-medium-v2": (27, 8),
+    "ant-medium-replay-v2": (27, 8),
+    "ant-medium-expert-v2": (27, 8),
+}
+
+
+def get_env_dims(env_or_name: Union[str, Any, None]) -> Tuple[int, int]:
+    """
+    Automatically resolve (state_dim, action_dim) from a Gymnasium environment,
+    environment name string, or configuration.
+    Avoids hardcoding Hopper's state_dim=11 and action_dim=3 for general scaling.
+    """
+    if env_or_name is None:
+        return 11, 3
+
+    if hasattr(env_or_name, "observation_space") and hasattr(env_or_name, "action_space"):
+        s_dim = int(env_or_name.observation_space.shape[0])
+        a_dim = int(env_or_name.action_space.shape[0])
+        return s_dim, a_dim
+
+    if isinstance(env_or_name, str):
+        key = env_or_name.strip().lower()
+        if key in ENV_DIM_MAP:
+            return ENV_DIM_MAP[key]
+        for prefix, dims in ENV_DIM_MAP.items():
+            if key.startswith(prefix):
+                return dims
+        try:
+            import gymnasium as gym
+            env = gym.make(env_or_name)
+            s_dim = int(env.observation_space.shape[0])
+            a_dim = int(env.action_space.shape[0])
+            env.close()
+            return s_dim, a_dim
+        except Exception:
+            pass
+
+    return 11, 3
 
 
 class SNNDTMuJoCo(nn.Module):
@@ -45,10 +111,11 @@ class SNNDTMuJoCo(nn.Module):
         self,
         backbone: Optional[nn.Module] = None,
         hidden_dim: int = 128,
-        state_dim: int = 11,
-        action_dim: int = 3,
+        state_dim: Optional[int] = None,
+        action_dim: Optional[int] = None,
         act_dim: Optional[int] = None,
         embed_dim: Optional[int] = None,
+        env: Optional[Any] = None,
         max_ep_len: int = 1000,
         context_len: int = 20,
         action_tanh: bool = True,
@@ -66,11 +133,25 @@ class SNNDTMuJoCo(nn.Module):
         **kwargs,
     ):
         super().__init__()
+        # Dynamic environment dimension ingestion (Phase 8 General Scaling)
+        if env is not None:
+            inferred_s, inferred_a = get_env_dims(env)
+            if state_dim is None:
+                state_dim = inferred_s
+            if action_dim is None and act_dim is None:
+                action_dim = inferred_a
+
         # Parameter aliases for flexible instantiation
         if act_dim is not None:
             action_dim = act_dim
         if embed_dim is not None:
             hidden_dim = embed_dim
+
+        # General defaults if still unspecified (fallback)
+        if state_dim is None:
+            state_dim = 11
+        if action_dim is None:
+            action_dim = 3
 
         self.hidden_dim = hidden_dim
         self.embed_dim = hidden_dim
@@ -138,6 +219,7 @@ class SNNDTMuJoCo(nn.Module):
         timesteps: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         return_diagnostics: bool = False,
+        reset_state: bool = True,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, float]]]:
         """
         Forward pass conforming to required Section 4.1 interface:
@@ -147,10 +229,14 @@ class SNNDTMuJoCo(nn.Module):
             returns_to_go  # [B, K, 1]
             timesteps      # [B, K]
             attention_mask # [B, K] (optional)
+            return_diagnostics # bool (default False)
+            reset_state    # bool (default True) - resets LIF membrane state per batch
         Outputs:
             predicted_actions # [B, K, action_dim] (default)
             (or tuple (predicted_actions, diagnostics) if return_diagnostics=True)
         """
+        if reset_state or self.training:
+            self.reset_state()
         B, K, _ = states.shape
         device = states.device
 
@@ -239,8 +325,22 @@ class SNNDTMuJoCo(nn.Module):
         return preds[0, -1]
 
     def reset_state(self):
+        """
+        Architecture-specific state handling (Critical Correction 3):
+        Recursively resets LIF membrane potentials and eligibility traces
+        to ensure one sampled trajectory does not contaminate another in offline RL.
+        """
         if hasattr(self.backbone, "reset_state"):
             self.backbone.reset_state()
+        for m in self.modules():
+            if m is not self and hasattr(m, "reset_state"):
+                m.reset_state()
+
+    @classmethod
+    def from_env(cls, env: Any, **kwargs) -> "SNNDTMuJoCo":
+        """Instantiate model automatically configuring state_dim and action_dim from environment."""
+        s_dim, a_dim = get_env_dims(env)
+        return cls(state_dim=s_dim, action_dim=a_dim, env=env, **kwargs)
 
     def reset_spike_counts(self):
         if hasattr(self.backbone, "reset_spike_counts"):
@@ -270,6 +370,7 @@ class ContinuousSnnDecisionTransformer(SNNDTMuJoCo):
         timesteps: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         return_diagnostics: bool = True,
+        reset_state: bool = True,
     ):
         return super().forward(
             states=states,
@@ -278,22 +379,40 @@ class ContinuousSnnDecisionTransformer(SNNDTMuJoCo):
             timesteps=timesteps,
             attention_mask=attention_mask,
             return_diagnostics=return_diagnostics,
+            reset_state=reset_state,
         )
+
+    @classmethod
+    def from_env(cls, env: Any, **kwargs) -> "ContinuousSnnDecisionTransformer":
+        """Instantiate model automatically configuring state_dim and act_dim from environment."""
+        s_dim, a_dim = get_env_dims(env)
+        return cls(state_dim=s_dim, act_dim=a_dim, env=env, **kwargs)
 
 
 def create_ablation_model(
     ablation_type: str = "full",
-    state_dim: int = 11,
-    act_dim: int = 3,
+    state_dim: Optional[int] = None,
+    act_dim: Optional[int] = None,
+    env: Optional[Any] = None,
     **kwargs,
 ) -> ContinuousSnnDecisionTransformer:
     """
-    Factory function for Phase 7.1 Ablation Study models:
+    Factory function for Phase 7.1 Ablation Study & Phase 8 Scaling models:
     - "full" (SNN-DT Full): Phase coding=✓, Dendritic routing=✓, Local plasticity=✓
     - "ablation_a": Phase coding=✗, Dendritic routing=✓, Local plasticity=✓
     - "ablation_b": Phase coding=✓, Dendritic routing=✗, Local plasticity=✓
     - "ablation_c": Phase coding=✓, Dendritic routing=✓, Local plasticity=✗
     """
+    if env is not None:
+        env_s, env_a = get_env_dims(env)
+        if state_dim is None:
+            state_dim = env_s
+        if act_dim is None:
+            act_dim = env_a
+
+    state_dim = state_dim if state_dim is not None else 11
+    act_dim = act_dim if act_dim is not None else 3
+
     ablation_norm = ablation_type.lower().replace("-", "_").replace(" ", "_")
     if ablation_norm in ("full", "snn_dt_full", "snndt_full"):
         phase_coding = True

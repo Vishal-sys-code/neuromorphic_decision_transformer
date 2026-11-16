@@ -305,7 +305,7 @@ class D4RLLoader:
         elif env_key == "ant-medium-v2":
             candidates.insert(0, "ant_medium-v2.hdf5")
 
-        search_dirs = [data_dir, "data/d4rl", "data"]
+        search_dirs = [data_dir, "data/d4rl_raw", "data/d4rl", "data"]
         for d in search_dirs:
             if not os.path.exists(d):
                 continue

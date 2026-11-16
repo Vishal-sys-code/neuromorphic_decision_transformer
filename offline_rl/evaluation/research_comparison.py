@@ -151,6 +151,20 @@ OFFICIAL_BENCHMARK_BASELINES: Dict[str, Dict[str, Any]] = {
         "target_return": 5000.0,
         "scale": 1000.0,
     },
+    "Ant-medium": {
+        "DT": 68.2,
+        "DT_std": 3.4,
+        "DSFormer": 69.1,
+        "DSFormer_std": 1.8,
+        "DSFormer_TSSA": 67.5,
+        "DSFormer_TSSA_std": 2.1,
+        "env_name": "ant-medium-v2",
+        "gym_env": "Ant-v4",
+        "state_dim": 27,
+        "act_dim": 8,
+        "target_return": 5000.0,
+        "scale": 1000.0,
+    },
 }
 
 # Energy proxy constants (standard CMOS 45nm neuromorphic energy model)
@@ -329,6 +343,9 @@ def build_final_comparison_table(
         "Walker2d-medium",
         "Walker2d-medium-expert",
     ]
+    for b in list(OFFICIAL_BENCHMARK_BASELINES.keys()) + list(results.keys()):
+        if b not in benchmarks_order:
+            benchmarks_order.append(b)
 
     header = "| Benchmark | DT | DSFormer | SNN-DT |"
     separator = "| :--- | :---: | :---: | :---: |"

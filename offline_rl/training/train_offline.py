@@ -240,6 +240,8 @@ def train_model(
             batch = next(loader_iter)
 
         optimizer.zero_grad()
+        if hasattr(model, "reset_state"):
+            model.reset_state()
 
         states = batch["states"].to(target_device)
         actions = batch["actions"].to(target_device)
@@ -384,6 +386,8 @@ class OfflineTrainer:
     def train_step(self, batch: Dict[str, torch.Tensor]) -> Dict[str, float]:
         self.model.train()
         self.optimizer.zero_grad()
+        if hasattr(self.model, "reset_state"):
+            self.model.reset_state()
 
         states = batch["states"].to(self.device)
         actions = batch["actions"].to(self.device)
@@ -503,11 +507,14 @@ def train_offline(
         drop_last=True,
     )
 
-    # Initialize model
+    # Initialize model with automatic environment state & action dimensions
+    s_dim = getattr(dataset, "state_dim", config.get("state_dim", 11))
+    a_dim = getattr(dataset, "act_dim", config.get("act_dim", 3))
+
     m_cfg = config.get("model", {})
     model = ContinuousSnnDecisionTransformer(
-        state_dim=config["state_dim"],
-        act_dim=config["act_dim"],
+        state_dim=s_dim,
+        act_dim=a_dim,
         embed_dim=m_cfg.get("embed_dim", 128),
         n_layer=m_cfg.get("n_layer", 3),
         n_head=m_cfg.get("n_head", 4),

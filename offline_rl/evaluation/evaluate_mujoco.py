@@ -322,7 +322,9 @@ def evaluate_episode(
         r_ctx = returns_to_go[:, start_idx : t + 1]
         t_ctx = timesteps[:, start_idx : t + 1]
 
-        # Reset spike count for this forward step
+        # Reset membrane state and spike count for this forward step
+        if hasattr(model, "reset_state"):
+            model.reset_state()
         if hasattr(model, "reset_spike_counts"):
             model.reset_spike_counts()
 

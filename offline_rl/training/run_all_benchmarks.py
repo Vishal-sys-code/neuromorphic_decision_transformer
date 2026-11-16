@@ -33,6 +33,14 @@ TIERS = {
     "optional": [
         ("Ant", "medium", "offline_rl/configs/ant_medium.yaml"),
     ],
+    "phase8": [
+        ("Hopper", "medium", "offline_rl/configs/hopper_medium.yaml"),
+        ("Hopper", "medium-replay", "offline_rl/configs/hopper_medium_replay.yaml"),
+        ("Hopper", "medium-expert", "offline_rl/configs/hopper_medium_expert.yaml"),
+        ("HalfCheetah", "medium", "offline_rl/configs/halfcheetah_medium.yaml"),
+        ("Walker2d", "medium", "offline_rl/configs/walker2d_medium.yaml"),
+        ("Ant", "medium", "offline_rl/configs/ant_medium.yaml"),
+    ],
 }
 
 
@@ -126,8 +134,8 @@ if __name__ == "__main__":
         "--tier",
         type=str,
         default="first",
-        choices=["first", "second", "third", "optional", "all"],
-        help="Benchmark tier to execute: 'first' (Hopper), 'second' (HalfCheetah), 'third' (Walker2d), 'optional' (Ant), or 'all'",
+        choices=["first", "second", "third", "optional", "phase8", "all"],
+        help="Benchmark tier to execute: 'first' (Hopper), 'second' (HalfCheetah), 'third' (Walker2d), 'optional' (Ant), 'phase8' (Hopper->Replay->Expert->Cheetah->Walker->Ant), or 'all'",
     )
     parser.add_argument("--max_iters", type=int, default=5, help="Number of training iterations per environment")
     parser.add_argument("--steps_per_iter", type=int, default=100, help="Steps per iteration")
