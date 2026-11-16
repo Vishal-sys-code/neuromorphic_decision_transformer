@@ -92,7 +92,7 @@ class VectorizedLIF(nn.Module):
         T, B, L, N = currents.shape
         device = currents.device
         if v0 is None:
-            if self.v is None:
+            if self.v is None or self.v.shape != (B, L, N):
                 v = torch.zeros((B, L, N), dtype=currents.dtype, device=device)
             else:
                 v = self.v
