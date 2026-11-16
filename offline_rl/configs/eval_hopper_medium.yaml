@@ -1,0 +1,35 @@
+# Phase 6: MuJoCo Evaluation Configuration
+# Gate 6: Policy produces valid trajectories
+
+environment: "hopper-medium-v2"
+gym_env: "Hopper-v4"
+target_return: 3000.0
+context_length: 20
+scale: 1000.0
+max_ep_len: 1000
+
+evaluation:
+  num_episodes: 10
+  deterministic: true
+  action_clip: true
+  seeds:
+    - 100
+    - 200
+    - 300
+
+metrics:
+  - mean_return
+  - std_return
+  - normalized_score
+  - episode_length
+  - spike_count
+  - inference_latency
+
+# Exact D4RL-v2 Reference Scores (Official Fu et al., 2020 / Chen et al., 2021)
+reference_scores:
+  random: -20.272305
+  expert: 3234.3
+
+# Hardware & Energy Estimation
+snn_specifics:
+  spike_energy_pJ: 0.5
