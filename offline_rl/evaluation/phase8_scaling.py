@@ -260,7 +260,8 @@ def run_phase8_single_environment(
     device: str = "cpu",
     output_dir: str = "checkpoints/phase8",
     eval_seeds: Optional[List[int]] = None,
-    num_eval_episodes: int = 10,
+    num_eval_episodes: int = 5,
+    max_ep_len: int = 200,
 ) -> Phase8EnvironmentResult:
     """
     Execute Phase 8 workflow for a single environment:
@@ -387,13 +388,15 @@ def run_phase8_single_environment(
     print(f"[Phase8] Checkpoint saved: {ckpt_path}")
 
     # 6. Evaluation on MuJoCo Environment
-    print(f"[Phase8] Evaluating on {gym_name} over {len(eval_seeds)} seeds...")
+    print(f"[Phase8] Evaluating on {gym_name} over {len(eval_seeds)} seed(s) (max_ep_len={max_ep_len})...")
     eval_results = evaluate_mujoco(
         env_name=gym_name,
         model=model,
         state_mean=dataset.state_mean,
         state_std=dataset.state_std,
-        num_episodes=len(eval_seeds),
+        seeds=eval_seeds,
+        num_episodes=1,
+        max_ep_len=max_ep_len,
         target_return=target_return,
         scale=scale,
         device=device,
@@ -491,6 +494,7 @@ def run_full_phase8_scaling(
     output_dir: str = "checkpoints/phase8",
     results_dir: str = "results/phase8",
     num_eval_episodes: int = 5,
+    max_ep_len: int = 200,
 ) -> Dict[str, Any]:
     """
     Orchestrate complete Phase 8 sequence across all 6 environments.
@@ -527,6 +531,7 @@ def run_full_phase8_scaling(
                 device=device,
                 output_dir=output_dir,
                 num_eval_episodes=num_eval_episodes,
+                max_ep_len=max_ep_len,
             )
             results.append(res)
         except Exception as e:
@@ -608,6 +613,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_iters", type=int, default=3, help="Training iterations per environment")
     parser.add_argument("--steps_per_iter", type=int, default=50, help="Steps per training iteration")
     parser.add_argument("--eval_episodes", type=int, default=5, help="Number of evaluation episodes")
+    parser.add_argument("--max_ep_len", type=int, default=200, help="Maximum episode rollout length")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--output_dir", type=str, default="checkpoints/phase8")
     parser.add_argument("--results_dir", type=str, default="results/phase8")
@@ -619,6 +625,7 @@ if __name__ == "__main__":
         max_iters=args.max_iters,
         steps_per_iter=args.steps_per_iter,
         num_eval_episodes=args.eval_episodes,
+        max_ep_len=args.max_ep_len,
         device=args.device,
         output_dir=args.output_dir,
         results_dir=args.results_dir,
