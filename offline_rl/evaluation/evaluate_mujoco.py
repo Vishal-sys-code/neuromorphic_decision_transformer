@@ -279,6 +279,25 @@ def evaluate_episode(
     act_low = env.action_space.low
     act_high = env.action_space.high
 
+    # Ensure state_mean and state_std match environment observation dimension (e.g. Ant 27 vs D4RL 111)
+    if state_mean is not None:
+        state_mean = np.asarray(state_mean, dtype=np.float32)
+        if state_mean.shape[0] > state_dim:
+            state_mean = state_mean[:state_dim]
+        elif state_mean.shape[0] < state_dim:
+            padded_m = np.zeros(state_dim, dtype=np.float32)
+            padded_m[:state_mean.shape[0]] = state_mean
+            state_mean = padded_m
+
+    if state_std is not None:
+        state_std = np.asarray(state_std, dtype=np.float32)
+        if state_std.shape[0] > state_dim:
+            state_std = state_std[:state_dim]
+        elif state_std.shape[0] < state_dim:
+            padded_s = np.ones(state_dim, dtype=np.float32)
+            padded_s[:state_std.shape[0]] = state_std
+            state_std = padded_s
+
     # Resolve context length
     k_ctx = context_len if context_len is not None else getattr(model, "context_len", 20)
 
@@ -868,8 +887,10 @@ def load_trained_model(
                 d4rl_key = resolve_d4rl_name(target_gym)
                 dpath = loader.resolve_or_download_dataset(d4rl_key, auto_download=False)
                 if dpath and os.path.exists(dpath):
-                    trajs = loader.load_from_hdf5(dpath)
+                    trajs = loader.load_from_hdf5(dpath, max_state_dim=state_dim)
                     all_obs = np.concatenate([t.observations for t in trajs], axis=0)
+                    if all_obs.shape[1] > state_dim:
+                        all_obs = all_obs[:, :state_dim]
                     state_mean = all_obs.mean(axis=0).astype(np.float32)
                     state_std = (all_obs.std(axis=0) + 1e-6).astype(np.float32)
                     print(f"[Checkpoint] Loaded observation normalization stats from {dpath}.")
@@ -928,6 +949,14 @@ def load_trained_model(
 
     state_mean = checkpoint.get("state_mean", np.zeros(state_dim, dtype=np.float32))
     state_std = checkpoint.get("state_std", np.ones(state_dim, dtype=np.float32))
+    if state_mean is not None:
+        state_mean = np.asarray(state_mean, dtype=np.float32)
+        if state_mean.shape[0] > state_dim:
+            state_mean = state_mean[:state_dim]
+    if state_std is not None:
+        state_std = np.asarray(state_std, dtype=np.float32)
+        if state_std.shape[0] > state_dim:
+            state_std = state_std[:state_dim]
 
     return model, state_mean, state_std, config
 

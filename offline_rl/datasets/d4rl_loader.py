@@ -329,17 +329,23 @@ class D4RLLoader:
 
         return None
 
-    def load_from_hdf5(self, file_path: str) -> List[Trajectory]:
+    def load_from_hdf5(self, file_path: str, max_state_dim: Optional[int] = None) -> List[Trajectory]:
         """
         Load trajectories from a D4RL HDF5 file.
         Expects keys: 'observations', 'actions', 'rewards', 'terminals', optional 'timeouts'.
+        If max_state_dim is specified, slices observations to match expected state dimension
+        (e.g., slicing 111-dim D4RL Ant observations down to 27-dim kinematics for Ant-v4).
         """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"D4RL dataset file not found: {file_path}")
 
         with h5py.File(file_path, "r") as f:
+            obs = f["observations"][:].astype(np.float32)
+            if max_state_dim is not None and obs.shape[1] > max_state_dim:
+                obs = obs[:, :max_state_dim]
+
             dataset: Dict[str, Any] = {
-                "observations": f["observations"][:].astype(np.float32),
+                "observations": obs,
                 "actions": f["actions"][:].astype(np.float32),
                 "rewards": f["rewards"][:].astype(np.float32),
                 "terminals": f["terminals"][:].astype(bool),
@@ -347,7 +353,10 @@ class D4RLLoader:
             if "timeouts" in f:
                 dataset["timeouts"] = f["timeouts"][:].astype(bool)
             if "next_observations" in f:
-                dataset["next_observations"] = f["next_observations"][:].astype(np.float32)
+                next_obs = f["next_observations"][:].astype(np.float32)
+                if max_state_dim is not None and next_obs.shape[1] > max_state_dim:
+                    next_obs = next_obs[:, :max_state_dim]
+                dataset["next_observations"] = next_obs
 
         episodes = split_d4rl_episodes(
             dataset=dataset,

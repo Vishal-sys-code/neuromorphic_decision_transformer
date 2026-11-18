@@ -277,9 +277,11 @@ def evaluate_snndt_benchmark(
                 model.load_state_dict(ckpt, strict=False)
 
             if "state_mean" in ckpt and ckpt["state_mean"] is not None:
-                state_mean = np.asarray(ckpt["state_mean"], dtype=np.float32)
+                sm = np.asarray(ckpt["state_mean"], dtype=np.float32)
+                state_mean = sm[:state_dim] if sm.shape[0] >= state_dim else sm
             if "state_std" in ckpt and ckpt["state_std"] is not None:
-                state_std = np.asarray(ckpt["state_std"], dtype=np.float32)
+                ss = np.asarray(ckpt["state_std"], dtype=np.float32)
+                state_std = ss[:state_dim] if ss.shape[0] >= state_dim else ss
         else:
             print(f"[Gate7] Warning: No trained checkpoint found for {benchmark_name}. Using initialized baseline.")
             torch.manual_seed(seed)
@@ -303,8 +305,10 @@ def evaluate_snndt_benchmark(
             loader = D4RLLoader()
             dpath = loader.resolve_or_download_dataset(env_name, auto_download=False)
             if dpath and os.path.exists(dpath):
-                trajs = loader.load_from_hdf5(dpath)
+                trajs = loader.load_from_hdf5(dpath, max_state_dim=state_dim)
                 all_obs = np.concatenate([t.observations for t in trajs], axis=0)
+                if all_obs.shape[1] > state_dim:
+                    all_obs = all_obs[:, :state_dim]
                 state_mean = all_obs.mean(axis=0).astype(np.float32)
                 state_std = (all_obs.std(axis=0) + 1e-6).astype(np.float32)
         except Exception:

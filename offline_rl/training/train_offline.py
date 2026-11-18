@@ -483,7 +483,7 @@ def train_offline(
 
     if resolved_data_path and os.path.exists(resolved_data_path):
         print(f"[OfflineRL] Loading trajectories from {resolved_data_path}")
-        trajectories = loader.load_from_hdf5(resolved_data_path)
+        trajectories = loader.load_from_hdf5(resolved_data_path, max_state_dim=config.get("state_dim"))
     else:
         print("[OfflineRL] No local HDF5 dataset found. Generating synthetic dataset for initialization.")
         trajectories = loader.create_synthetic_dataset(

@@ -298,7 +298,7 @@ def run_phase8_single_environment(
 
     if data_file and os.path.exists(data_file):
         print(f"[Phase8] Loading trajectories from {data_file}")
-        trajectories = loader.load_from_hdf5(data_file)
+        trajectories = loader.load_from_hdf5(data_file, max_state_dim=state_dim)
     else:
         print(f"[Phase8] Generating synthetic dataset for {env_name} (state_dim={state_dim}, act_dim={action_dim})")
         trajectories = loader.create_synthetic_dataset(
