@@ -458,18 +458,20 @@ def run_gate7_research_comparison(
     for i, b_name in enumerate(benchmarks_list, 1):
         print(f"\n[{i}/{len(benchmarks_list)}] Evaluating benchmark: {b_name}...")
         env_key = OFFICIAL_BENCHMARK_BASELINES[b_name]["env_name"]
-        ckpt_candidate = os.path.join(checkpoints_dir, f"{env_key}_snn_dt.pt")
-        if not os.path.exists(ckpt_candidate):
-            phase8_cand = os.path.join("checkpoints/phase8", f"{env_key}_snndt_phase8.pt")
-            if os.path.exists(phase8_cand):
-                ckpt_candidate = phase8_cand
-            else:
-                ckpt_candidate = None
+        ckpt_candidate = None
+        for candidate in [
+            os.path.join(checkpoints_dir, f"{env_key}_snn_dt.pt"),
+            os.path.join("checkpoints/phase8", f"{env_key}_snndt_phase8.pt"),
+            os.path.join("checkpoints", f"{env_key}_snn_dt.pt"),
+        ]:
+            if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                ckpt_candidate = candidate
+                break
 
         t0 = time.time()
         entry = evaluate_snndt_benchmark(
             benchmark_name=b_name,
-            checkpoint_path=ckpt_candidate if os.path.exists(ckpt_candidate) else None,
+            checkpoint_path=ckpt_candidate,
             num_episodes=num_episodes,
             device=device,
             seed=seed,
