@@ -633,14 +633,15 @@ def run_full_ablation_study(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Phase 7.1: Ablation Study")
-    parser.add_argument("--data-path", type=str, default="data/d4rl_raw/hopper_medium-v2.hdf5")
-    parser.add_argument("--gym-env", type=str, default="Hopper-v4")
-    parser.add_argument("--env-name", type=str, default="hopper-medium-v2")
-    parser.add_argument("--num-train-steps", type=int, default=40)
-    parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--output-dir", type=str, default="results")
+    parser.add_argument("--data-path", "--data_path", type=str, default="data/d4rl_raw/hopper_medium-v2.hdf5")
+    parser.add_argument("--gym-env", "--gym_env", "--env", type=str, default="Hopper-v4")
+    parser.add_argument("--env-name", "--env_name", type=str, default="hopper-medium-v2")
+    parser.add_argument("--num-train-steps", "--num_train_steps", "--num-steps", "--num_steps", type=int, default=40)
+    parser.add_argument("--batch-size", "--batch_size", type=int, default=16)
+    parser.add_argument("--output-dir", "--output_dir", type=str, default="results")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--num-eval-episodes", "--num_eval_episodes", type=int, default=5)
     args = parser.parse_args()
 
     run_full_ablation_study(

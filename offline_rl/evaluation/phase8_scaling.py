@@ -292,10 +292,10 @@ def run_phase8_single_environment(
 
     # 2. Ensure / Resolve Dataset
     loader = D4RLLoader(gamma=1.0)
-    if d4rl_name == "ant-medium-v2":
-        ensure_ant_dataset()
-
     data_file = loader.resolve_or_download_dataset(d4rl_name, data_dir="data/d4rl_raw")
+    if (data_file is None or not os.path.exists(data_file)) and d4rl_name == "ant-medium-v2":
+        data_file = ensure_ant_dataset()
+
     if data_file and os.path.exists(data_file):
         print(f"[Phase8] Loading trajectories from {data_file}")
         trajectories = loader.load_from_hdf5(data_file)

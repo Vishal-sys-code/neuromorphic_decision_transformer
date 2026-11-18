@@ -239,8 +239,28 @@ def evaluate_snndt_benchmark(
     scale = info["scale"]
 
     # Instantiate or load model
+    ckpt = None
+    state_mean = np.zeros(state_dim, dtype=np.float32)
+    state_std = np.ones(state_dim, dtype=np.float32)
+
+    # If checkpoint_path not explicitly provided or does not exist, search candidate locations
+    if checkpoint_path is None or not os.path.exists(checkpoint_path):
+        candidate_paths = [
+            checkpoint_path,
+            f"checkpoints/phase8/{env_name}_snndt_phase8.pt",
+            f"checkpoints/offline_rl/{env_name}_snn_dt.pt",
+            f"checkpoints/phase8/{env_name.replace('-v2', '')}_snndt_phase8.pt",
+            f"checkpoints/offline_rl/{env_name.replace('-v2', '')}_snn_dt.pt",
+            f"checkpoints/{env_name}_snn_dt.pt",
+        ]
+        for cp in candidate_paths:
+            if cp and os.path.exists(cp) and os.path.getsize(cp) > 0:
+                checkpoint_path = cp
+                break
+
     if model is None:
         if checkpoint_path and os.path.exists(checkpoint_path):
+            print(f"[Gate7] Loading checkpoint for {benchmark_name} from: {checkpoint_path}")
             ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
             model = create_ablation_model(
                 ablation_type="full",
@@ -255,8 +275,13 @@ def evaluate_snndt_benchmark(
                 model.load_state_dict(ckpt["model_state_dict"], strict=False)
             elif isinstance(ckpt, dict):
                 model.load_state_dict(ckpt, strict=False)
+
+            if "state_mean" in ckpt and ckpt["state_mean"] is not None:
+                state_mean = np.asarray(ckpt["state_mean"], dtype=np.float32)
+            if "state_std" in ckpt and ckpt["state_std"] is not None:
+                state_std = np.asarray(ckpt["state_std"], dtype=np.float32)
         else:
-            # Deterministic initialization matching SNN-DT research backbone
+            print(f"[Gate7] Warning: No trained checkpoint found for {benchmark_name}. Using initialized baseline.")
             torch.manual_seed(seed)
             model = create_ablation_model(
                 ablation_type="full",
@@ -271,8 +296,19 @@ def evaluate_snndt_benchmark(
     model.to(device)
     model.eval()
 
-    state_mean = np.zeros(state_dim, dtype=np.float32)
-    state_std = np.ones(state_dim, dtype=np.float32)
+    # Try loading dataset normalization statistics if not present in checkpoint
+    if np.all(state_mean == 0.0) and np.all(state_std == 1.0):
+        try:
+            from offline_rl.datasets.d4rl_loader import D4RLLoader
+            loader = D4RLLoader()
+            dpath = loader.resolve_or_download_dataset(env_name, auto_download=False)
+            if dpath and os.path.exists(dpath):
+                trajs = loader.load_from_hdf5(dpath)
+                all_obs = np.concatenate([t.observations for t in trajs], axis=0)
+                state_mean = all_obs.mean(axis=0).astype(np.float32)
+                state_std = (all_obs.std(axis=0) + 1e-6).astype(np.float32)
+        except Exception:
+            pass
 
     # Perform MuJoCo evaluation
     eval_res = evaluate_mujoco(
@@ -423,6 +459,12 @@ def run_gate7_research_comparison(
         print(f"\n[{i}/{len(benchmarks_list)}] Evaluating benchmark: {b_name}...")
         env_key = OFFICIAL_BENCHMARK_BASELINES[b_name]["env_name"]
         ckpt_candidate = os.path.join(checkpoints_dir, f"{env_key}_snn_dt.pt")
+        if not os.path.exists(ckpt_candidate):
+            phase8_cand = os.path.join("checkpoints/phase8", f"{env_key}_snndt_phase8.pt")
+            if os.path.exists(phase8_cand):
+                ckpt_candidate = phase8_cand
+            else:
+                ckpt_candidate = None
 
         t0 = time.time()
         entry = evaluate_snndt_benchmark(
