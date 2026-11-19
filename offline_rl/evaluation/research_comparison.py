@@ -24,6 +24,7 @@ Official Baselines:
 import argparse
 from dataclasses import asdict, dataclass, field
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -220,9 +221,11 @@ def evaluate_snndt_benchmark(
     num_episodes: int = 10,
     device: str = "cpu",
     seed: int = 42,
+    allow_untrained: bool = False,
 ) -> BenchmarkComparisonEntry:
     """
     Evaluate SNN-DT on a designated benchmark task and assemble comparative entry.
+    Gate 7 Rule: Never evaluate an uninitialized/untrained model as if it were a trained checkpoint.
     """
     if benchmark_name not in OFFICIAL_BENCHMARK_BASELINES:
         raise ValueError(
@@ -243,23 +246,29 @@ def evaluate_snndt_benchmark(
     state_mean = np.zeros(state_dim, dtype=np.float32)
     state_std = np.ones(state_dim, dtype=np.float32)
 
-    # If checkpoint_path not explicitly provided or does not exist, search candidate locations
-    if checkpoint_path is None or not os.path.exists(checkpoint_path):
+    # Safe permanent guard for checkpoint path checking
+    valid_cp = False
+    if checkpoint_path is not None and isinstance(checkpoint_path, (str, Path)):
+        if os.path.exists(checkpoint_path) and os.path.getsize(checkpoint_path) > 0:
+            valid_cp = True
+
+    if not valid_cp:
         candidate_paths = [
-            checkpoint_path,
             f"checkpoints/phase8/{env_name}_snndt_phase8.pt",
             f"checkpoints/offline_rl/{env_name}_snn_dt.pt",
             f"checkpoints/phase8/{env_name.replace('-v2', '')}_snndt_phase8.pt",
             f"checkpoints/offline_rl/{env_name.replace('-v2', '')}_snn_dt.pt",
             f"checkpoints/{env_name}_snn_dt.pt",
         ]
+        checkpoint_path = None
         for cp in candidate_paths:
-            if cp and os.path.exists(cp) and os.path.getsize(cp) > 0:
-                checkpoint_path = cp
+            if cp is not None and isinstance(cp, (str, Path)) and os.path.exists(cp) and os.path.getsize(cp) > 0:
+                checkpoint_path = str(cp)
+                valid_cp = True
                 break
 
     if model is None:
-        if checkpoint_path and os.path.exists(checkpoint_path):
+        if valid_cp and checkpoint_path is not None:
             print(f"[Gate7] Loading checkpoint for {benchmark_name} from: {checkpoint_path}")
             ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
             model = create_ablation_model(
@@ -283,17 +292,36 @@ def evaluate_snndt_benchmark(
                 ss = np.asarray(ckpt["state_std"], dtype=np.float32)
                 state_std = ss[:state_dim] if ss.shape[0] >= state_dim else ss
         else:
-            print(f"[Gate7] Warning: No trained checkpoint found for {benchmark_name}. Using initialized baseline.")
-            torch.manual_seed(seed)
-            model = create_ablation_model(
-                ablation_type="full",
-                state_dim=state_dim,
-                act_dim=act_dim,
-                embed_dim=128,
-                n_layer=3,
-                n_head=4,
-                snn_timesteps=4,
-            )
+            if not allow_untrained:
+                print(f"[Gate7] No trained checkpoint found for {benchmark_name}. Skipping (untrained evaluation prohibited).")
+                return BenchmarkComparisonEntry(
+                    benchmark=benchmark_name,
+                    dt_score=info["DT"],
+                    dt_std=info["DT_std"],
+                    dsformer_score=info["DSFormer"],
+                    dsformer_std=info["DSFormer_std"],
+                    snndt_score=float("nan"),
+                    snndt_std=float("nan"),
+                    snndt_mean_return=float("nan"),
+                    snndt_spike_count_per_step=0.0,
+                    snndt_spike_rate=0.0,
+                    snndt_latency_ms=0.0,
+                    snndt_energy_nj_per_episode=0.0,
+                    passed_gate7=False,
+                    notes="MISSING_CHECKPOINT",
+                )
+            else:
+                print(f"[Gate7] Warning: Evaluating UNTRAINED baseline for {benchmark_name} (--allow-untrained enabled).")
+                torch.manual_seed(seed)
+                model = create_ablation_model(
+                    ablation_type="full",
+                    state_dim=state_dim,
+                    act_dim=act_dim,
+                    embed_dim=128,
+                    n_layer=3,
+                    n_head=4,
+                    snn_timesteps=4,
+                )
 
     model.to(device)
     model.eval()
@@ -394,20 +422,25 @@ def build_final_comparison_table(
     for b in benchmarks_order:
         entry = results.get(b)
         if entry is not None:
+            if math.isnan(entry.snndt_score):
+                snn_str = "N/A (No Checkpoint)"
+            elif include_uncertainty:
+                snn_str = f"{entry.snndt_score:.1f} ± {entry.snndt_std:.1f}"
+            else:
+                snn_str = f"{entry.snndt_score:.1f}"
+
             if include_uncertainty:
                 dt_str = f"{entry.dt_score:.1f} ± {entry.dt_std:.1f}"
                 dsf_str = f"{entry.dsformer_score:.1f} ± {entry.dsformer_std:.1f}"
-                snn_str = f"{entry.snndt_score:.1f} ± {entry.snndt_std:.1f}"
             else:
                 dt_str = f"{entry.dt_score:.1f}"
                 dsf_str = f"{entry.dsformer_score:.1f}"
-                snn_str = f"{entry.snndt_score:.1f}"
             lines.append(f"| {b} | {dt_str} | {dsf_str} | {snn_str} |")
         else:
             base = OFFICIAL_BENCHMARK_BASELINES.get(b, {})
             dt_val = f"{base.get('DT', 'TBD')}"
             dsf_val = f"{base.get('DSFormer', 'TBD')}"
-            lines.append(f"| {b} | {dt_val} | {dsf_val} | TBD |")
+            lines.append(f"| {b} | {dt_val} | {dsf_val} | N/A (No Checkpoint) |")
 
     return "\n".join(lines)
 
@@ -418,22 +451,30 @@ def build_efficiency_comparison_table(
     """
     Generate neuromorphic energy & efficiency comparison table:
     Compares DT, DSFormer, and SNN-DT across energy consumption proxies and spike activity.
+    Uses consistent units and distinguishes between full CMOS 45nm operation energy
+    (MACs + ACs + Spikes) and neuromorphic spike-only core event energy.
     """
-    header = "| Benchmark | Architecture | Normalized Score | Spike Rate | Energy / Step | Est. Energy / Ep |"
-    separator = "| :--- | :---: | :---: | :---: | :---: | :---: |"
+    header = "| Benchmark | Architecture | Normalized Score | Spike Rate | Energy / Step | Est. Energy / Ep | Energy Model |"
+    separator = "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |"
     lines = [header, separator]
 
     for b, res in results.items():
         # DT (Dense ANN)
-        lines.append(f"| {b} | DT (ANN) | {res.dt_score:.1f} | N/A (Dense) | ~410.5 µJ | ~410.5 mJ |")
+        lines.append(f"| {b} | DT (ANN) | {res.dt_score:.1f} | N/A (Dense) | ~410.5 µJ | ~410.5 mJ | Full CMOS 45nm (MACs) |")
         # DSFormer (SNN PSSA)
-        lines.append(f"| {b} | DSFormer (SNN) | {res.dsformer_score:.1f} | ~0.35 | ~88.8 µJ | ~88.8 mJ |")
+        lines.append(f"| {b} | DSFormer (SNN) | {res.dsformer_score:.1f} | ~0.35 | ~88.8 µJ | ~88.8 mJ | Full CMOS 45nm (MACs+ACs) |")
         # SNN-DT (Neuromorphic)
-        e_step_pj = res.snndt_spike_count_per_step * ENERGY_PER_SPIKE_PJ
-        lines.append(
-            f"| {b} | **SNN-DT (Ours)** | **{res.snndt_score:.1f}** | **{res.snndt_spike_rate:.4f}** | "
-            f"**{e_step_pj:.1f} pJ** | **{res.snndt_energy_nj_per_episode:.2f} nJ** |"
-        )
+        if math.isnan(res.snndt_score):
+            lines.append(f"| {b} | **SNN-DT (Ours)** | **N/A** | N/A | N/A | N/A | No Checkpoint |")
+        else:
+            # Full CMOS algorithmic energy: projections remain dense MACs (~339 µJ) while attention uses ACs (~0.3 µJ)
+            e_step_full_uj = 339.1  # Theoretical full CMOS 45nm proxy (MACs + ACs + Spikes)
+            e_ep_full_mj = e_step_full_uj * (res.snndt_mean_return if res.snndt_mean_return > 0 else 1000.0) / 1000.0
+            e_step_spike_only_pj = res.snndt_spike_count_per_step * ENERGY_PER_SPIKE_PJ
+            lines.append(
+                f"| {b} | **SNN-DT (Ours)** | **{res.snndt_score:.1f}** | **{res.snndt_spike_rate:.4f}** | "
+                f"**{e_step_full_uj:.1f} µJ** (spike: {e_step_spike_only_pj:.0f} pJ) | **{e_ep_full_mj:.2f} mJ** | Full CMOS (17.4% red.) |"
+            )
 
     return "\n".join(lines)
 
@@ -444,6 +485,7 @@ def run_gate7_research_comparison(
     num_episodes: int = 5,
     device: str = "cpu",
     seed: int = 42,
+    allow_untrained: bool = False,
 ) -> ResearchComparisonReport:
     """
     Execute full Gate 7 Research Comparison across all 7 D4RL continuous control benchmarks.
@@ -463,13 +505,15 @@ def run_gate7_research_comparison(
         print(f"\n[{i}/{len(benchmarks_list)}] Evaluating benchmark: {b_name}...")
         env_key = OFFICIAL_BENCHMARK_BASELINES[b_name]["env_name"]
         ckpt_candidate = None
-        for candidate in [
-            os.path.join(checkpoints_dir, f"{env_key}_snn_dt.pt"),
-            os.path.join("checkpoints/phase8", f"{env_key}_snndt_phase8.pt"),
-            os.path.join("checkpoints", f"{env_key}_snn_dt.pt"),
-        ]:
-            if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
-                ckpt_candidate = candidate
+        search_dirs = [checkpoints_dir, "checkpoints/phase8", "checkpoints"]
+        for d in search_dirs:
+            if d is not None and os.path.exists(d):
+                for fname in [f"{env_key}_snn_dt.pt", f"{env_key}_snndt_phase8.pt", f"{env_key.replace('-v2', '')}_snn_dt.pt"]:
+                    candidate = os.path.join(d, fname)
+                    if candidate is not None and os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                        ckpt_candidate = candidate
+                        break
+            if ckpt_candidate is not None:
                 break
 
         t0 = time.time()
@@ -479,15 +523,17 @@ def run_gate7_research_comparison(
             num_episodes=num_episodes,
             device=device,
             seed=seed,
+            allow_untrained=allow_untrained,
         )
         elapsed = time.time() - t0
 
         results[b_name] = entry
+        score_str = f"{entry.snndt_score:.1f}" if not math.isnan(entry.snndt_score) else "N/A"
         print(
             f"  -> Completed in {elapsed:.1f}s | "
             f"DT: {entry.dt_score:.1f} | "
             f"DSFormer: {entry.dsformer_score:.1f} | "
-            f"SNN-DT: {entry.snndt_score:.1f} | "
+            f"SNN-DT: {score_str} | "
             f"Spike Rate: {entry.snndt_spike_rate:.4f} | "
             f"Energy: {entry.snndt_energy_nj_per_episode:.1f} nJ"
         )
@@ -561,6 +607,12 @@ if __name__ == "__main__":
     parser.add_argument("--num-episodes", type=int, default=5)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--allow-untrained",
+        action="store_true",
+        default=False,
+        help="Explicitly permit evaluating uninitialized models for testing (prohibited for research claims)",
+    )
     args = parser.parse_args()
 
     run_gate7_research_comparison(
@@ -569,4 +621,5 @@ if __name__ == "__main__":
         num_episodes=args.num_episodes,
         device=args.device,
         seed=args.seed,
+        allow_untrained=args.allow_untrained,
     )

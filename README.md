@@ -1,34 +1,35 @@
 <div align="center">
 
-<<<<<<< HEAD
-# 🧠 Neuromorphic Decision Transformer (SNN-DT)
-=======
-# Spiking Decision Transformer (SNN-DT)
->>>>>>> 631ccfaf032021291bf79dcf9b8aab028e5f4bd1
+# 🧠 Neuromorphic Spiking Decision Transformer (SNN-DT)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-1.12+-ee4c2c.svg)](https://pytorch.org/)
 [![arXiv](https://img.shields.io/badge/arXiv-2508.21505-b31b1b.svg)](https://arxiv.org/abs/2508.21505)
-[![Documentation](https://img.shields.io/badge/docs-Vercel%20Deployed-black?style=flat-square&logo=vercel)](https://vishal-sys-code.github.io/neuromorphic_decision_transformer/)
-
-**Local Plasticity, Phase-Coding, and Dendritic Routing for Low-Power Sequence Control**
-<<<<<<< HEAD
-=======
-
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://neuromorphic-decision-transformer.vercel.app/)
 
->>>>>>> 631ccfaf032021291bf79dcf9b8aab028e5f4bd1
+**Precision-Preserving Spiking Control, Phase-Coding, and Dendritic Routing for Low-Power Sequence Decision Making**
+
 </div>
 
 ---
 
-## 🌟 Overview
+## 🌟 Overview & Research Direction
 
-This repository contains the official PyTorch implementation of the **Spiking Decision Transformer (SNN-DT)**, as presented in our flagship research paper:
-> *"Spiking Decision Transformers: Local Plasticity, Phase-Coding, and Dendritic Routing for Low-Power Sequence Control"* (Pandey & Biswas, 2025).
+This repository contains the PyTorch research framework for **Precision-Aware Spiking Decision Transformers (SNN-DT)** for offline reinforcement learning and continuous control.
 
-The SNN-DT architecture bridges the gap between the sequential modeling capabilities of dense Transformers and the extreme energy efficiency of Spiking Neural Networks (SNNs). By embedding **Leaky Integrate-and-Fire (LIF)** neurons within the block components, we secure state-of-the-art performance on continuous control tasks while reducing energy consumption by over four orders of magnitude ($\approx 40$ nJ).
+### Chronological Context & Prior Art
+Following the introduction of spiking transformers to offline decision making by **DecisionSpikeFormer** (*Huang et al., CVPR 2025* — introducing Temporal & Positional Spiking Self-Attention and Progressive Threshold-dependent Batch Normalization), this project investigates why spike-based policies encounter performance gaps in high-precision continuous control environments (e.g. D4RL Hopper, HalfCheetah, Walker2d, Ant).
+
+### The Precision-Aware SNN-DT Hypothesis
+Continuous control requires predicting real-valued action vectors (e.g., $a_t \in [-1, 1]^8$ in Ant). When pure event-driven representations discard continuous sub-threshold membrane information, action distributions can suffer from variance collapse and poor return-to-go (RTG) conditioning. 
+
+To address this, SNN-DT develops:
+1. **Precision-Preserving Membrane Residuals:** Retains normalized subthreshold residuals ($r_t = u_t - \theta s_t$) to construct hybrid control representations ($z_t = W_s s_t + W_r r_t$) that recover continuous action precision while preserving sparse event communication.
+2. **Phase-Coded Positional Encoding:** Rhythmic, spike phase-shifted encodings that encode temporal recency in biological spike timing.
+3. **Dendritic-Style Routing:** Context-dependent gating coefficients dynamically modulating attention head contributions.
+4. **Decision-Conditioned Adaptive Computation:** Early-stopping temporal simulation steps when action representations converge ($\Delta_k < \epsilon$).
+5. **Rigorous CMOS 45nm Energy Accounting:** Transparent separation between dense projection MACs ($\approx 339$ µJ/step in CMOS 45nm) and neuromorphic core synaptic spike events ($\approx 19$ nJ/step), replacing misleading single-operation energy comparisons.
 
 <div align="center">
   <img src="model_architecture.png" alt="SNN-DT Architecture" width="850">

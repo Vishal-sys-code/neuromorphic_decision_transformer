@@ -341,6 +341,13 @@ class D4RLLoader:
 
         with h5py.File(file_path, "r") as f:
             obs = f["observations"][:].astype(np.float32)
+            # Trace & align Ant observation dimensions:
+            # D4RL ant-medium-v2 includes 84-dim contact forces (cfrc_ext: 14 bodies * 6) + 27-dim kinematics = 111.
+            # Gymnasium Ant-v4 defaults to 27-dim kinematics (use_contact_forces=False).
+            if max_state_dim is None and "ant" in os.path.basename(file_path).lower() and obs.shape[1] == 111:
+                print(f"[D4RLLoader] Auto-align: Slicing 111-dim D4RL Ant observations to 27-dim kinematics space.")
+                max_state_dim = 27
+
             if max_state_dim is not None and obs.shape[1] > max_state_dim:
                 obs = obs[:, :max_state_dim]
 

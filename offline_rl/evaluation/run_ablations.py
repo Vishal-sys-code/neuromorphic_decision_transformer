@@ -231,6 +231,14 @@ def run_single_ablation_experiment(
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
 
+    # Check for insufficient update steps
+    if num_train_steps < 1000:
+        print(
+            f"[Ablation WARNING] num_train_steps={num_train_steps} is an early-stage budget (<1,000 updates). "
+            f"Dendritic routing gating weights and temporal dynamics do not converge at low step counts; "
+            f"interpreting architectural superiority requires >=10k updates."
+        )
+
     # 1. Train and measure sequence loss & latency
     model.train()
     step_latencies = []
