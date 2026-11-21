@@ -1,0 +1,47 @@
+# SNN-DT-H: Hopper Medium-Expert
+# Target: CVPR 2025 Decision SpikeFormer PSSA (110.9 on Hopper-medium-expert)
+
+env_name: "hopper-medium-expert-v2"
+gym_env: "Hopper-v4"
+state_dim: 11
+act_dim: 3
+max_ep_len: 1000
+context_len: 20
+scale: 1000.0
+gamma: 1.0
+
+target_returns: [2800.0, 3200.0, 3600.0, 3800.0]
+target_return: 3600.0
+
+model:
+  architecture: "snndt_h"
+  hidden_dim: 128
+  n_layer: 3
+  n_head: 4
+  snn_timesteps: 4
+  tau: 20.0
+  v_th: 0.5
+  alpha: 25.0
+  current_scale: 1.0
+  dropout: 0.1
+  action_tanh: true
+  use_phase_coding: true
+  attention_mode: "dual"
+  use_dendritic_fusion: true
+  window_size: 8
+  norm_mode: "ptbn"
+  ptbn_transition_steps: 10000
+
+training:
+  batch_size: 64
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-4
+  warmup_steps: 1000
+  grad_norm_clip: 0.25
+  updates_screening: 25000
+  updates_full: 50000
+
+evaluation:
+  num_episodes: 15
+  eval_seeds: [42, 100, 200]
+  d4rl_target_pssa: 110.9

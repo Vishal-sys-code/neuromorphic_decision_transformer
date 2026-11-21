@@ -2,6 +2,17 @@
 Neuromorphic Decision Transformer models for continuous MuJoCo control.
 """
 
+from offline_rl.models.snn_dt_h import (
+    SNNDTH,
+    SpikingTransformerBlockH,
+    create_snndt_h_ablation,
+)
+from offline_rl.models.spiking_attention_modules import (
+    DendriticRoutingFusion,
+    LocalSpikingAttention,
+    ProgressiveThresholdNorm,
+    TemporalSpikingAttention,
+)
 from offline_rl.models.snn_dt_mujoco import (
     ContinuousSnnDecisionTransformer,
     DendriticRouter,
@@ -19,6 +30,13 @@ from offline_rl.models.snn_dt_mujoco import (
 )
 
 __all__ = [
+    "SNNDTH",
+    "SpikingTransformerBlockH",
+    "create_snndt_h_ablation",
+    "LocalSpikingAttention",
+    "TemporalSpikingAttention",
+    "DendriticRoutingFusion",
+    "ProgressiveThresholdNorm",
     "SNNDTMuJoCo",
     "ContinuousSnnDecisionTransformer",
     "create_ablation_model",
